@@ -20,6 +20,7 @@ import {
 } from './oauth.ts';
 import { endpointsFromEnv, type Endpoints } from './endpoints.ts';
 import { planFolder, type FolderPlan } from './tree.ts';
+import { canonicalGmail } from '../../src/lib/accounts.ts';
 import { readStorageUsage, type StorageUsage } from './storage.ts';
 import {
   listChildren,
@@ -40,6 +41,8 @@ export type AccountView = {
   usedBytes: number;
   quotaBytes: number;
   status: 'connected' | 'expired';
+  /** Vrai si ce compte était déjà connecté : la connexion l'a mis à jour. */
+  alreadyConnected?: boolean;
 };
 
 export type ClientStatus = {
@@ -64,9 +67,19 @@ export interface GoogleServiceOptions {
   clientSecret?: string;
 }
 
-/** Identifiant local stable, dérivé du compte Google (jamais du jeton). */
-const accountIdFrom = (email: string) =>
-  `gdrive-${createHash('sha256').update(email.toLowerCase()).digest('hex').slice(0, 12)}`;
+/**
+ * Identifiant local stable, dérivé du compte Google (jamais du jeton).
+ *
+ * On hache la forme **canonique** de l'adresse : `firstboitier1+2@gmail.com` et
+ * `first.boitier1@gmail.com` désignent la même boîte et reçoivent donc le même
+ * identifiant. Sans cela, une deuxième connexion créerait un second compte
+ * fantôme pointant vers le même Drive — ou, selon l'ordre, écraserait le
+ * premier en silence.
+ */
+const accountIdFrom = (email: string) => {
+  const key = canonicalGmail(email) ?? email.trim().toLowerCase();
+  return `gdrive-${createHash('sha256').update(key).digest('hex').slice(0, 12)}`;
+};
 
 export class GoogleService {
   private readonly options: GoogleServiceOptions;
@@ -122,7 +135,15 @@ export class GoogleService {
     return (await this.session.accounts()).map(toView);
   }
 
-  /** Connexion complète : consentement, échange de code, quota initial. */
+  /**
+   * Connexion complète : consentement, échange de code, quota initial.
+   *
+   * Le compte est **mis à jour** si son identifiant canonique est déjà présent.
+   * C'est volontaire : Google renvoie toujours l'adresse principale, donc
+   * autoriser `firstboitier1+2@gmail.com` quand `firstboitier1@gmail.com` est
+   * déjà connecté ne doit pas créer une seconde entrée pointant vers le même
+   * Drive. La vue porte `alreadyConnected` pour que l'interface puisse le dire.
+   */
   async connect(): Promise<AccountView> {
     const config = await this.config();
     const callback = await runLoopbackFlow(config, this.options.openExternal);
@@ -142,16 +163,20 @@ export class GoogleService {
     }
     if (!quota.email) throw new Error('Google n’a pas renvoyé d’adresse pour ce compte.');
 
+    const id = accountIdFrom(quota.email);
+    const existing = await this.session.account(id);
     const now = new Date().toISOString();
     const account: StoredAccount = {
-      id: accountIdFrom(quota.email),
+      id,
       name: quota.name,
       email: quota.email,
       ...(quota.picture ? { picture: quota.picture } : {}),
       usedBytes: quota.usedBytes,
       quotaBytes: quota.quotaBytes,
       status: 'connected',
-      createdAt: now,
+      // La date de première connexion est conservée : elle sert à ordonner les
+      // comptes dans l'interface.
+      createdAt: existing?.createdAt ?? now,
       tokens: {
         accessToken: tokens.accessToken,
         expiresAt: tokens.expiresAt,
@@ -159,7 +184,7 @@ export class GoogleService {
       },
     };
     await this.session.saveAccount(account);
-    return toView(account);
+    return { ...toView(account), ...(existing ? { alreadyConnected: true } : {}) };
   }
 
   async disconnect(accountId: string): Promise<void> {

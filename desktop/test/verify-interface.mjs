@@ -322,6 +322,55 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   );
 }
 
+/* --- 8. Comptes Google : la variante d'adresse est signalée ------------- */
+{
+  // Un second compte dont l'adresse est une variante `+` de la première : la
+  // liste doit le montrer, pas le masquer, et l'écran doit l'expliquer.
+  const variante = await parcours({
+    label: 'compte variante',
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      google: {
+        status: async () => ({ configured: true, source: 'env' }),
+        accounts: async () => [
+          {
+            accountId: 'g-1',
+            name: 'Boitier',
+            email: 'firstboitier1@gmail.com',
+            usedBytes: 1 * 1024 ** 3,
+            quotaBytes: 15 * 1024 ** 3,
+            status: 'connected',
+          },
+          {
+            accountId: 'g-2',
+            name: 'Boitier 2',
+            email: 'firstboitier1+2@gmail.com',
+            usedBytes: 2 * 1024 ** 3,
+            quotaBytes: 15 * 1024 ** 3,
+            status: 'connected',
+          },
+        ],
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+      },
+    },
+  });
+  const drive = [...variante.doc.querySelectorAll('.cloud-item')].find((button) =>
+    (button.textContent ?? '').includes('Google Drive'),
+  );
+  if (drive) await variante.click(drive);
+  const body = variante.doc.querySelector('.page')?.textContent ?? '';
+  check(
+    'comptes : la variante d’adresse est expliquée à l’écran',
+    /variante d’adresse Gmail/.test(body) && /même boîte/.test(body),
+    'pas de doublon silencieux',
+  );
+}
+
 console.log(
   failures === 0
     ? '\nInterface vérifiée : état vide maîtrisé, compte réel affiché, aucun décor.'
