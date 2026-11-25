@@ -4,6 +4,8 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
+  useSyncExternalStore,
   type Dispatch,
   type ReactNode,
 } from 'react';
@@ -19,7 +21,10 @@ import {
 } from './data/catalog';
 import { advanceDownloads, type DownloadItem } from './lib/downloads';
 import { flattenTree, type TreeEntry } from './lib/tree';
+import { remoteCatalog, remoteTree } from './lib/remote';
 import { uid } from './lib/format';
+import { getBridge } from './lib/bridge';
+import { isRealAccount, probeAccounts, realAccountId, toAccount } from './lib/google';
 
 /* ----------------------------------------------------------------------------
  * Types
@@ -66,6 +71,8 @@ export interface AppState {
 export type Action =
   | { type: 'route'; route: Route }
   | { type: 'account/add'; name: string; email: string; provider: ProviderId }
+  | { type: 'account/upsert'; account: Account }
+  | { type: 'account/sync'; accounts: Account[] }
   | {
       type: 'account/patch';
       id: string;
@@ -84,6 +91,18 @@ export type Action =
   | { type: 'downloads/resumeAll' }
   | { type: 'downloads/clearDone' }
   | { type: 'downloads/tick'; elapsed: number }
+  | {
+      type: 'downloads/progress';
+      updates: {
+        id: string;
+        status: 'running' | 'paused' | 'done' | 'error';
+        received: number;
+        size: number;
+        speed: number;
+        path?: string;
+        message?: string;
+      }[];
+    }
   | { type: 'settings/patch'; patch: Partial<Settings> }
   | { type: 'explorer/open'; accountId: string; path?: string[] }
   | { type: 'explorer/chooseAccount'; accountId: string }
@@ -261,6 +280,23 @@ function loadState(): AppState {
 const samePath = (a: string[], b: string[]) =>
   a.length === b.length && a.every((segment, index) => segment === b[index]);
 
+/** Fusion d'un compte synchronisé : on ignore les valeurs identiques. */
+function mergeAccount(previous: Account | undefined, next: Account): Account {
+  if (!previous) return next;
+  const merged: Account = { ...previous, ...next };
+  const identical =
+    merged.name === previous.name &&
+    merged.email === previous.email &&
+    merged.status === previous.status &&
+    merged.usedBytes === previous.usedBytes &&
+    merged.quotaBytes === previous.quotaBytes &&
+    merged.avatarUrl === previous.avatarUrl &&
+    merged.source === previous.source &&
+    merged.googleId === previous.googleId &&
+    merged.localTree === previous.localTree;
+  return identical ? previous : merged;
+}
+
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'route':
@@ -276,6 +312,38 @@ function reducer(state: AppState, action: Action): AppState {
         accounts: [...state.accounts, account],
         revision: state.revision + 1,
       };
+    }
+
+    case 'account/upsert': {
+      const exists = state.accounts.some((item) => item.id === action.account.id);
+      return {
+        ...state,
+        accounts: exists
+          ? state.accounts.map((item) =>
+              item.id === action.account.id ? { ...item, ...action.account } : item,
+            )
+          : [...state.accounts, action.account],
+      };
+    }
+
+    case 'account/sync': {
+      // Les comptes Google reflètent le coffre chiffré ; les comptes fictifs
+      // (y compris ceux de démonstration de Google Drive) sont conservés.
+      const next = [...state.accounts];
+      for (const account of action.accounts) {
+        const index = next.findIndex((item) => item.id === account.id);
+        if (index >= 0) next[index] = mergeAccount(next[index], account);
+        else next.push(account);
+      }
+      const realIds = new Set(action.accounts.map((account) => account.id));
+      const accounts = next.filter(
+        (account) => !isRealAccount(account) || realIds.has(account.id),
+      );
+      if (accounts.length === state.accounts.length &&
+          accounts.every((account, index) => account === state.accounts[index])) {
+        return state;
+      }
+      return { ...state, accounts };
     }
 
     case 'account/patch':
@@ -295,6 +363,11 @@ function reducer(state: AppState, action: Action): AppState {
       };
 
     case 'account/remove': {
+      const removed = state.accounts.find((account) => account.id === action.id);
+      if (removed && isRealAccount(removed)) {
+        const googleId = realAccountId(removed);
+        if (googleId) void getBridge()?.google.disconnect(googleId);
+      }
       const remaining = state.accounts.filter((account) => account.id !== action.id);
       if (remaining.length === 0) return state;
       return {
@@ -344,7 +417,9 @@ function reducer(state: AppState, action: Action): AppState {
     case 'downloads/add':
       return { ...state, downloads: [...action.items, ...state.downloads] };
 
-    case 'downloads/pause':
+    case 'downloads/pause': {
+      const target = state.downloads.find((item) => item.id === action.id);
+      if (target?.remoteId) void getBridge()?.google.pause(action.id);
       return {
         ...state,
         downloads: state.downloads.map((item) =>
@@ -353,8 +428,15 @@ function reducer(state: AppState, action: Action): AppState {
             : item,
         ),
       };
+    }
 
-    case 'downloads/resume':
+    case 'downloads/resume': {
+      const target = state.downloads.find((item) => item.id === action.id);
+      if (target?.remoteId && target.remoteAccount) {
+        void getBridge()
+          ?.google.resume(action.id, target.remoteAccount)
+          .catch(() => undefined);
+      }
       return {
         ...state,
         downloads: state.downloads.map((item) =>
@@ -363,14 +445,56 @@ function reducer(state: AppState, action: Action): AppState {
             : item,
         ),
       };
+    }
 
-    case 'downloads/cancel':
+    case 'downloads/cancel': {
+      const target = state.downloads.find((item) => item.id === action.id);
+      if (target?.remoteId) {
+        void getBridge()?.google.cancel(action.id);
+      }
       return {
         ...state,
         downloads: state.downloads.filter((item) => item.id !== action.id),
       };
+    }
 
-    case 'downloads/pauseAll':
+    case 'downloads/progress': {
+      if (!action.updates.length) return state;
+      const byId = new Map(action.updates.map((update) => [update.id, update]));
+      return {
+        ...state,
+        downloads: state.downloads.map((item) => {
+          const update = byId.get(item.id);
+          if (!update) return item;
+          const status: DownloadItem['status'] =
+            update.status === 'running'
+              ? 'active'
+              : update.status === 'paused'
+                ? 'paused'
+                : update.status === 'done'
+                  ? 'done'
+                  : 'error';
+          return {
+            ...item,
+            status,
+            received: update.received,
+            size: update.size || item.size,
+            speed: update.speed,
+            ...(update.path ? { savedPath: update.path } : {}),
+            ...(update.message ? { error: update.message } : {}),
+            ...(status === 'done'
+              ? { completedAt: new Date().toISOString(), error: undefined }
+              : {}),
+          } satisfies DownloadItem;
+        }),
+      };
+    }
+
+    case 'downloads/pauseAll': {
+      const bridge = getBridge();
+      for (const item of state.downloads) {
+        if (item.remoteId && item.status === 'active') void bridge?.google.pause(item.id);
+      }
       return {
         ...state,
         downloads: state.downloads.map((item) =>
@@ -379,14 +503,22 @@ function reducer(state: AppState, action: Action): AppState {
             : item,
         ),
       };
+    }
 
-    case 'downloads/resumeAll':
+    case 'downloads/resumeAll': {
+      const bridge = getBridge();
       return {
         ...state,
-        downloads: state.downloads.map((item) =>
-          item.status === 'paused' ? { ...item, status: 'queued' } : item,
-        ),
+        downloads: state.downloads.map((item) => {
+          if (item.status !== 'paused') return item;
+          if (item.remoteId && item.remoteAccount) {
+            void bridge?.google.resume(item.id, item.remoteAccount).catch(() => undefined);
+            return { ...item, status: 'active' as const };
+          }
+          return { ...item, status: 'queued' as const };
+        }),
       };
+    }
 
     case 'downloads/clearDone':
       return {
@@ -486,12 +618,75 @@ const StoreContext = createContext<StoreValue | null>(null);
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, loadState);
 
+  // Référence à jour pour les effets qui n'ont pas besoin de se réabonner.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
   // Simulation de la file de téléchargements.
   useEffect(() => {
     const timer = window.setInterval(() => {
       dispatch({ type: 'downloads/tick', elapsed: 900 });
     }, 900);
     return () => window.clearInterval(timer);
+  }, []);
+
+  /**
+   * Comptes Google réels : la source de vérité est le coffre chiffré du
+   * processus principal. On ne fait que refléter ici ce qu'il contient.
+   */
+  useEffect(() => {
+    const bridge = getBridge();
+    if (!bridge) return;
+    let cancelled = false;
+
+    const sync = async () => {
+      const infos = await probeAccounts();
+      if (cancelled) return;
+      dispatch({
+        type: 'account/sync',
+        accounts: infos.map((info) =>
+          toAccount(
+            info,
+            stateRef.current.accounts.find(
+              (account) =>
+                isRealAccount(account) && account.googleId === info.accountId,
+            ) ?? stateRef.current.accounts.find(
+              (account) =>
+                account.provider === 'gdrive' && account.email === info.email,
+            ),
+          ),
+        ),
+      });
+    };
+
+    void sync();
+    return () => {
+      cancelled = true;
+    };
+    // Ne dépend d'aucun état : la synchronisation est déclenchée explicitement.
+  }, []);
+
+  // Progression réelle des transferts pilotés par le processus principal.
+  useEffect(() => {
+    const bridge = getBridge();
+    if (!bridge) return;
+    const stop = bridge.google.onDownload((event) => {
+      dispatch({
+        type: 'downloads/progress',
+        updates: [
+          {
+            id: event.id,
+            status: event.status,
+            received: event.received,
+            size: event.size,
+            speed: event.speed,
+            ...(event.path ? { path: event.path } : {}),
+            ...(event.message ? { message: event.message } : {}),
+          },
+        ],
+      });
+    });
+    return stop;
   }, []);
 
   // Thème + densité appliqués à la racine du document.
@@ -563,12 +758,35 @@ export function catalogKey(accountId: string, path: string[]): string {
 
 export function useCatalog(): Catalog {
   const { state } = useStore();
+  // Les comptes réels alimentent ce catalogue au fil des dossiers chargés :
+  // la révision distante sert de signal de recalcul.
+  const remoteRevision = useSyncExternalStore(
+    remoteCatalog.subscribe,
+    () => remoteCatalog.revision,
+  );
   return useMemo(() => {
     const trees: Record<string, FileNode[]> = {};
     const entries: CatalogEntry[] = [];
     const byKey = new Map<string, CatalogEntry>();
 
     for (const account of state.accounts) {
+      // Compte réel : arborescence reconstruite à partir des dossiers déjà
+      // chargés depuis le fournisseur (voir lib/remote.ts).
+      if (account.localTree === false) {
+        const tree = remoteTree(account.id);
+        trees[account.id] = tree;
+        for (const entry of flattenTree(tree)) {
+          const catalogEntry: CatalogEntry = {
+            accountId: account.id,
+            node: entry.node,
+            path: entry.path,
+            parentPath: entry.parentPath,
+          };
+          entries.push(catalogEntry);
+          byKey.set(catalogKey(account.id, entry.path), catalogEntry);
+        }
+        continue;
+      }
       const tree = buildAccountTree(account);
       trees[account.id] = tree;
       const flat: TreeEntry[] = flattenTree(tree);
@@ -585,7 +803,7 @@ export function useCatalog(): Catalog {
     }
 
     return { trees, entries, byKey };
-  }, [state.accounts]);
+  }, [state.accounts, remoteRevision]);
 }
 
 export function accountById(state: AppState, id: string): Account | undefined {

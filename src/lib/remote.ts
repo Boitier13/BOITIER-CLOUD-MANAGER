@@ -1,0 +1,275 @@
+/**
+ * Catalogue réel, chargé à la demande depuis Google Drive.
+ *
+ * Les comptes de démonstration restent entièrement fictifs : seuls les comptes
+ * d'origine Google passent par ce cache. Une requête en cours par dossier, les
+ * réponses sont conservées pour éviter de solliciter l'API à chaque rendu.
+ */
+
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import type { FileNode } from '../data/catalog';
+import { getBridge, type GoogleFile } from './bridge';
+import { GOOGLE_ROOT, toNode } from './google';
+
+interface FolderState {
+  nodes: FileNode[];
+  status: 'loading' | 'ready' | 'error';
+  error?: string;
+}
+
+/** Séparation `nom lisible::identifiant Drive` dans les segments de chemin. */
+export const ID_SEPARATOR = '::';
+
+export const folderKey = (accountId: string, path: string[]): string =>
+  `${accountId}::${path.join('/')}`;
+
+/** Extrait l'identifiant Drive du dernier segment de chemin. */
+export function driveFolderId(path: string[]): string {
+  if (!path.length) return GOOGLE_ROOT;
+  const last = path[path.length - 1];
+  const index = last.lastIndexOf(ID_SEPARATOR);
+  return index > 0 ? last.slice(index + ID_SEPARATOR.length) : GOOGLE_ROOT;
+}
+
+class RemoteCatalog {
+  private states = new Map<string, FolderState>();
+  private listeners = new Set<() => void>();
+  private snapshot = new Map<string, FolderState>();
+  private counter = 0;
+
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  };
+
+  get = (key: string): FolderState | undefined => this.snapshot.get(key);
+
+  entries = (): FolderState[] => [...this.snapshot.values()];
+
+  private publish(): void {
+    this.snapshot = new Map(this.states);
+    this.counter += 1;
+    for (const listener of this.listeners) listener();
+  }
+
+  /** Change à chaque mise à jour : sert de signal aux vues dérivées. */
+  get revision(): number {
+    return this.counter;
+  }
+
+  searchKey(accountId: string, term: string): string {
+    return `search::${accountId}::${term.trim().toLowerCase()}`;
+  }
+
+  invalidate(accountId?: string): void {
+    if (!accountId) {
+      this.states.clear();
+    } else {
+      for (const key of [...this.states.keys()]) {
+        if (key.startsWith(`${accountId}::`) || key.startsWith(`search::${accountId}::`)) {
+          this.states.delete(key);
+        }
+      }
+    }
+    this.publish();
+  }
+
+  /** Charge le contenu d'un dossier (sans effet si déjà chargé). */
+  load(accountId: string, path: string[]): void {
+    const key = folderKey(accountId, path);
+    const existing = this.states.get(key);
+    if (existing && existing.status === 'ready') return;
+    if (existing && existing.status === 'loading') return;
+    void this.fetchFolder(accountId, path, key);
+  }
+
+  /** Force le rechargement d'un dossier. */
+  reload(accountId: string, path: string[]): void {
+    this.states.delete(folderKey(accountId, path));
+    this.load(accountId, path);
+  }
+
+  private async fetchFolder(accountId: string, path: string[], key: string): Promise<void> {
+    const client = getBridge();
+    if (!client) return;
+    this.states.set(key, { nodes: [], status: 'loading' });
+    this.publish();
+    try {
+      const files = await client.google.list(accountId, driveFolderId(path));
+      this.states.set(key, { nodes: files.map(toNode), status: 'ready' });
+    } catch (cause) {
+      this.states.set(key, {
+        nodes: [],
+        status: 'error',
+        error: (cause as Error).message || 'Google Drive est injoignable.',
+      });
+    }
+    this.publish();
+  }
+
+  search(accountId: string, term: string): void {
+    const query = term.trim();
+    if (query.length < 2) return;
+    const key = this.searchKey(accountId, query);
+    const existing = this.states.get(key);
+    if (existing && existing.status !== 'error') return;
+    void this.fetchSearch(accountId, query, key);
+  }
+
+  private async fetchSearch(accountId: string, query: string, key: string): Promise<void> {
+    const client = getBridge();
+    if (!client) return;
+    this.states.set(key, { nodes: [], status: 'loading' });
+    this.publish();
+    try {
+      const files = await client.google.search(accountId, query.trim());
+      this.states.set(key, { nodes: files.map(toNode), status: 'ready' });
+    } catch (cause) {
+      this.states.set(key, {
+        nodes: [],
+        status: 'error',
+        error: (cause as Error).message || 'Recherche impossible.',
+      });
+    }
+    this.publish();
+  }
+
+  /** Chemins des dossiers déjà chargés d'un compte. */
+  loadedPaths(accountId: string): string[][] {
+    const paths: string[][] = [];
+    for (const key of this.snapshot.keys()) {
+      if (!key.startsWith(`${accountId}::`)) continue;
+      const rest = key.slice(accountId.length + 2);
+      paths.push(rest ? rest.split('/') : []);
+    }
+    return paths.sort((a, b) => a.length - b.length);
+  }
+
+  /** Tous les nœuds déjà chargés (dossiers visités), pour les compteurs. */
+  nodesOf(accountId: string): FileNode[] {
+    const nodes: FileNode[] = [];
+    for (const [key, state] of this.snapshot) {
+      if (key.startsWith(`${accountId}::`) && state.status === 'ready') {
+        nodes.push(...state.nodes);
+      }
+    }
+    return nodes;
+  }
+}
+
+export const remoteCatalog = new RemoteCatalog();
+
+/**
+ * Arborescence partielle d'un compte réel : uniquement les dossiers déjà
+ * visités, imbriqués selon leur chemin. Sert aux vues globales (favoris,
+ * suggestions) sans télécharger tout le Drive.
+ */
+export function remoteTree(accountId: string): FileNode[] {
+  const root: FileNode[] = [];
+  const folders = new Map<string, FileNode[]>();
+  folders.set('', root);
+
+  const ensure = (path: string[]): FileNode[] => {
+    const key = path.join('/');
+    const existing = folders.get(key);
+    if (existing) return existing;
+    const parent = ensure(path.slice(0, -1));
+    const last = path[path.length - 1];
+    const node: FileNode = {
+      id: `remote-${accountId}-${key}`,
+      name: displaySegment(last),
+      type: 'folder',
+      size: 0,
+      modified: new Date(0).toISOString(),
+      children: [],
+    };
+    parent.push(node);
+    const list = node.children as FileNode[];
+    folders.set(key, list);
+    return list;
+  };
+
+  for (const path of remoteCatalog.loadedPaths(accountId)) {
+    const parent = ensure(path);
+    const state = remoteCatalog.get(folderKey(accountId, path));
+    if (!state || state.status !== 'ready') continue;
+    for (const node of state.nodes) {
+      const target = parent.find((item) => item.id === node.id);
+      if (!target) parent.push(node);
+    }
+  }
+  return root;
+}
+
+/** État d'un dossier distant, chargé automatiquement (sans rechargement). */
+export function useRemoteFolder(
+  accountId: string | null,
+  path: string[],
+  enabled: boolean,
+): FolderState | undefined {
+  const key = accountId ? folderKey(accountId, path) : '';
+  const join = path.join('/');
+  const state = useSyncExternalStore(remoteCatalog.subscribe, () =>
+    accountId && enabled ? remoteCatalog.get(key) : undefined,
+  );
+
+  useEffect(() => {
+    if (!enabled || !accountId) return;
+    remoteCatalog.load(accountId, join ? join.split('/') : []);
+  }, [accountId, enabled, join]);
+
+  return state;
+}
+
+/** Résultat d'une recherche distante (dès 2 caractères). */
+export function useRemoteSearch(
+  accountId: string | null,
+  term: string,
+  enabled: boolean,
+): FolderState | undefined {
+  const query = term.trim();
+  const key = accountId ? remoteCatalog.searchKey(accountId, query) : '';
+  const state = useSyncExternalStore(remoteCatalog.subscribe, () =>
+    accountId && enabled && query.length >= 2 ? remoteCatalog.get(key) : undefined,
+  );
+
+  useEffect(() => {
+    if (!enabled || !accountId || query.length < 2) return;
+    remoteCatalog.search(accountId, query);
+  }, [accountId, enabled, query]);
+
+  return state;
+}
+
+/** Recharge un compte ou un dossier (bouton resynchroniser). */
+export function useReloadRemote(): (accountId: string, path?: string[]) => void {
+  return useCallback((accountId: string, path?: string[]) => {
+    if (path) remoteCatalog.reload(accountId, path);
+    else {
+      remoteCatalog.invalidate(accountId);
+      remoteCatalog.load(accountId, []);
+    }
+  }, []);
+}
+
+/** Ajoute l'identifiant Drive au nom, pour reconstruire le chemin inverse. */
+export function segmentFor(file: GoogleFile): string {
+  return `${file.name}${ID_SEPARATOR}${file.id}`;
+}
+
+/** Retire l'identifiant Drive d'un segment de chemin (affichage). */
+export function displaySegment(segment: string): string {
+  const index = segment.lastIndexOf(ID_SEPARATOR);
+  return index > 0 ? segment.slice(0, index) : segment;
+}
+
+/** Chargement en cours quelque part pour ce compte. */
+export function useRemoteBusy(accountId: string | null): boolean {
+  const states = useSyncExternalStore(remoteCatalog.subscribe, () => remoteCatalog.entries());
+  return useMemo(
+    () => Boolean(accountId) && states.some((state) => state.status === 'loading'),
+    [states, accountId],
+  );
+}

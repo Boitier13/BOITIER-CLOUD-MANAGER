@@ -78,6 +78,9 @@ export const PROVIDER_IDS: ProviderId[] = ['mega', 'gdrive', 'shadow', 'terabox'
 
 export const PROVIDER_LIST: Provider[] = PROVIDER_IDS.map((id) => PROVIDERS[id]);
 
+/** Origine du compte : données fictives (défaut) ou compte Google réel. */
+export type AccountSource = 'demo' | 'google';
+
 export interface Account {
   id: string;
   provider: ProviderId;
@@ -88,6 +91,19 @@ export interface Account {
   quotaBytes: number;
   createdAt: string;
   seed: number;
+  /** Absent = compte de démonstration (rétrocompatible avec l'état stocké). */
+  source?: AccountSource;
+  /** Identifiant du compte côté Google (jamais un jeton). */
+  googleId?: string;
+  /** Photo de profil fournie par Google. */
+  avatarUrl?: string;
+  /**
+   * Espace utilisé provenant des autres fournisseurs, lorsque Google ne
+   * publie pas de quota (offres professionnelles illimitées).
+   */
+  usageByProvider?: Partial<Record<ProviderId, number>>;
+  /** `false` : aucun catalogue fictif, les fichiers viennent du cloud réel. */
+  localTree?: boolean;
 }
 
 export interface FileNode {
@@ -464,6 +480,8 @@ function expandSpecs(
 }
 
 export function buildAccountTree(account: Account): FileNode[] {
+  // Compte réel : l'arborescence est chargée à la demande depuis le fournisseur.
+  if (account.localTree === false) return [];
   return expandSpecs(TEMPLATES[account.provider], account.id, [], account.seed);
 }
 

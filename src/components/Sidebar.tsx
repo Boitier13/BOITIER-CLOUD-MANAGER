@@ -29,6 +29,11 @@ export function Sidebar({ onNavigate }: SidebarProps) {
   const countFor = (provider: string) =>
     state.accounts.filter((account) => account.provider === provider).length;
 
+  // Comptes connectés à un service réel (aujourd'hui : Google Drive).
+  const liveCount = state.accounts.filter(
+    (account) => account.source === 'google',
+  ).length;
+
   const activeDownloads = state.downloads.filter(
     (item) => item.status === 'active' || item.status === 'queued',
   ).length;
@@ -101,6 +106,9 @@ export function Sidebar({ onNavigate }: SidebarProps) {
                   style={{ ['--dot' as string]: provider.brand }}
                 />
                 <span className="cloud-item__name">{provider.name}</span>
+                {provider.id === 'gdrive' && liveCount > 0 ? (
+                  <span className="rail-account__live" aria-label="compte réel connecté" />
+                ) : null}
                 <span className="cloud-item__count tnum">{countFor(provider.id)}</span>
               </button>
             );
@@ -128,7 +136,11 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         <div className="demo-chip">
           <HardDrive size={13} strokeWidth={1.8} />
           <span>
-            Démonstration · {formatDecimal(state.accounts.length)} comptes fictifs
+            {liveCount > 0
+              ? `${formatDecimal(liveCount)} compte${liveCount > 1 ? 's' : ''} réel${
+                  liveCount > 1 ? 's' : ''
+                } · ${formatDecimal(state.accounts.length - liveCount)} fictifs`
+              : `Démonstration · ${formatDecimal(state.accounts.length)} comptes fictifs`}
           </span>
         </div>
       </div>

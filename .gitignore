@@ -5,3 +5,10 @@ dist-ssr
 .DS_Store
 .vite
 *.tsbuildinfo
+
+# Bureau (Electron) : artefacts de compilation et données locales
+desktop/dist
+.env.local
+.env
+google-accounts.enc
+*.part

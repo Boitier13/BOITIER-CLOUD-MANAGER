@@ -1,7 +1,7 @@
 import { MB } from '../data/catalog';
 import type { FileType, ProviderId } from '../data/catalog';
 
-export type DownloadStatus = 'queued' | 'active' | 'paused' | 'done';
+export type DownloadStatus = 'queued' | 'active' | 'paused' | 'done' | 'error';
 
 export interface DownloadItem {
   id: string;
@@ -18,6 +18,17 @@ export interface DownloadItem {
   path: string[];
   addedAt: string;
   completedAt?: string;
+  /**
+   * Identifiant du fichier chez le fournisseur. Présent = transfert réel piloté
+   * par le processus principal ; absent = simulation locale.
+   */
+  remoteId?: string;
+  /** Compte Google propriétaire du fichier (identifiant côté coffre). */
+  remoteAccount?: string;
+  /** Message d'erreur lisible (disque plein, autorisation révoquée…). */
+  error?: string;
+  /** Emplacement réel du fichier une fois terminé. */
+  savedPath?: string;
 }
 
 export function simulatedSpeed(size: number, seed: number): number {
@@ -36,6 +47,8 @@ interface CreateArgs {
   accountName: string;
   path: string[];
   seed: number;
+  remoteId?: string;
+  remoteAccount?: string;
 }
 
 export function createDownload(args: CreateArgs): DownloadItem {
@@ -53,6 +66,8 @@ export function createDownload(args: CreateArgs): DownloadItem {
     accountName: args.accountName,
     path: args.path,
     addedAt: new Date().toISOString(),
+    ...(args.remoteId ? { remoteId: args.remoteId } : {}),
+    ...(args.remoteAccount ? { remoteAccount: args.remoteAccount } : {}),
   };
 }
 
@@ -71,7 +86,8 @@ export function advanceDownloads(
   const limit = Math.max(1, Math.min(6, concurrent));
 
   const advanced = items.map((item) => {
-    if (item.status !== 'active') return item;
+    // Les transferts réels (pilotés par Electron) ont leurs propres mesures.
+    if (item.status !== 'active' || item.remoteId) return item;
     const speed = Math.round(item.baseSpeed * (0.78 + Math.random() * 0.44));
     const received = Math.min(item.size, item.received + speed * dt);
     if (received >= item.size) {
@@ -133,4 +149,5 @@ export const statusLabels: Record<DownloadStatus, string> = {
   active: 'En cours',
   paused: 'En pause',
   done: 'Terminé',
+  error: 'Échec',
 };

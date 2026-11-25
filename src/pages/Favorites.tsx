@@ -23,6 +23,8 @@ import {
 } from '../lib/format';
 import { Meter, ProviderMark, TypeIcon } from '../components/visuals';
 import { createDownload } from '../lib/downloads';
+import { displaySegment } from '../lib/remote';
+import { getBridge } from '../lib/bridge';
 import { useToast } from '../components/toast';
 
 interface FavoritesProps {
@@ -48,7 +50,9 @@ export function Favorites({ onOpenEntry }: FavoritesProps) {
       .filter(({ entry, account }) => {
         if (!q) return true;
         const haystack = normalize(
-          `${entry.node.name} ${PROVIDERS[account.provider].name} ${account.name} ${entry.path.join('/')}`,
+          `${entry.node.name} ${PROVIDERS[account.provider].name} ${account.name} ${entry.path
+            .map(displaySegment)
+            .join('/')}`,
         );
         return haystack.includes(q);
       })
@@ -165,7 +169,10 @@ export function Favorites({ onOpenEntry }: FavoritesProps) {
                   <span className="dot-sep" />
                   <span>{account.name}</span>
                   <span className="dot-sep" />
-                  <span className="fav-row__path" title={entry.parentPath.join(' / ')}>
+                  <span
+                    className="fav-row__path"
+                    title={entry.parentPath.map(displaySegment).join(' / ')}
+                  >
                     {entry.parentPath.length ? entry.parentPath.join(' / ') : 'Racine'}
                   </span>
                 </div>
@@ -179,23 +186,38 @@ export function Favorites({ onOpenEntry }: FavoritesProps) {
                   type="button"
                   className="btn btn--sm"
                   onClick={() => {
-                    dispatch({
-                      type: 'downloads/add',
-                      items: [
-                        createDownload({
-                          id: `${entry.node.id}-${Date.now()}`,
-                          name: entry.node.name,
-                          type: entry.node.type,
-                          size: entry.node.size,
-                          provider: account.provider,
-                          accountId: account.id,
-                          accountName: account.name,
-                          path: entry.path,
-                          seed: entry.node.name.length * 5,
-                        }),
-                      ],
+                    const real = account.source === 'google' && account.googleId;
+                    const item = createDownload({
+                      id: `${entry.node.id}-${Date.now()}`,
+                      name: entry.node.name,
+                      type: entry.node.type,
+                      size: entry.node.size,
+                      provider: account.provider,
+                      accountId: account.id,
+                      accountName: account.name,
+                      path: entry.path,
+                      seed: entry.node.name.length * 5,
+                      ...(real && account.googleId
+                        ? { remoteId: entry.node.id, remoteAccount: account.googleId }
+                        : {}),
                     });
-                    toast.push('Ajouté à la file de téléchargement', 'ok');
+                    dispatch({ type: 'downloads/add', items: [item] });
+                    if (real && account.googleId) {
+                      void getBridge()
+                        ?.google.download({
+                          id: item.id,
+                          accountId: account.googleId,
+                          fileId: entry.node.id,
+                          name: entry.node.name,
+                          size: entry.node.size,
+                          dir: state.settings.downloadFolder,
+                        })
+                        .catch((cause: Error) =>
+                          toast.push(cause.message || 'Téléchargement impossible', 'error'),
+                        );
+                    } else {
+                      toast.push('Ajouté à la file de téléchargement', 'ok');
+                    }
                   }}
                 >
                   <ArrowDownToLine size={12} />

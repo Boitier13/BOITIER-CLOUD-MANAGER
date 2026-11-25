@@ -3587,3 +3587,91 @@ tr.is-folder .cell-name__text {
   font-size: 10.5px;
   color: var(--text-4);
 }
+
+/* ---------------------------------------------------------------------------
+ * Google Drive réel — ajouts minimaux, mêmes variables de thème.
+ * ------------------------------------------------------------------------ */
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+.spin[class*='lucide'] {
+  animation: spin 0.9s linear infinite;
+}
+
+/* Avatar du compte réel : photo Google ou initiales, même gabarit. */
+.account-row__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  display: block;
+}
+
+/* Mention discrète d'un compte réel dans l'explorateur. */
+.rail-account__live {
+  margin-left: auto;
+  width: 4px;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--accent);
+  flex: none;
+}
+
+/* Indicateur de chargement d'un dossier distant. */
+.filetable-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 28px 0;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+/* État d'erreur d'une requête distante. */
+.filetable-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 30px 16px;
+  color: var(--text-3);
+  text-align: center;
+}
+
+.filetable-error__title {
+  font-size: 12.5px;
+  color: var(--text-2);
+  margin: 0;
+}
+
+.filetable-error__text {
+  font-size: 11px;
+  margin: 0;
+  max-width: 380px;
+  line-height: 1.5;
+}
+
+/* Chemin réel d'un document Google (non téléchargeable). */
+.download-row__note {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--warn, var(--text-3));
+}
+
+/* Badge « compte réel » dans Clouds. */
+.badge--live {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 32%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}

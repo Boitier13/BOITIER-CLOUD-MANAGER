@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   Check,
   FolderCog,
+  KeyRound,
   Info,
   Minus,
   Monitor,
@@ -16,6 +17,8 @@ import { formatBytes, formatDecimal, formatNumber } from '../lib/format';
 import { Modal } from '../components/Modal';
 import { BrandMark } from '../components/BrandMark';
 import { useToast } from '../components/toast';
+import { isDesktop } from '../lib/bridge';
+import { useGoogleClientStatus } from '../hooks/useGoogle';
 
 const FOLDERS = [
   'C:\\Users\\Boitier\\Téléchargements',
@@ -28,6 +31,7 @@ export function Settings() {
   const { state, dispatch } = useStore();
   const toast = useToast();
   const [resetOpen, setResetOpen] = useState(false);
+  const { status: googleStatus } = useGoogleClientStatus();
   const { settings } = state;
 
   const patch = (value: Partial<typeof settings>) =>
@@ -48,6 +52,57 @@ export function Settings() {
       </div>
 
       <div className="settings">
+        <section className="settings-group">
+          <div className="settings-group__head">
+            <KeyRound size={13} />
+            <span className="settings-group__title">Google Drive</span>
+          </div>
+          <div className="settings-row">
+            <div className="settings-row__text">
+              <div className="settings-row__label">Autorisation Google</div>
+              <div className="settings-row__desc">
+                {!isDesktop()
+                  ? 'Disponible dans l’application Windows : la connexion nécessite le navigateur système et le coffre chiffré de Windows.'
+                  : googleStatus?.configured
+                    ? 'Client OAuth déclaré. Les jetons sont chiffrés par Windows (DPAPI) et ne quittent pas cet ordinateur.'
+                    : 'Aucun client OAuth déclaré. Renseignez l’identifiant client pour connecter un compte.'}
+              </div>
+            </div>
+            <div className="settings-row__control">
+              {isDesktop() ? (
+                <button
+                  type="button"
+                  className="btn btn--sm"
+                  onClick={() => {
+                    window.sessionStorage.setItem('boitier:google-connect', '1');
+                    window.dispatchEvent(new CustomEvent('boitier:navigate-clouds'));
+                  }}
+                >
+                  <KeyRound size={12} />
+                  {googleStatus?.configured ? 'Connecter un compte' : 'Configurer'}
+                </button>
+              ) : (
+                <span className="badge">Application Windows requise</span>
+              )}
+            </div>
+          </div>
+          <div className="settings-row">
+            <div className="settings-row__text">
+              <div className="settings-row__label">Comptes réels</div>
+              <div className="settings-row__desc">
+                Accès en lecture seule : lecture, recherche et téléchargement. Aucune
+                modification ni suppression n’est possible depuis l’application.
+              </div>
+            </div>
+            <div className="settings-row__control">
+              <span className="badge">
+                {formatDecimal(state.accounts.filter((a) => a.source === 'google').length)} connecté
+                {state.accounts.filter((a) => a.source === 'google').length > 1 ? 's' : ''}
+              </span>
+            </div>
+          </div>
+        </section>
+
         <section className="settings-group">
           <div className="settings-group__head">
             <Monitor size={13} />
@@ -152,7 +207,8 @@ export function Settings() {
             <div className="settings-row__text">
               <div className="settings-row__label">Dossier de destination</div>
               <div className="settings-row__desc">
-                Chemin fictif utilisé par la file simulée.
+                Dossier réel des téléchargements Google Drive ; chemin indicatif pour la
+                file simulée.
               </div>
             </div>
             <div className="settings-row__control">
