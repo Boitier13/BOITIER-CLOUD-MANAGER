@@ -39,7 +39,11 @@ import {
   useRemoteSearch,
   useRemoteShared,
 } from '../lib/remote';
-import { getBridge, type GoogleFolderPlan } from '../lib/bridge';
+import {
+  getBridge,
+  type GoogleDownloadRequest,
+  type GoogleFolderPlan,
+} from '../lib/bridge';
 import {
   formatBytes,
   formatDate,
@@ -369,6 +373,36 @@ export function Files() {
    * l'arborescence sur le disque. Le nom affiché garde la forme du chemin pour
    * qu'une file de 200 fichiers reste lisible.
    */
+  /**
+   * Lance des transferts côté processus principal.
+   *
+   * Un refus du processus principal doit apparaître **dans la file** : sans ce
+   * traitement, la ligne restait « En cours » à 0 % alors que rien n'était
+   * téléchargé, et seul un message fugace l'annonçait.
+   */
+  const launchDownloads = (requests: GoogleDownloadRequest[]) => {
+    const bridge = getBridge();
+    if (!bridge) return;
+    for (const request of requests) {
+      void bridge.google.download(request).catch((cause: Error) => {
+        dispatch({
+          type: 'downloads/progress',
+          updates: [
+            {
+              id: request.id,
+              status: 'error',
+              received: 0,
+              size: request.size,
+              speed: 0,
+              message: cause?.message || 'Téléchargement impossible',
+            },
+          ],
+        });
+        toast.push(cause?.message || 'Téléchargement impossible', 'error');
+      });
+    }
+  };
+
   const queuePlan = (
     plan: GoogleFolderPlan,
     folderName: string,
@@ -400,28 +434,24 @@ export function Files() {
       });
     });
 
-    void Promise.all(
-      items.map((item, index) =>
-        bridge.google
-          .download({
-            id: item.id,
-            accountId: googleId,
-            fileId: plan.files[index].fileId,
-            name: item.name.split('/').pop() ?? item.name,
-            size: plan.files[index].size,
-            dir: state.settings.downloadFolder,
-            // Le dossier choisi devient la racine du lot sur le disque.
-            subPath: [folderName, ...plan.files[index].path.split('/').slice(0, -1)]
-              .filter(Boolean)
-              .join('/'),
-          })
-          .catch((cause: Error) =>
-            toast.push(cause.message || 'Téléchargement impossible', 'error'),
-          ),
-      ),
-    );
-
+    // La file est créée avant l'appel au pont : sinon un refus immédiat
+    // arriverait avant la ligne et laisserait un transfert « En cours » à 0 %
+    // qui n'avance jamais.
     dispatch({ type: 'downloads/add', items });
+    launchDownloads(
+      items.map((item, index) => ({
+        id: item.id,
+        accountId: googleId,
+        fileId: plan.files[index].fileId,
+        name: item.name.split('/').pop() ?? item.name,
+        size: plan.files[index].size,
+        dir: state.settings.downloadFolder,
+        // Le dossier choisi devient la racine du lot sur le disque.
+        subPath: [folderName, ...plan.files[index].path.split('/').slice(0, -1)]
+          .filter(Boolean)
+          .join('/'),
+      })),
+    );
     const total = plan.totalBytes;
     toast.push(
       `${folderName} · ${plural(items.length, 'fichier')} (${formatBytes(total)}) en file`,
@@ -470,27 +500,20 @@ export function Files() {
       return;
     }
 
+    dispatch({ type: 'downloads/add', items });
     if (items.length && items[0].remoteId && googleId) {
-      const bridge = getBridge();
       const sizes = new Map(downloadable.map((node) => [node.id, node.size]));
-      void Promise.all(
-        items.map((item) =>
-          bridge?.google
-            .download({
-              id: item.id,
-              accountId: googleId,
-              fileId: item.remoteId as string,
-              name: item.name,
-              size: sizes.get(item.remoteId as string) ?? 0,
-              dir: state.settings.downloadFolder,
-            })
-            .catch((cause: Error) =>
-              toast.push(cause.message || 'Téléchargement impossible', 'error'),
-            ),
-        ),
+      launchDownloads(
+        items.map((item) => ({
+          id: item.id,
+          accountId: googleId,
+          fileId: item.remoteId as string,
+          name: item.name,
+          size: sizes.get(item.remoteId as string) ?? 0,
+          dir: state.settings.downloadFolder,
+        })),
       );
     }
-    dispatch({ type: 'downloads/add', items });
     toast.push(`${plural(items.length, 'téléchargement')} démarré${items.length > 1 ? 's' : ''}`, 'ok');
   };
 

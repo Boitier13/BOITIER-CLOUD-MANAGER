@@ -46,7 +46,18 @@ interface Job {
   size: number;
   status: DownloadStatus;
   paused: boolean;
+  /** Le flux s'est tu trop longtemps : l'abandon vient de nous, pas de Google. */
+  stalled: boolean;
 }
+
+/**
+ * Délai sans le moindre octet avant d'abandonner.
+ *
+ * Un flux bloqué laissait une ligne « En cours » à 0 % indéfiniment : impossible
+ * de distinguer une attente lente d'un échec. Vingt secondes suffisent pour une
+ * réponse de Google, même sur un gros fichier.
+ */
+const STALL_TIMEOUT_MS = 20_000;
 
 /**
  * Chemin de destination d'une entrée de dossier téléchargé.
@@ -101,14 +112,18 @@ export class DownloadManager {
   private readonly emit: (event: DownloadEvent) => void;
   private readonly fallbackDir: () => Promise<string>;
 
+  private readonly stallMs: number;
+
   constructor(
     endpoints: Endpoints,
     emit: (event: DownloadEvent) => void,
     fallbackDir: () => Promise<string>,
+    options: { stallMs?: number } = {},
   ) {
     this.endpoints = endpoints;
     this.emit = emit;
     this.fallbackDir = fallbackDir;
+    this.stallMs = options.stallMs ?? STALL_TIMEOUT_MS;
   }
 
   list(): { id: string; status: DownloadStatus; received: number; size: number }[] {
@@ -128,6 +143,7 @@ export class DownloadManager {
       size: request.size,
       status: 'running',
       paused: false,
+      stalled: false,
     };
     this.jobs.set(request.id, job);
     // Émission immédiate : l'interface affiche le transfert sans attendre le
@@ -169,8 +185,19 @@ export class DownloadManager {
     this.jobs.delete(id);
   }
 
+  /** Abandonne le transfert si le flux reste muet plus de `stallMs`. */
+  private watch(job: Job, timer: { handle?: NodeJS.Timeout }): void {
+    if (timer.handle) clearTimeout(timer.handle);
+    timer.handle = setTimeout(() => {
+      job.stalled = true;
+      job.controller.abort();
+    }, this.stallMs);
+  }
+
   private async run(job: Job, token: string): Promise<void> {
     const { request } = job;
+    const timer: { handle?: NodeJS.Timeout } = {};
+    this.watch(job, timer);
     const dir = relativeDir(request.dir || (await this.fallbackDir()), request.subPath);
     await mkdir(dir, { recursive: true });
     const finalPath = await uniquePath(dir, request.name);
@@ -199,6 +226,7 @@ export class DownloadManager {
         if (done) break;
         if (!value?.length) continue;
         job.received += value.length;
+        this.watch(job, timer);
         if (!sink.write(Buffer.from(value))) await once(sink, 'drain');
 
         const now = Date.now();
@@ -237,6 +265,23 @@ export class DownloadManager {
         (cause as { code?: string }).code === 'ABORT_ERR';
       await rm(partPath, { force: true }).catch(() => undefined);
 
+      if (job.stalled) {
+        const seconds = Math.max(1, Math.round(this.stallMs / 1000));
+        job.status = 'error';
+        this.emit({
+          id: request.id,
+          status: 'error',
+          received: job.received,
+          size: job.size,
+          speed: 0,
+          message:
+            job.received > 0
+              ? `Flux interrompu : plus aucune donnée depuis ${seconds} s (${job.received} o reçus).`
+              : `Google n’a envoyé aucune donnée en ${seconds} s. Vérifiez la connexion puis réessayez.`,
+        });
+        return;
+      }
+
       if (aborted && job.paused) {
         job.status = 'paused';
         this.emit({
@@ -258,6 +303,8 @@ export class DownloadManager {
         speed: 0,
         message: (cause as Error).message || 'Téléchargement interrompu.',
       });
+    } finally {
+      if (timer.handle) clearTimeout(timer.handle);
     }
   }
 }

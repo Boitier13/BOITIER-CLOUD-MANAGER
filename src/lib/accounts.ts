@@ -119,3 +119,30 @@ export function shortAddress(email: string): string {
   const local = email.split('@')[0] ?? email;
   return local.length > 22 ? `${local.slice(0, 21)}…` : local;
 }
+
+/**
+ * Nom lisible d'un compte, quand Google n'en fournit pas d'assez distinctif.
+ *
+ * Deux comptes d'une même personne portent souvent le même nom d'affichage
+ * (« saturnin youkpo »), ce qui rend la liste illisible. On ajoute donc les
+ * chiffres de l'adresse quand ils manquent, et on met une majuscule à chaque
+ * mot : `saturninyoukpo13@gmail.com` devient « Saturnin Youkpo13 ».
+ *
+ * Un nom déjà distinctif (`Boitier First7`) n'est pas modifié.
+ */
+export function suggestedName(info: { name?: string; email: string }): string {
+  const base = titleCase(info.name?.trim() || info.email.split('@')[0] || info.email);
+  const local = info.email.split('@')[0] ?? '';
+  const trailing = /\d+$/.exec(local)?.[0];
+  if (!trailing) return base;
+  // Les chiffres figurent déjà dans le nom : rien à ajouter.
+  if (base.endsWith(trailing)) return base;
+  return `${base}${trailing}`;
+}
+
+/** Majuscule au premier caractère de chaque mot, sans toucher au reste. */
+function titleCase(value: string): string {
+  return value.replace(/(^|[\s._-])([\p{Ll}])/gu, (_match, sep: string, letter: string) =>
+    `${sep}${letter.toUpperCase()}`,
+  );
+}

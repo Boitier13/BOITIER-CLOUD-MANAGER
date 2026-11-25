@@ -4,7 +4,7 @@
  * Le renderer ne reçoit que des métadonnées : jamais de jeton, jamais de secret.
  */
 
-import { ipcMain, shell, type BrowserWindow } from 'electron';
+import { ipcMain, shell, type BrowserWindow, dialog } from 'electron';
 import type { GoogleService } from './google/service.ts';
 import type { DownloadEvent } from './google/downloads.ts';
 
@@ -26,6 +26,7 @@ export const channels = {
   cancel: 'google:cancel',
   refresh: 'google:refresh',
   folder: 'google:folder',
+  chooseFolder: 'desktop:choose-folder',
   event: 'google:download-event',
   openExternal: 'desktop:open-external',
   openFolder: 'desktop:open-folder',
@@ -95,6 +96,25 @@ export function registerIpc(_win: BrowserWindow, service: GoogleService): void {
   handle(channels.cancel, (id: string) => service.cancel(String(id)));
   handle(channels.refresh, (accountId: string) => service.refresh(String(accountId)));
   handle(channels.folder, () => service.downloadsFolder());
+
+  /**
+   * Choix du dossier de destination par la boîte de dialogue du système.
+   *
+   * La liste de dossiers était écrite en dur dans l'interface (`D:\Médias\…`),
+   * chemins inventés qui ne valaient pour aucune machine.
+   */
+  handle(channels.chooseFolder, async () => {
+    const current = await service.downloadsFolder().catch(() => '');
+    const options = {
+      title: 'Dossier de destination des téléchargements',
+      properties: ['openDirectory', 'createDirectory'] as const,
+      ...(current ? { defaultPath: current } : {}),
+    };
+    const result = _win
+      ? await dialog.showOpenDialog(_win, { ...options, properties: [...options.properties] })
+      : await dialog.showOpenDialog({ ...options, properties: [...options.properties] });
+    return result.canceled || !result.filePaths.length ? null : result.filePaths[0];
+  });
 
   // Seuls les liens de configuration Google partent vers le navigateur.
   handle(channels.openExternal, async (url: string) => {

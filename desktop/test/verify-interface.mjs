@@ -555,6 +555,77 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   }
 }
 
+/* --- 11. Un transfert refusé doit s'afficher comme un échec -------------- */
+{
+  const echec = await parcours({
+    label: 'téléchargement refusé',
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      google: {
+        status: async () => ({ configured: true, source: 'env' }),
+        accounts: async () => [
+          {
+            accountId: 'g-1',
+            name: 'Boitier',
+            email: 'boitierecup@gmail.com',
+            usedBytes: 1 * 1024 ** 3,
+            quotaBytes: 15 * 1024 ** 3,
+            status: 'connected',
+          },
+        ],
+        onDownload: () => () => {},
+        list: async () => [
+          {
+            id: 'v1',
+            name: 'Conference.mp4',
+            kind: 'file',
+            mimeType: 'video/mp4',
+            size: 93 * 1024 ** 2,
+            modified: new Date().toISOString(),
+          },
+        ],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+        // Le processus principal refuse : la file doit le dire, pas rester à 0 %.
+        download: async () => {
+          throw new Error('Espace insuffisant sur le disque.');
+        },
+      },
+    },
+  });
+
+  const files = [...echec.doc.querySelectorAll('.nav-item')].find((button) =>
+    (button.textContent ?? '').includes('Tous les fichiers'),
+  );
+  if (files) await echec.click(files);
+  const rowButton = echec.doc.querySelector('[aria-label="Télécharger Conference.mp4"]');
+  check('échec : commande de téléchargement présente', Boolean(rowButton));
+  if (rowButton) {
+    await echec.click(rowButton);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const downloads = [...echec.doc.querySelectorAll('.nav-item')].find((button) =>
+      (button.textContent ?? '').includes('Téléchargements'),
+    );
+    if (downloads) await echec.click(downloads);
+    const body = echec.doc.querySelector('.page')?.textContent ?? '';
+    check(
+      'échec : le refus est écrit dans la file',
+      /Espace insuffisant sur le disque/.test(body),
+      body.slice(0, 80).trim() || 'file vide',
+    );
+    // Le libellé « En cours » existe aussi comme filtre : on regarde la ligne
+    // elle-même, pas la page entière.
+    const ligne = echec.doc.querySelector('.download-row')?.textContent ?? '';
+    check(
+      'échec : le transfert n’est pas présenté comme en cours',
+      /Échec/.test(ligne) && !/En cours/.test(ligne),
+      ligne.slice(0, 70).trim() || 'aucune ligne',
+    );
+  }
+}
+
 console.log(
   failures === 0
     ? '\nInterface vérifiée : état vide maîtrisé, compte réel affiché, aucun décor.'

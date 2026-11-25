@@ -121,6 +121,8 @@ export interface BoitierBridge {
     cancel(id: string): Promise<void>;
     refresh(accountId: string): Promise<GoogleAccountInfo | null>;
     folder(): Promise<string>;
+    /** Boîte de dialogue du système : dossier de destination choisi. */
+    chooseFolder?(): Promise<string | null>;
     onDownload(listener: (event: GoogleDownloadEvent) => void): () => void;
     /** Révèle un fichier dans l'explorateur Windows. */
     openFolder?(path: string): Promise<void>;

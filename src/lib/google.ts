@@ -7,6 +7,7 @@
  */
 
 import { detectType, GB, type Account, type FileNode, type FileType } from '../data/catalog';
+import { suggestedName } from './accounts';
 import { getBridge, type GoogleAccountInfo, type GoogleFile } from './bridge';
 
 export const GOOGLE_ROOT = 'root';
@@ -38,10 +39,20 @@ export async function probeAccounts(): Promise<GoogleAccountInfo[]> {
  */
 export function toAccount(info: GoogleAccountInfo, existing?: Account): Account {
   const previous = existing?.usageByProvider?.gdrive ?? 0;
+  /**
+   * Nom affiché : un renommage manuel est conservé, tout le reste suit la
+   * suggestion. Sans cette règle, les comptes déjà connectés gardaient
+   * « saturnin youkpo » jusqu'à un renommage à la main.
+   */
+  const auto = suggestedName(info);
+  const manual =
+    existing?.name && existing.name !== info.name && existing.name !== auto
+      ? existing.name
+      : undefined;
   return {
     id: existing?.id ?? `gdrive-real-${info.accountId}`,
     provider: 'gdrive',
-    name: existing?.name ?? info.name,
+    name: manual ?? auto,
     email: info.email,
     status: info.status,
     usedBytes: info.usedBytes,

@@ -3911,9 +3911,11 @@ tr.is-folder .cell-name__text {
   align-items: center;
   gap: 5px;
   color: var(--text-2);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* Un libellé se lit en entier : « Documents Google natifs et autr » coupé
+     n'était pas une ellipse, c'était une faute d'affichage. Les noms de
+     fichiers, eux, gardent leur troncature. */
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .storage-row__partial {

@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('boitier', {
     cancel: (id) => invoke('google:cancel', id),
     refresh: (accountId) => invoke('google:refresh', accountId),
     folder: () => invoke('google:folder'),
+    chooseFolder: () => invoke('desktop:choose-folder'),
     openFolder: (path) => invoke('desktop:open-folder', path),
     openExternal: (url) => invoke('desktop:open-external', url),
     onDownload: (listener) => {
