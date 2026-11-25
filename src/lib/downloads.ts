@@ -19,8 +19,8 @@ export interface DownloadItem {
   addedAt: string;
   completedAt?: string;
   /**
-   * Identifiant du fichier chez le fournisseur. Présent = transfert réel piloté
-   * par le processus principal ; absent = simulation locale.
+   * Identifiant du fichier chez le fournisseur : renseigné pour tout transfert
+   * piloté par le processus principal, qui écrit réellement sur le disque.
    */
   remoteId?: string;
   /** Compte Google propriétaire du fichier (identifiant côté coffre). */

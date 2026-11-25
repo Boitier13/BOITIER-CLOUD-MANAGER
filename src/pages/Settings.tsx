@@ -207,8 +207,7 @@ export function Settings() {
             <div className="settings-row__text">
               <div className="settings-row__label">Dossier de destination</div>
               <div className="settings-row__desc">
-                Dossier réel des téléchargements Google Drive ; chemin indicatif pour la
-                file simulée.
+                Emplacement réel des fichiers téléchargés depuis Google Drive.
               </div>
             </div>
             <div className="settings-row__control">
@@ -283,14 +282,15 @@ export function Settings() {
         <section className="settings-group">
           <div className="settings-group__head">
             <SlidersHorizontal size={13} />
-            <span className="settings-group__title">Données de démonstration</span>
+            <span className="settings-group__title">Données locales</span>
           </div>
           <div className="settings-row">
             <div className="settings-row__text">
-              <div className="settings-row__label">Contenu local</div>
+              <div className="settings-row__label">Données conservées sur cet ordinateur</div>
               <div className="settings-row__desc">
-                {formatNumber(state.accounts.length)} comptes · {formatBytes(totalUsed)}{' '}
-                fictifs · {formatDecimal(state.favorites.length)} favoris ·{' '}
+                {formatNumber(state.accounts.length)} compte
+                {state.accounts.length > 1 ? 's' : ''} · {formatBytes(totalUsed)} indexés ·{' '}
+                {formatDecimal(state.favorites.length)} favoris ·{' '}
                 {formatDecimal(state.downloads.length)} transferts
               </div>
             </div>
@@ -324,15 +324,15 @@ export function Settings() {
               </div>
             </div>
             <div className="settings-version">
-              <span className="badge">Démonstration</span>
+              <span className="badge">{isDesktop() ? 'Windows' : 'Navigateur'}</span>
             </div>
           </div>
           <div className="about-block">
             <div style={{ fontSize: 11, color: 'var(--text-4)', lineHeight: 1.6 }}>
-              Interface locale de démonstration. Aucune connexion aux fournisseurs, aucun
-              téléchargement réel, aucune API externe. Les données fictives sont conservées
-              dans le stockage local du navigateur et pourront être remplacées par le
-              back-end ultérieurement.
+              Application locale de gestion de vos fichiers Google Drive. Aucun serveur
+              intermédiaire : les échanges ont lieu directement entre cette fenêtre et
+              Google. Vos préférences et la liste de vos comptes sont conservées sur cet
+              ordinateur ; les autorisations Google sont chiffrées par Windows.
             </div>
           </div>
         </section>
@@ -340,8 +340,8 @@ export function Settings() {
 
       {resetOpen ? (
         <Modal
-          title="Réinitialiser la démonstration ?"
-          description="Les comptes, favoris, transferts et réglages seront restaurés à leur état initial."
+          title="Réinitialiser les données locales ?"
+          description="Les favoris, transferts et réglages seront effacés. Vos comptes Google restent connectés."
           icon={<RotateCcw size={15} />}
           onClose={() => setResetOpen(false)}
           footer={
@@ -359,7 +359,7 @@ export function Settings() {
                 onClick={() => {
                   dispatch({ type: 'data/reset' });
                   setResetOpen(false);
-                  toast.push('Données de démonstration restaurées', 'ok');
+                  toast.push('Données locales effacées', 'ok');
                 }}
               >
                 Restaurer l’état initial

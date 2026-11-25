@@ -33,6 +33,10 @@ export function Home({ onNavigate, onOpenEntry, onAddAccount }: HomeProps) {
   const { state } = useStore();
   const catalog = useCatalog();
 
+  // Aucun compte connecté : l'accueil accueille au lieu d'afficher un tableau de
+  // bord vide. C'est le premier écran que voit un nouvel utilisateur.
+  const welcome = state.accounts.length === 0;
+
   const byProvider = useMemo(() => {
     const map = new Map<ProviderId, { accounts: number; used: number; quota: number }>();
     for (const provider of PROVIDER_LIST) {
@@ -103,6 +107,100 @@ export function Home({ onNavigate, onOpenEntry, onAddAccount }: HomeProps) {
       }).format(new Date()),
     [],
   );
+
+  if (welcome) {
+    return (
+      <div className="page">
+        <div className="page-head">
+          <div className="page-head__text">
+            <div className="home-greeting">
+              <Sparkles size={12} />
+              <span className="home-greeting__date">{today}</span>
+            </div>
+            <h1 className="page-title">Votre espace cloud, réuni.</h1>
+            <p className="page-subtitle">
+              Cette application réunit vos comptes cloud dans une seule fenêtre. Elle
+              n’envoie rien sur Internet, ne copie aucun fichier sans votre demande et ne
+              stocke aucun mot de passe.
+            </p>
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="empty">
+            <span className="empty__icon">
+              <CloudCog size={20} />
+            </span>
+            <p className="empty__title">Aucun compte connecté</p>
+            <p className="empty__text">
+              Connectez votre compte Google pour explorer vos fichiers depuis cette fenêtre.
+              L’application demande uniquement l’autorisation de <b>lire</b> : elle ne peut
+              ni modifier, ni déplacer, ni supprimer quoi que ce soit chez Google.
+            </p>
+            <div className="empty__actions">
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => onAddAccount('gdrive')}
+              >
+                <Plus size={14} strokeWidth={2.4} />
+                Connecter Google Drive
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => onNavigate({ name: 'settings' })}
+              >
+                Voir les réglages
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid-2 section">
+          <section>
+            <div className="section-head">
+              <h2 className="section-title">Ce que fait l’application</h2>
+            </div>
+            <div className="panel">
+              {[
+                ['Parcourir', 'Naviguer dans vos dossiers Google Drive sans rien télécharger.'],
+                ['Rechercher', 'Trouver un fichier par son nom directement chez Google.'],
+                ['Télécharger', 'Enregistrer un fichier de votre Drive sur ce disque.'],
+              ].map(([title, text]) => (
+                <div className="list-row" key={title}>
+                  <span className="list-row__main">
+                    <span className="list-row__title">{title}</span>
+                    <span className="list-row__meta">{text}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <div className="section-head">
+              <h2 className="section-title">Vos données restent chez vous</h2>
+            </div>
+            <div className="panel">
+              {[
+                ['Aucun mot de passe', 'La connexion se fait dans votre navigateur, jamais ici.'],
+                ['Jeton chiffré', 'L’autorisation est chiffrée par Windows (DPAPI).'],
+                ['Lecture seule', 'Aucune écriture n’est possible dans votre Drive.'],
+              ].map(([title, text]) => (
+                <div className="list-row" key={title}>
+                  <span className="list-row__main">
+                    <span className="list-row__title">{title}</span>
+                    <span className="list-row__meta">{text}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page">
@@ -315,7 +413,7 @@ export function Home({ onNavigate, onOpenEntry, onAddAccount }: HomeProps) {
                 </span>
                 <div className="summary-cell__body">
                   <span className="summary-cell__value tnum">{formatSpeed(totalSpeed)}</span>
-                  <span className="summary-cell__label">Débit simulé cumulé</span>
+                  <span className="summary-cell__label">Débit total</span>
                 </div>
                 <span className="badge badge--ok" style={{ marginLeft: 'auto' }}>
                   <span className="dot dot--ok" />

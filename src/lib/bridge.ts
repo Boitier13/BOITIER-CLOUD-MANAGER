@@ -1,8 +1,8 @@
 /**
  * Pont vers le processus principal d'Electron.
  *
- * L'application reste utilisable dans un navigateur : `window.boitier` est alors
- * absent et toutes les fonctions distantes retombent sur la démonstration locale.
+ * L'application reste consultable dans un navigateur : `window.boitier` est alors
+ * absent, et l'interface affiche un état vide plutôt que des données inventées.
  * Aucun jeton ne transite par ce pont : il ne transporte que des métadonnées.
  */
 

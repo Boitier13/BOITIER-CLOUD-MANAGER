@@ -11,9 +11,6 @@ import {
 } from 'react';
 import {
   PROVIDERS,
-  buildAccountTree,
-  makeSeedAccounts,
-  nextAccountDraft,
   type Account,
   type AccountStatus,
   type FileNode,
@@ -22,7 +19,6 @@ import {
 import { advanceDownloads, type DownloadItem } from './lib/downloads';
 import { flattenTree, type TreeEntry } from './lib/tree';
 import { remoteCatalog, remoteTree } from './lib/remote';
-import { uid } from './lib/format';
 import { getBridge } from './lib/bridge';
 import { isRealAccount, probeAccounts, realAccountId, toAccount } from './lib/google';
 
@@ -70,7 +66,6 @@ export interface AppState {
 
 export type Action =
   | { type: 'route'; route: Route }
-  | { type: 'account/add'; name: string; email: string; provider: ProviderId }
   | { type: 'account/upsert'; account: Account }
   | { type: 'account/sync'; accounts: Account[] }
   | {
@@ -125,132 +120,44 @@ const DEFAULT_SETTINGS: Settings = {
   confirmDelete: true,
 };
 
-function hash(value: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < value.length; i += 1) {
-    h ^= value.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-export function createAccount(
-  provider: ProviderId,
-  draft: { name: string; email: string },
-): Account {
-  const quota = PROVIDERS[provider].quota;
-  const step = 10 * 1024 * 1024;
-  const used = Math.round((quota * (0.06 + Math.random() * 0.22)) / step) * step;
-  return {
-    id: `${provider}-${uid()}`,
-    provider,
-    name: draft.name.trim() || PROVIDERS[provider].prefix,
-    email: draft.email.trim() || `compte@${PROVIDERS[provider].domain}`,
-    status: 'connected',
-    usedBytes: used,
-    quotaBytes: quota,
-    createdAt: new Date().toISOString(),
-    seed: hash(draft.name + draft.email) % 97,
-  };
-}
-
 export function createEmptyState(): AppState {
-  const accounts = makeSeedAccounts();
-  const idOf = (name: string) => accounts.find((a) => a.name === name)?.id ?? accounts[0].id;
+  // Aucun compte fictif : l'application démarre vide et propose de connecter
+  // un compte réel. Les écrans doivent tous gérer cet état.
   return {
-    accounts,
-    favorites: [
-      {
-        accountId: idOf('MEGA01'),
-        path: ['Films', 'Dune — Deuxième partie (2024).mkv'],
-        addedAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
-      },
-      {
-        accountId: idOf('MEGA04'),
-        path: ['Documents', 'CV — 2025.pdf'],
-        addedAt: new Date(Date.now() - 8 * 86_400_000).toISOString(),
-      },
-      {
-        accountId: idOf('DRIVE PRO'),
-        path: ['Travail', 'Projets', 'Refonte site', 'Budget prévisionnel.xlsx'],
-        addedAt: new Date(Date.now() - 12 * 86_400_000).toISOString(),
-      },
-      {
-        accountId: idOf('SHADOW01'),
-        path: ['Séries VF', 'Lupin', 'Saison 01', 'Lupin - S01E03.mkv'],
-        addedAt: new Date(Date.now() - 1 * 86_400_000).toISOString(),
-      },
-      {
-        accountId: idOf('TERABOX02'),
-        path: ['Cours', 'Développement web', 'Support de cours.pdf'],
-        addedAt: new Date(Date.now() - 5 * 86_400_000).toISOString(),
-      },
-    ],
+    accounts: [],
+    favorites: [],
     downloads: [],
     settings: DEFAULT_SETTINGS,
     route: { name: 'home' },
-    explorer: { accountId: accounts[0].id, path: [], history: [] },
+    explorer: { accountId: '', path: [], history: [] },
     revision: 0,
   };
 }
 
-function seedDownloads(accounts: Account[]): DownloadItem[] {
-  const base = Date.now();
-  const pick = (name: string) =>
-    accounts.find((account) => account.name === name) ?? accounts[0];
-
-  const draft = [
-    ['MEGA03', 'Severance - S02E02.mkv', 'video', 1.58, 0.46, 4, 'active', 34],
-    ['MEGA01', 'Dune — Deuxième partie (2024).mkv', 'video', 14.6, 0.18, 11, 'active', 52],
-    ['SHADOW02', 'Portrait de la jeune fille en feu.2019.mkv', 'video', 8.6, 0.63, 26, 'paused', 22],
-    ['DRIVE PRO', 'Spécifications techniques.pdf', 'document', 1.4 / 1024, 1, 48, 'done', 3],
-  ] as const;
-
-  return draft.map(([accountName, name, type, sizeGb, progress, minutes, status, speed], index) => {
-    const account = pick(accountName);
-    const size = Math.round(sizeGb * 1024 * 1024 * 1024);
-    const received = status === 'done' ? size : Math.round(size * progress);
-    const addedAt = new Date(base - minutes * 60_000).toISOString();
-    return {
-      id: `seed-${index}`,
-      name,
-      type,
-      size,
-      received,
-      speed: Math.round(speed * 1024 * 1024),
-      baseSpeed: Math.round(speed * 1024 * 1024),
-      status,
-      provider: account.provider,
-      accountId: account.id,
-      accountName: account.name,
-      path: [],
-      addedAt,
-      ...(status === 'done'
-        ? { completedAt: new Date(base - 30 * 60_000).toISOString() }
-        : {}),
-    } satisfies DownloadItem;
-  });
-}
-
 function loadState(): AppState {
   const initial = createEmptyState();
-  initial.downloads = seedDownloads(initial.accounts);
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return initial;
     const parsed = JSON.parse(raw) as Partial<AppState>;
     if (!parsed || !Array.isArray(parsed.accounts)) return initial;
 
+    // Migration : les versions précédentes enregistraient des comptes de
+    // démonstration. Ils sont écartés — seuls les comptes réellement connectés
+    // à un fournisseur subsistent. Leur arborescence fictive disparaît avec eux.
     const accounts = parsed.accounts.filter(
       (account): account is Account =>
-        !!account && !!PROVIDERS[account.provider] && typeof account.id === 'string',
+        !!account &&
+        account.source === 'google' &&
+        !!PROVIDERS[account.provider] &&
+        typeof account.id === 'string',
     );
     if (!accounts.length) return initial;
 
     const accountIds = new Set(accounts.map((account) => account.id));
     const favorites = (parsed.favorites ?? []).filter((fav) => accountIds.has(fav.accountId));
     const downloads = (parsed.downloads ?? []).filter(
-      (item) => item && (accountIds.has(item.accountId) || item.status === 'done'),
+      (item) => item && accountIds.has(item.accountId),
     );
     const settings = { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) };
     const activeAccount = accounts.find((a) => a.id === parsed.explorer?.accountId);
@@ -302,18 +209,6 @@ function reducer(state: AppState, action: Action): AppState {
     case 'route':
       return { ...state, route: action.route };
 
-    case 'account/add': {
-      const account = createAccount(action.provider, {
-        name: action.name,
-        email: action.email,
-      });
-      return {
-        ...state,
-        accounts: [...state.accounts, account],
-        revision: state.revision + 1,
-      };
-    }
-
     case 'account/upsert': {
       const exists = state.accounts.some((item) => item.id === action.account.id);
       return {
@@ -343,7 +238,16 @@ function reducer(state: AppState, action: Action): AppState {
           accounts.every((account, index) => account === state.accounts[index])) {
         return state;
       }
-      return { ...state, accounts };
+      // L'explorateur suit la liste : sans compte au départ, il n'avait aucune
+      // sélection. Dès qu'un compte apparaît, il s'ouvre dessus ; s'il a disparu,
+      // on bascule sur le premier restant.
+      const stillThere = accounts.some((account) => account.id === state.explorer.accountId);
+      const explorer = stillThere
+        ? state.explorer
+        : accounts.length
+          ? { accountId: accounts[0].id, path: [], history: [] }
+          : { accountId: '', path: [], history: [] };
+      return { ...state, accounts, explorer };
     }
 
     case 'account/patch':
@@ -593,11 +497,8 @@ function reducer(state: AppState, action: Action): AppState {
         explorer: { ...state.explorer, history: [], path: [] },
       };
 
-    case 'data/reset': {
-      const fresh = createEmptyState();
-      fresh.downloads = seedDownloads(fresh.accounts);
-      return fresh;
-    }
+    case 'data/reset':
+      return createEmptyState();
 
     default:
       return state;
@@ -769,25 +670,10 @@ export function useCatalog(): Catalog {
     const entries: CatalogEntry[] = [];
     const byKey = new Map<string, CatalogEntry>();
 
+    // Toutes les arborescences proviennent des dossiers déjà chargés depuis le
+    // fournisseur (voir lib/remote.ts) : plus aucun catalogue fictif.
     for (const account of state.accounts) {
-      // Compte réel : arborescence reconstruite à partir des dossiers déjà
-      // chargés depuis le fournisseur (voir lib/remote.ts).
-      if (account.localTree === false) {
-        const tree = remoteTree(account.id);
-        trees[account.id] = tree;
-        for (const entry of flattenTree(tree)) {
-          const catalogEntry: CatalogEntry = {
-            accountId: account.id,
-            node: entry.node,
-            path: entry.path,
-            parentPath: entry.parentPath,
-          };
-          entries.push(catalogEntry);
-          byKey.set(catalogKey(account.id, entry.path), catalogEntry);
-        }
-        continue;
-      }
-      const tree = buildAccountTree(account);
+      const tree = remoteTree(account.id);
       trees[account.id] = tree;
       const flat: TreeEntry[] = flattenTree(tree);
       for (const entry of flat) {
@@ -814,6 +700,3 @@ export function providerAccounts(state: AppState, provider: ProviderId): Account
   return state.accounts.filter((account) => account.provider === provider);
 }
 
-export function defaultDraft(provider: ProviderId, accounts: Account[]) {
-  return nextAccountDraft(provider, accounts);
-}

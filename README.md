@@ -1,20 +1,22 @@
 # BOITIER CLOUD MANAGER
 
-Application de bureau personnelle pour réunir plusieurs comptes de stockage cloud
-(MEGA, Google Drive, Shadow Drive, TeraBox) dans une interface unique : parcourir
-les fichiers, lancer des téléchargements, retrouver ses favoris.
+Application de bureau personnelle pour parcourir et télécharger les fichiers de
+vos comptes **Google Drive** depuis une interface unique.
 
-> **Version 0.2.0 — Google Drive réel, en lecture seule.**
-> Dans sa fenêtre Windows, l’application peut se connecter à un ou plusieurs
-> comptes Google : parcourir les dossiers, rechercher et télécharger réellement
-> les fichiers. MEGA, Shadow Drive et TeraBox restent des démonstrations.
-> Le navigateur reste utilisable : tout y est simulé, comme auparavant.
+> **Uniquement de vrais comptes.** L’application ne présente aucune donnée
+> inventée : sans compte connecté, elle affiche un écran vide qui explique quoi
+> faire. Toutes les informations affichées — comptes, dossiers, tailles, quotas —
+> viennent de Google.
+>
+> L’accès est **en lecture seule** : l’application ne peut ni modifier, ni
+> déplacer, ni supprimer un fichier chez Google. Aucun mot de passe ne lui est
+> transmis : la connexion a lieu dans votre navigateur.
 
 ## Démarrer
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173 — démonstration complète
+npm run dev      # http://localhost:5173 — interface, sans accès aux fichiers
 ```
 
 ```bash
@@ -92,6 +94,7 @@ npm run desktop:test      # 32 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # exploration, recherche, téléchargement réel, pause,
                           # révocation à la déconnexion — sans réseau, avec un
                           # faux Google local
+npm run verify:interface  # six écrans sans compte puis avec un compte simulé
 npm run desktop:paths     # la fenêtre charge dist/ en file://, et possède ses
                           # garde-fous de démarrage (signal de vie, délai, journal)
 npm run desktop:package-test # contenu de l'archive : complet, sans secret,
@@ -118,6 +121,22 @@ ce qui serait de toute façon sans effet en `file://`) :
   transferts ;
 - contrastes des textes secondaires portés au niveau **AA** (≥ 4,5:1) dans les
   deux thèmes, y compris sur les panneaux les plus contrastés (`--panel-3`).
+
+### État vide et comptes
+
+Depuis la version 0.5.0, l'application ne contient plus aucune donnée fictive :
+les fournisseurs MEGA, Shadow Drive et TeraBox, leurs 25 comptes inventés et les
+transferts simulés ont été retirés. Conséquences à connaître :
+
+| Situation | Ce que montre l'application |
+| --- | --- |
+| Aucun compte connecté | un accueil qui explique ce que fait l'application et comment connecter Google Drive |
+| Comptes de démonstration d'une version antérieure | écartés au chargement ; les comptes Google, eux, sont conservés |
+| Aperçu navigateur | les écrans restent consultables, mais les fichiers ne sont pas accessibles (la connexion Google exige la fenêtre Windows) |
+
+`npm run verify:interface` parcourt les six écrans dans les deux situations
+(sans compte, puis avec un compte connecté simulé) et vérifie qu'aucun décor
+fictif ne subsiste.
 
 ### Démarrage de la fenêtre
 
@@ -168,11 +187,11 @@ Pour publier une version : mettre à jour `version` dans `package.json`, puis
 
 | Écran | Contenu |
 | --- | --- |
-| **Accueil** | Comptes par fournisseur, occupation, transferts en cours, derniers fichiers, favoris |
-| **Clouds** | 4 fournisseurs, 11 comptes MEGA, 4 Google Drive, 5 Shadow Drive, 3 TeraBox — ajout, renommage, suppression, filtres ; connexion de comptes Google réels |
+| **Accueil** | Sans compte : présentation et invitation à connecter. Avec : occupation, transferts en cours, derniers fichiers, favoris |
+| **Clouds** | Comptes Google connectés : quota réel, état, renommage, déconnexion ; connexion d’un nouveau compte |
 | **Tous les fichiers** | Explorateur navigable : fil d’Ariane, retour, recherche, tri, filtres par type, sélection multiple ; dossiers Google Drive chargés à la demande |
 | **Téléchargements** | File unifiée : progression, débit, pause/reprise, annulation ; transferts Google Drive réellement écrits sur le disque |
-| **Favoris** | Collection multi-comptes, recherche, répartition par fournisseur |
+| **Favoris** | Collection multi-comptes, recherche, répartition par type |
 | **Paramètres** | Thème sombre/clair, densité, dossier cible, transferts simultanés, réinitialisation |
 
 Raccourcis : `Ctrl+1…4`, `Ctrl+,`, `Ctrl+A` (sélection), `Échap`, `?`.
@@ -184,11 +203,11 @@ son cloud, son compte et son chemin ; un clic bascule automatiquement sur le bon
 
 ```
 src/
-├── data/catalog.ts     Données fictives : fournisseurs, comptes, arborescences
+├── data/catalog.ts     Fournisseurs, types de fichiers, modèle de compte
 ├── lib/
 │   ├── format.ts       Formatage FR (octets, dates, pourcentages)
 │   ├── tree.ts         Helpers d’arborescence (aplatissement, parcours)
-│   ├── downloads.ts    File de transferts (simulation + suivi des transferts réels)
+│   ├── downloads.ts    File de transferts et suivi de leur progression réelle
 │   ├── bridge.ts       Pont typé vers Electron (aucun jeton ne le traverse)
 │   ├── google.ts       Conversion compte/fichier Google → modèle de l’interface
 │   └── remote.ts       Cache des dossiers Drive chargés à la demande
@@ -229,6 +248,11 @@ Toute la logique Google est en TypeScript pur, sans import d’Electron : elle e
 exécutable et testable sous Node (`npm run desktop:test`). Electron n’est qu’un
 conteneur (fenêtre + coffre chiffré + écriture disque).
 
-Le point d’entrée pour les autres fournisseurs reste `src/store.tsx` : les actions
-du reducer (`account/add`, `downloads/add`, `favorite/toggle`…) correspondent aux
-opérations à brancher, sans toucher aux composants d’interface.
+### Ajouter un fournisseur plus tard
+
+L’architecture multi-fournisseurs est conservée : `PROVIDERS` dans
+`src/data/catalog.ts`, la barre latérale et les fiches fournisseur fonctionnent
+par identifiant. Ajouter MEGA revient à déclarer son entrée, à fournir un module
+de lecture (comme `desktop/google/drive.ts`) et à brancher les actions du
+reducer (`account/sync`, `downloads/add`, `favorite/toggle`). Aucun composant
+d’interface n’est à réécrire.

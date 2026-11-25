@@ -137,10 +137,10 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           <HardDrive size={13} strokeWidth={1.8} />
           <span>
             {liveCount > 0
-              ? `${formatDecimal(liveCount)} compte${liveCount > 1 ? 's' : ''} réel${
+              ? `${formatDecimal(liveCount)} compte${liveCount > 1 ? 's' : ''} connecté${
                   liveCount > 1 ? 's' : ''
-                } · ${formatDecimal(state.accounts.length - liveCount)} fictifs`
-              : `Démonstration · ${formatDecimal(state.accounts.length)} comptes fictifs`}
+                } · lecture seule`
+              : 'Aucun compte connecté'}
           </span>
         </div>
       </div>

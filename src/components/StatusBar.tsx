@@ -14,7 +14,7 @@ export function StatusBar({
       {right}
       <span className="statusbar__item">
         <span className="statusbar__live" />
-        Simulation locale
+        Lecture seule
       </span>
     </footer>
   );
