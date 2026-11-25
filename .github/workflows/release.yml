@@ -1,0 +1,52 @@
+name: Installeur Windows
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    # L'installeur doit être construit sur Windows : NSIS et les ressources
+    # de l'application y sont natifs.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      # Types, build de l'interface, processus principal, 30 contrôles Google,
+      # chemins file:// et contenu de l'archive : rien n'est publié sans cela.
+      - name: Vérifications préalables
+        run: npm run verify:desktop
+
+      - name: Construire l'installeur
+        run: npx electron-builder --win nsis --x64 --publish never
+
+      - name: Publier l'installeur dans la release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.exe
+          name: BOITIER CLOUD MANAGER ${{ github.ref_name }}
+          draft: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Conserver l'installeur en artefact
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: boitier-cloud-manager-windows
+          path: release/*.exe
+          retention-days: 14

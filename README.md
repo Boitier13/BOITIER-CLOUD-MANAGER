@@ -24,11 +24,23 @@ npm run preview  # prévisualiser le build
 
 ### Application Windows (Google Drive réel)
 
+Pour **tester sans rien installer** : téléchargez l'installeur depuis les
+[Releases](https://github.com/Boitier13/BOITIER-CLOUD-MANAGER/releases), ou
+déclenchez le workflow *Installeur Windows* (onglet Actions → Run workflow).
+
+Depuis les sources :
+
 ```bash
 npm run desktop:dev   # Vite + fenêtre Electron, avec rechargement à chaud
 npm run desktop       # build complet puis fenêtre Electron
-npm run desktop:test  # vérification de bout en bout hors ligne (faux Google)
+npm run verify:desktop # toutes les vérifications (types, build, tests, chemins)
+npm run package:win   # installeur Windows (nécessite Windows ou une CI Windows)
 ```
+
+> **Windows SmartScreen** : l'installeur n'est pas signé numériquement.
+> Au premier lancement, Windows affiche un avertissement : *Informations
+> complémentaires → Exécuter*. Supprimer cet avertissement demande un
+> certificat de signature de code, payant, hors périmètre d'un usage personnel.
 
 ## Google Drive réel
 
@@ -73,12 +85,36 @@ l’application utilise PKCE (S256) + `state`.
 ## Vérification
 
 ```bash
-npm run typecheck        # interface
-npm run desktop:typecheck
-npm run desktop:test     # 30 contrôles : OAuth/PKCE, coffre chiffré, quota,
-                         # exploration, recherche, téléchargement réel, pause,
-                         # révocation — sans réseau, avec un faux Google local
+npm run verify:desktop    # enchaîne tout ce qui suit
+npm run typecheck         # types de l'interface
+npm run desktop:typecheck # types du processus principal
+npm run desktop:test      # 30 contrôles : OAuth/PKCE, coffre chiffré, quota,
+                          # exploration, recherche, téléchargement réel, pause,
+                          # révocation — sans réseau, avec un faux Google local
+npm run desktop:paths     # la fenêtre charge bien dist/ en file://
+npm run desktop:package-test # contenu de l'archive : complet, sans secret
 ```
+
+### Chargement local (`file://`)
+
+La fenêtre Electron n'ouvre pas un serveur : elle charge `dist/index.html`
+directement depuis le disque. Trois réglages le garantissent, et trois contrôles
+automatisés les vérifient (`npm run desktop:paths`) :
+
+| Réglage | Raison |
+| --- | --- |
+| `base: './'` dans `vite.config.ts` | des chemins absolus (`/assets/…`) pointeraient vers la racine du disque |
+| `inlineDynamicImports: true` | un import dynamique échouerait en `file://` (règles CORS de Chromium) |
+| `__dirname` dans `desktop/main.ts` | `import.meta.url` est vide dans un bundle CommonJS |
+
+Deux workflows GitHub Actions :
+
+| Workflow | Déclencheur | Effet |
+| --- | --- | --- |
+| **Vérification** | chaque push et chaque PR | types, build, 30 contrôles Google, chemins `file://`, contenu de l'archive |
+| **Installeur Windows** | tag `v*` ou lancement manuel | construit `release/BOITIER-CLOUD-MANAGER-x.y.z-setup.exe` et le joint à la release |
+
+Pour publier une version : `git tag v0.3.0 && git push origin v0.3.0`.
 
 ## Fonctionnalités
 
@@ -115,8 +151,13 @@ src/
 │   └── explorer/       Bits réutilisables (fil d’Ariane, tri, cases à cocher)
 └── styles.css          Design system (tokens, composants, thèmes)
 
+build/
+├── icon.ico            Icône Windows (16 → 256 px)
+└── icon.png            Icône source 512 px
+
 desktop/
-├── main.ts             Fenêtre Electron, chemins, instance unique
+├── main.ts             Fenêtre Electron, instance unique
+├── paths.ts            Emplacements (dist/, preload, données) — testable
 ├── preload.cjs         Seul pont exposé à l’interface (CommonJS, sandbox)
 ├── api.ts              Canaux IPC : Google + système (dossiers, liens)
 ├── config.ts           Lecture de .env.local et des variables d’environnement
@@ -128,6 +169,12 @@ desktop/
     ├── drive.ts        API Drive v3 en lecture seule (list, search, about, media)
     ├── downloads.ts    Téléchargement réel (.part → renommage), pause, reprise
     └── service.ts      Assemblage : comptes, sessions, exploration, transferts
+
+desktop/test/
+├── smoke.mjs           Parcours Google complet contre un faux serveur local
+├── fake-google.mjs     Le faux Google (OAuth, Drive, média)
+├── verify-paths.mjs    Chargement de dist/ en file://
+└── verify-package.mjs  Contenu réel de l'archive de l'application
 ```
 
 Toute la logique Google est en TypeScript pur, sans import d’Electron : elle est

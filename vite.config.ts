@@ -12,7 +12,21 @@ const env = (globalThis as { process?: { env?: Record<string, string | undefined
 const hmrClientPort = Number(env?.VITE_HMR_CLIENT_PORT ?? 0);
 
 export default defineConfig({
+  // Chemins relatifs : indispensable pour la fenêtre Electron, qui charge
+  // `dist/index.html` en `file://` (les chemins absolus `/assets/…` y
+  // pointeraient vers la racine du disque, pas vers l'application).
+  base: './',
   plugins: [react()],
+  build: {
+    // Un seul fichier JS : la fenêtre Electron charge `dist/index.html` en
+    // `file://`, où les imports dynamiques échoueraient (CORS / import.meta).
+    modulePreload: false,
+    rollupOptions: {
+      output: {
+        inlineDynamicImports: true,
+      },
+    },
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,

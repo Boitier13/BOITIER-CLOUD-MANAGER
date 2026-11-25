@@ -1,7 +1,7 @@
 {
   "name": "boitier-cloud-manager",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "BOITIER CLOUD MANAGER — gestionnaire local multi-cloud (Google Drive réel en lecture seule)",
   "type": "module",
   "scripts": {
@@ -14,7 +14,12 @@
     "desktop:build": "node desktop/build.mjs",
     "desktop": "npm run build && npm run desktop:build && electron .",
     "desktop:dev": "npm run desktop:build && node desktop/dev.mjs",
-    "desktop:test": "node desktop/test/smoke.mjs"
+    "desktop:test": "node desktop/test/smoke.mjs",
+    "verify:desktop": "npm run typecheck && npm run desktop:typecheck && npm run build && npm run desktop:build && npm run desktop:test && npm run desktop:paths && npm run desktop:package-test",
+    "desktop:paths": "node desktop/test/verify-paths.mjs",
+    "package:win": "npm run build && npm run desktop:build && electron-builder --win nsis --x64",
+    "package:dir": "npm run build && npm run desktop:build && electron-builder --dir",
+    "desktop:package-test": "node desktop/test/verify-package.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.1.1",
@@ -27,9 +32,55 @@
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
-    "electron": "^33.4.11",
+    "electron": "^40.10.6",
+    "electron-builder": "^25.1.8",
     "typescript": "^5.7.2",
     "vite": "^6.0.7"
   },
-  "main": "desktop/dist/main.cjs"
+  "main": "desktop/dist/main.cjs",
+  "build": {
+    "appId": "com.boitier.cloudmanager",
+    "productName": "BOITIER CLOUD MANAGER",
+    "copyright": "© Boitier13",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "desktop/dist/main.cjs",
+      "desktop/dist/preload.cjs",
+      "package.json",
+      "!**/*.map"
+    ],
+    "extraMetadata": {
+      "main": "desktop/dist/main.cjs"
+    },
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "BOITIER-CLOUD-MANAGER-${version}-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "BOITIER CLOUD MANAGER",
+      "uninstallDisplayName": "BOITIER CLOUD MANAGER",
+      "deleteAppDataOnUninstall": false
+    }
+  },
+  "author": {
+    "name": "Boitier13"
+  }
 }

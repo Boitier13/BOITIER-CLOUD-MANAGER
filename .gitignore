@@ -12,3 +12,6 @@ desktop/dist
 .env
 google-accounts.enc
 *.part
+
+# Installeurs produits par electron-builder
+release/
