@@ -68,6 +68,8 @@ export interface BoitierBridge {
     disconnect(accountId: string): Promise<void>;
     list(accountId: string, folderId: string): Promise<GoogleFile[]>;
     search(accountId: string, term: string): Promise<GoogleFile[]>;
+    /** Fichiers partagés avec ce compte, hors de ses propres dossiers. */
+    shared(accountId: string): Promise<GoogleFile[]>;
     download(request: GoogleDownloadRequest): Promise<void>;
     pause(id: string): Promise<void>;
     resume(id: string, accountId: string): Promise<boolean>;

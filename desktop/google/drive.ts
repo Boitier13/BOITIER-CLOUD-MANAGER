@@ -109,6 +109,23 @@ export function listChildren(
   return listAll(endpoints, token, query, 'folder,name_natural', signal);
 }
 
+/**
+ * Fichiers partagés avec ce compte par d'autres personnes, et fichiers dont il
+ * est propriétaire mais qui sont partagés.
+ *
+ * Requête distincte de `listChildren` : un fichier partagé n'est pas dans un
+ * dossier de l'utilisateur, il n'apparaîtrait donc jamais en parcourant la
+ * racine. C'est un manque réel, pas un filtre manquant.
+ */
+export function listShared(
+  endpoints: Endpoints,
+  token: string,
+  signal?: AbortSignal,
+): Promise<DriveItem[]> {
+  const query = 'sharedWithMe = true and trashed = false';
+  return listAll(endpoints, token, query, 'modifiedTime desc', signal);
+}
+
 /** Recherche par nom sur l'ensemble du compte. */
 export function searchFiles(
   endpoints: Endpoints,

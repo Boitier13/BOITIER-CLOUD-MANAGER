@@ -100,7 +100,7 @@ async function parcours({ label, bridge }) {
     after[name] = text();
   }
 
-  return { text, doc, after };
+  return { text, doc, after, click };
 }
 
 /* --- 2. État de départ : aucun compte ----------------------------------- */
@@ -145,6 +145,17 @@ const compte = await parcours({
         },
       ],
       search: async () => [],
+      shared: async () => [
+        {
+          id: 's1',
+          name: 'Planning équipe.xlsx',
+          kind: 'file',
+          mimeType:
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          size: 15_360,
+          modified: new Date().toISOString(),
+        },
+      ],
     },
   },
 });
@@ -154,6 +165,33 @@ check(
   'écran du fournisseur',
 );
 check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text()));
+
+/* --- 4. Vue « Partagés avec moi » --------------------------------------- */
+{
+  const { doc, click } = compte;
+  const files = [...doc.querySelectorAll('.nav-item')].find((button) =>
+    (button.textContent ?? '').includes('Tous les fichiers'),
+  );
+  if (files) await click(files);
+  const sharedEntry = [...doc.querySelectorAll('.rail-account--sub')].find((button) =>
+    (button.textContent ?? '').includes('Partagés avec moi'),
+  );
+  check('vue partagée : entrée présente dans le volet des comptes', Boolean(sharedEntry));
+  if (sharedEntry) {
+    await click(sharedEntry);
+    const crumbs = doc.querySelector('.crumbs')?.textContent ?? '';
+    check('vue partagée : fil d’Ariane nommé', /Partagés avec moi/.test(crumbs), crumbs.trim());
+    check(
+      'vue partagée : le fichier partagé est listé',
+      (doc.querySelector('.filetable-wrap')?.textContent ?? '').includes('Planning équipe.xlsx'),
+    );
+    await click(sharedEntry);
+    check(
+      'vue partagée : retour aux dossiers du compte',
+      !/Partagés avec moi/.test(doc.querySelector('.crumbs')?.textContent ?? ''),
+    );
+  }
+}
 
 console.log(
   failures === 0

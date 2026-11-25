@@ -90,10 +90,10 @@ l’application utilise PKCE (S256) + `state`.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 32 contrôles : OAuth/PKCE, coffre chiffré, quota,
-                          # exploration, recherche, téléchargement réel, pause,
-                          # révocation à la déconnexion — sans réseau, avec un
-                          # faux Google local
+npm run desktop:test      # 34 contrôles : OAuth/PKCE, coffre chiffré, quota,
+                          # exploration, fichiers partagés, recherche,
+                          # téléchargement réel, pause, révocation à la
+                          # déconnexion — sans réseau, avec un faux Google local
 npm run verify:interface  # six écrans sans compte puis avec un compte simulé
 npm run desktop:paths     # la fenêtre charge dist/ en file://, et possède ses
                           # garde-fous de démarrage (signal de vie, délai, journal)
@@ -189,7 +189,7 @@ Pour publier une version : mettre à jour `version` dans `package.json`, puis
 | --- | --- |
 | **Accueil** | Sans compte : présentation et invitation à connecter. Avec : occupation, transferts en cours, derniers fichiers, favoris |
 | **Clouds** | Comptes Google connectés : quota réel, état, renommage, déconnexion ; connexion d’un nouveau compte |
-| **Tous les fichiers** | Explorateur navigable : fil d’Ariane, retour, recherche, tri, filtres par type, sélection multiple ; dossiers Google Drive chargés à la demande |
+| **Tous les fichiers** | Explorateur navigable : fil d’Ariane, retour, recherche, tri, filtres par type, sélection multiple ; dossiers Google Drive chargés à la demande ; sous-vue **Partagés avec moi** (ce que d’autres ont partagé avec le compte, indépendamment de vos dossiers) |
 | **Téléchargements** | File unifiée : progression, débit, pause/reprise, annulation ; transferts Google Drive réellement écrits sur le disque |
 | **Favoris** | Collection multi-comptes, recherche, répartition par type |
 | **Paramètres** | Thème sombre/clair, densité, dossier cible, transferts simultanés, réinitialisation |
@@ -198,6 +198,13 @@ Raccourcis : `Ctrl+1…4`, `Ctrl+,`, `Ctrl+A` (sélection), `Échap`, `?`.
 
 La recherche de l’explorateur couvre **tous les comptes** : chaque résultat affiche
 son cloud, son compte et son chemin ; un clic bascule automatiquement sur le bon compte.
+
+**Partagés avec moi.** Un fichier qu’une autre personne partage avec vous n’est
+rangé dans aucun de vos dossiers : sans cette vue, il resterait invisible dans
+l’application. L’entrée apparaît sous le compte concerné, dans le volet des
+comptes de l’explorateur. La liste vient de la requête Drive `sharedWithMe = true`
+(triée par date de modification) ; double-cliquer sur un dossier partagé l’ouvre
+comme n’importe quel dossier.
 
 ## Architecture
 
