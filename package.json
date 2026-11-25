@@ -1,0 +1,27 @@
+{
+  "name": "boitier-cloud-manager",
+  "private": true,
+  "version": "0.1.0",
+  "description": "BOITIER CLOUD MANAGER — gestionnaire local multi-cloud (front-end de démonstration)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "dev:preview": "VITE_HMR_CLIENT_PORT=443 vite"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.1.1",
+    "lucide-react": "^0.469.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7"
+  }
+}
