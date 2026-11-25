@@ -162,7 +162,7 @@ Deux workflows GitHub Actions :
 | **Installeur Windows** | tag `v*` ou lancement manuel | construit `release/BOITIER-CLOUD-MANAGER-x.y.z-setup.exe` et le joint à la release |
 
 Pour publier une version : mettre à jour `version` dans `package.json`, puis
-`git tag v0.4.0 && git push origin v0.4.0`.
+`git tag v0.4.1 && git push origin v0.4.1`.
 
 ## Fonctionnalités
 
