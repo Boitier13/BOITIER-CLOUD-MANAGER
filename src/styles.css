@@ -3226,6 +3226,86 @@ tr.is-folder .cell-name__text {
   border-color: color-mix(in srgb, var(--danger) 22%, transparent);
 }
 
+/* Préparation d'un téléchargement de dossier : un résumé, pas une fiche. */
+.folder-plan {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
+.folder-plan svg {
+  flex: none;
+  color: var(--text-4);
+}
+
+.folder-plan b {
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.folder-plan__path {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--input-bg);
+}
+
+.folder-plan__label {
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+
+.folder-plan__value {
+  font-size: 12.5px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.folder-plan__tree {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+.folder-plan__entry {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-left: 11px;
+  position: relative;
+}
+
+.folder-plan__entry::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 2px;
+  background: var(--text-4);
+  opacity: 0.5;
+}
+
+.folder-plan__entry--more {
+  color: var(--text-4);
+}
+
 .callout {
   display: flex;
   gap: 9px;

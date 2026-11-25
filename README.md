@@ -90,10 +90,11 @@ l’application utilise PKCE (S256) + `state`.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 34 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 38 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # exploration, fichiers partagés, recherche,
-                          # téléchargement réel, pause, révocation à la
-                          # déconnexion — sans réseau, avec un faux Google local
+                          # téléchargement réel, dossier entier, pause,
+                          # révocation à la déconnexion — sans réseau, avec un
+                          # faux Google local
 npm run verify:interface  # six écrans sans compte puis avec un compte simulé
 npm run desktop:paths     # la fenêtre charge dist/ en file://, et possède ses
                           # garde-fous de démarrage (signal de vie, délai, journal)
@@ -190,7 +191,7 @@ Pour publier une version : mettre à jour `version` dans `package.json`, puis
 | **Accueil** | Sans compte : présentation et invitation à connecter. Avec : occupation, transferts en cours, derniers fichiers, favoris |
 | **Clouds** | Comptes Google connectés : quota réel, état, renommage, déconnexion ; connexion d’un nouveau compte |
 | **Tous les fichiers** | Explorateur navigable : fil d’Ariane, retour, recherche, tri, filtres par type, sélection multiple ; dossiers Google Drive chargés à la demande ; sous-vue **Partagés avec moi** (ce que d’autres ont partagé avec le compte, indépendamment de vos dossiers) |
-| **Téléchargements** | File unifiée : progression, débit, pause/reprise, annulation ; transferts Google Drive réellement écrits sur le disque |
+| **Téléchargements** | File unifiée : progression, débit, pause/reprise, annulation ; transferts Google Drive réellement écrits sur le disque, y compris **un dossier entier** (arborescence conservée) |
 | **Favoris** | Collection multi-comptes, recherche, répartition par type |
 | **Paramètres** | Thème sombre/clair, densité, dossier cible, transferts simultanés, réinitialisation |
 
@@ -198,6 +199,15 @@ Raccourcis : `Ctrl+1…4`, `Ctrl+,`, `Ctrl+A` (sélection), `Échap`, `?`.
 
 La recherche de l’explorateur couvre **tous les comptes** : chaque résultat affiche
 son cloud, son compte et son chemin ; un clic bascule automatiquement sur le bon compte.
+
+**Télécharger un dossier entier.** La commande se trouve sur chaque dossier réel
+(icône dédiée dans la liste, ou bouton « Télécharger » sur une sélection). Le
+dossier n’est pas lu par l’interface : le processus principal en parcourt
+l’arborescence et renvoie un **plan** — nombre de fichiers, sous-dossiers, taille
+totale — affiché avant tout transfert. Rien ne s’écrit avant la confirmation.
+Chaque fichier arrive à sa place (`Téléchargements/Projets/2026/Devis.pdf`) ; les
+documents Google natifs sont comptés puis écartés, et un dossier très volumineux
+annonce un plan partiel plutôt que de bloquer la fenêtre.
 
 **Partagés avec moi.** Un fichier qu’une autre personne partage avec vous n’est
 rangé dans aucun de vos dossiers : sans cette vue, il resterait invisible dans
@@ -220,7 +230,8 @@ src/
 │   └── remote.ts       Cache des dossiers Drive chargés à la demande
 ├── store.tsx           État global (reducer), persistance locale, catalogue dérivé
 ├── hooks/useGoogle.ts  État du client OAuth, ajout de compte, déconnexion
-├── components/         Sidebar, barre d’état, modale, toasts, dialogues Google
+├── components/         Sidebar, barre d’état, modale, toasts, dialogues Google,
+│                       préparation d’un téléchargement de dossier
 ├── pages/              Home, Clouds, Files, Downloads, Favorites, Settings
 │   └── explorer/       Bits réutilisables (fil d’Ariane, tri, cases à cocher)
 └── styles.css          Design system (tokens, composants, thèmes)
@@ -242,6 +253,7 @@ desktop/
     ├── tokens.ts       Session : rafraîchissement silencieux, quota, expiration
     ├── drive.ts        API Drive v3 en lecture seule (list, search, about, media)
     ├── downloads.ts    Téléchargement réel (.part → renommage), pause, reprise
+    ├── tree.ts         Parcours d'un dossier pour un téléchargement en lot (plan)
     └── service.ts      Assemblage : comptes, sessions, exploration, transferts
 
 desktop/test/

@@ -69,6 +69,7 @@ const { GoogleService } = await import('../google/service.ts');
 const { GoogleSession } = await import('../google/tokens.ts');
 const { endpointsFromEnv } = await import('../google/endpoints.ts');
 const { runLoopbackFlow, exchangeCode } = await import('../google/oauth.ts');
+const { relativeDir } = await import('../google/downloads.ts');
 
 const config = { clientId: 'client-test.apps.googleusercontent.com', clientSecret: 'secret' };
 const endpoints = endpointsFromEnv();
@@ -204,6 +205,44 @@ try {
   });
   await waitFor(() => emitted.some((event) => event.id === 'dl-2' && event.status === 'done'), 8000);
   check('second téléchargement renommé', await exists(join(downloadDir, 'notes (1).txt')));
+
+  // --- 8bis. Téléchargement d'un dossier entier ----------------------------
+  const plan = await service2.plan(account.accountId, folder.id);
+  check(
+    'dossier entier : arborescence parcourue',
+    plan.files.length === 1 &&
+      plan.files[0].path === 'Devis 2026.pdf' &&
+      plan.folders.join(',') === '2026',
+    `${plan.files.map((file) => file.path).join(', ')} | dossiers: ${plan.folders.join(', ')}`,
+  );
+  check(
+    'dossier entier : document Google natif écarté',
+    plan.skipped.length === 1 && plan.skipped[0].endsWith('Compte rendu'),
+    plan.skipped.join(', ') || 'aucun',
+  );
+  check(
+    'dossier entier : destination assainie (pas de sortie du dossier)',
+    relativeDir('C:\\base', '../../etc') === join('C:\\base', 'etc') &&
+      relativeDir('C:\\base', 'a/b') === join('C:\\base', 'a', 'b'),
+  );
+
+  emitted = [];
+  await service2.download({
+    id: 'dl-tree',
+    accountId: account.accountId,
+    fileId: 'file-devis',
+    name: 'Devis 2026.pdf',
+    size: 48211,
+    subPath: 'Projets/2026',
+  });
+  await waitFor(
+    () => emitted.some((event) => event.id === 'dl-tree' && event.status === 'done'),
+    8000,
+  );
+  check(
+    'dossier entier : fichier écrit dans son sous-dossier',
+    await exists(join(downloadDir, 'Projets', '2026', 'Devis 2026.pdf')),
+  );
 
   // --- 9. Document Google natif refusé -------------------------------------
   emitted = [];

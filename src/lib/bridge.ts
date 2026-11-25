@@ -27,6 +27,17 @@ export type GoogleFile = {
   parentId?: string;
 };
 
+/** Plan de téléchargement d'un dossier entier (métadonnées seules). */
+export type GoogleFolderPlan = {
+  files: { fileId: string; path: string; size: number; mimeType: string }[];
+  folders: string[];
+  /** Documents Google natifs écartés (pas de fichier binaire). */
+  skipped: string[];
+  /** La limite de sécurité a été atteinte : le lot est incomplet. */
+  truncated: boolean;
+  totalBytes: number;
+};
+
 export type GoogleDownloadRequest = {
   id: string;
   accountId: string;
@@ -34,6 +45,8 @@ export type GoogleDownloadRequest = {
   name: string;
   size: number;
   dir?: string;
+  /** Sous-dossier de `dir`, pour un téléchargement de dossier entier. */
+  subPath?: string;
 };
 
 export type GoogleDownloadEvent = {
@@ -70,6 +83,8 @@ export interface BoitierBridge {
     search(accountId: string, term: string): Promise<GoogleFile[]>;
     /** Fichiers partagés avec ce compte, hors de ses propres dossiers. */
     shared(accountId: string): Promise<GoogleFile[]>;
+    /** Parcourt un dossier et renvoie le plan de téléchargement, sans rien écrire. */
+    plan(accountId: string, folderId: string): Promise<GoogleFolderPlan>;
     download(request: GoogleDownloadRequest): Promise<void>;
     pause(id: string): Promise<void>;
     resume(id: string, accountId: string): Promise<boolean>;

@@ -19,6 +19,7 @@ import {
   type OAuthTokens,
 } from './oauth.ts';
 import { endpointsFromEnv, type Endpoints } from './endpoints.ts';
+import { planFolder, type FolderPlan } from './tree.ts';
 import {
   listChildren,
   listShared,
@@ -199,6 +200,7 @@ export class GoogleService {
     name: string;
     size: number;
     dir?: string;
+    subPath?: string;
   }): Promise<void> {
     const token = await this.token(request.accountId);
     await this.downloads.start(
@@ -208,9 +210,21 @@ export class GoogleService {
         name: request.name,
         size: request.size,
         dir: request.dir ?? '',
+        ...(request.subPath ? { subPath: request.subPath } : {}),
       },
       token,
     );
+  }
+
+  /**
+   * Contenu d'un dossier, sans rien télécharger.
+   *
+   * Sert à préparer un téléchargement de dossier entier : l'interface reçoit un
+   * plan (chemins relatifs, tailles), pas l'arborescence brute. Un dossier de
+   * plusieurs milliers de fichiers ne bloque donc pas la fenêtre.
+   */
+  async plan(accountId: string, folderId: string): Promise<FolderPlan> {
+    return planFolder(this.endpoints, await this.token(accountId), folderId || 'root');
   }
 
   pause(id: string): void {

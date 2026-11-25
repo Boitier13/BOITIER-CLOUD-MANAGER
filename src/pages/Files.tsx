@@ -8,6 +8,7 @@ import {
   ChevronUp,
   Download,
   Folder,
+  FolderDown,
   FolderOpen,
   HardDrive,
   Home as HomeIcon,
@@ -21,6 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import {
+  detectType,
   PROVIDERS,
   PROVIDER_LIST,
   type Account,
@@ -36,7 +38,7 @@ import {
   useRemoteSearch,
   useRemoteShared,
 } from '../lib/remote';
-import { getBridge } from '../lib/bridge';
+import { getBridge, type GoogleFolderPlan } from '../lib/bridge';
 import {
   formatBytes,
   formatDate,
@@ -48,6 +50,7 @@ import {
 import { getChildren } from '../lib/tree';
 import { Meter, TypeIcon } from '../components/visuals';
 import { createDownload } from '../lib/downloads';
+import { FolderDownloadDialog } from '../components/FolderDownloadDialog';
 import { useToast } from '../components/toast';
 import {
   Breadcrumbs,
@@ -75,6 +78,13 @@ export function Files() {
     dir: 'asc',
   });
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  /** Dossier dont on prépare le téléchargement complet (dialogue ouvert). */
+  const [folderTarget, setFolderTarget] = useState<{
+    name: string;
+    fileId: string;
+    accountId: string;
+    basePath: string[];
+  } | null>(null);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -327,6 +337,80 @@ export function Files() {
       return;
     }
     setFocusedId(node.id);
+  };
+
+  /**
+   * File d'un dossier complet préparé par le processus principal.
+   *
+   * Chaque fichier du plan devient une ligne de la file, avec son chemin
+   * relatif : c'est ce que le processus principal utilise pour recréer
+   * l'arborescence sur le disque. Le nom affiché garde la forme du chemin pour
+   * qu'une file de 200 fichiers reste lisible.
+   */
+  const queuePlan = (
+    plan: GoogleFolderPlan,
+    folderName: string,
+    basePath: string[],
+    source: Account,
+  ) => {
+    const real = isRealAccount(source);
+    const googleId = real ? realAccountId(source) : undefined;
+    const bridge = getBridge();
+    if (!bridge || !googleId) {
+      toast.push('Téléchargement indisponible dans le navigateur — utilisez la version Windows', 'warn');
+      return;
+    }
+    const stamp = Date.now();
+    const items = plan.files.map((file, index) => {
+      const name = file.path.split('/').pop() ?? file.path;
+      return createDownload({
+        id: `${file.fileId}-${stamp}-${index}`,
+        name: file.path,
+        type: detectType(name),
+        size: file.size,
+        provider: source.provider,
+        accountId: source.id,
+        accountName: source.name,
+        path: [...basePath, folderName, ...file.path.split('/')],
+        seed: name.length * 7 + file.size,
+        remoteId: file.fileId,
+        remoteAccount: googleId,
+      });
+    });
+
+    void Promise.all(
+      items.map((item, index) =>
+        bridge.google
+          .download({
+            id: item.id,
+            accountId: googleId,
+            fileId: plan.files[index].fileId,
+            name: item.name.split('/').pop() ?? item.name,
+            size: plan.files[index].size,
+            dir: state.settings.downloadFolder,
+            // Le dossier choisi devient la racine du lot sur le disque.
+            subPath: [folderName, ...plan.files[index].path.split('/').slice(0, -1)]
+              .filter(Boolean)
+              .join('/'),
+          })
+          .catch((cause: Error) =>
+            toast.push(cause.message || 'Téléchargement impossible', 'error'),
+          ),
+      ),
+    );
+
+    dispatch({ type: 'downloads/add', items });
+    const total = plan.totalBytes;
+    toast.push(
+      `${folderName} · ${plural(items.length, 'fichier')} (${formatBytes(total)}) en file`,
+      'ok',
+    );
+    if (plan.skipped.length) {
+      toast.push(
+        `${plural(plan.skipped.length, 'document')} Google natif écarté${plan.skipped.length > 1 ? 's' : ''}`,
+        'warn',
+      );
+    }
   };
 
   const queueDownloads = (
@@ -694,11 +778,36 @@ export function Files() {
                   type="button"
                   className="btn btn--sm btn--primary"
                   onClick={() => {
-                    const grouped = rows.filter(
-                      (row) => selected.has(row.node.id) && !row.node.children,
+                    const picked = rows.filter((row) => selected.has(row.node.id));
+                    if (!picked.length) {
+                      toast.push('Sélectionnez au moins un élément à télécharger', 'warn');
+                      return;
+                    }
+                    // Un dossier réel ne se télécharge pas fichier par fichier :
+                    // on prépare l'arborescence côté processus principal.
+                    const folderRow = picked.find(
+                      (row) =>
+                        row.node.children && isRealAccount(
+                          state.accounts.find((a) => a.id === row.accountId) ?? account,
+                        ),
                     );
+                    if (folderRow) {
+                      const targetAccount =
+                        state.accounts.find((a) => a.id === folderRow.accountId) ?? account;
+                      const googleId = realAccountId(targetAccount);
+                      if (!googleId) return;
+                      setFolderTarget({
+                        name: folderRow.node.name,
+                        fileId: folderRow.node.id,
+                        accountId: googleId,
+                        basePath: folderRow.path.slice(0, -1),
+                      });
+                      setSelected(new Set());
+                      return;
+                    }
+                    const grouped = picked.filter((row) => !row.node.children);
                     if (!grouped.length) {
-                      toast.push('Les dossiers doivent être ouverts avant d’être téléchargés', 'warn');
+                      toast.push('Aucun fichier à télécharger dans cette sélection', 'warn');
                       return;
                     }
                     grouped.forEach((row) =>
@@ -1031,21 +1140,48 @@ export function Files() {
                               </button>
                             ) : null}
                             {node.children ? (
-                              <button
-                                type="button"
-                                className="icon-btn"
-                                title="Ouvrir le dossier"
-                                aria-label={`Ouvrir ${node.name}`}
-                                onClick={() =>
-                                  dispatch({
-                                    type: 'explorer/open',
-                                    accountId: rowAccountId,
-                                    path: rowPath,
-                                  })
-                                }
-                              >
-                                <FolderOpen size={13} />
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  className="icon-btn"
+                                  title="Ouvrir le dossier"
+                                  aria-label={`Ouvrir ${node.name}`}
+                                  onClick={() =>
+                                    dispatch({
+                                      type: 'explorer/open',
+                                      accountId: rowAccountId,
+                                      path: rowPath,
+                                    })
+                                  }
+                                >
+                                  <FolderOpen size={13} />
+                                </button>
+                                {isRealAccount(
+                                  state.accounts.find((a) => a.id === rowAccountId) ?? account,
+                                ) ? (
+                                  <button
+                                    type="button"
+                                    className="icon-btn"
+                                    title="Télécharger le dossier entier"
+                                    aria-label={`Télécharger le dossier ${node.name}`}
+                                    onClick={() => {
+                                      const targetAccount =
+                                        state.accounts.find((a) => a.id === rowAccountId) ??
+                                        account;
+                                      const googleId = realAccountId(targetAccount);
+                                      if (!googleId) return;
+                                      setFolderTarget({
+                                        name: node.name,
+                                        fileId: node.id,
+                                        accountId: googleId,
+                                        basePath: rowPath.slice(0, -1),
+                                      });
+                                    }}
+                                  >
+                                    <FolderDown size={13} />
+                                  </button>
+                                ) : null}
+                              </>
                             ) : (
                               <button
                                 type="button"
@@ -1103,6 +1239,17 @@ export function Files() {
         </div>
       </div>
 
+      {folderTarget ? (
+        <FolderDownloadDialog
+          folderName={folderTarget.name}
+          accountId={folderTarget.accountId}
+          fileId={folderTarget.fileId}
+          basePath={folderTarget.basePath}
+          targetDir={state.settings.downloadFolder}
+          onClose={() => setFolderTarget(null)}
+          onQueue={(plan, folderName, basePath) => queuePlan(plan, folderName, basePath, account)}
+        />
+      ) : null}
     </div>
   );
 }
