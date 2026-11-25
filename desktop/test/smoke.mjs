@@ -170,6 +170,26 @@ try {
     !rootFiles.some((file) => file.id === shared[0]?.id),
   );
 
+  // --- 5quater. Répartition du stockage -------------------------------------
+  const storage = await service2.storage(account.accountId);
+  check(
+    'stockage : quota exact repris de Google',
+    storage.quotaBytes === 16106127360 && storage.usedBytes === 2684354560,
+    `${storage.usedBytes} / ${storage.quotaBytes}`,
+  );
+  check(
+    'stockage : Gmail/Photos déduit quand Google le distingue',
+    storage.emailBytes === 536870912,
+    String(storage.emailBytes),
+  );
+  const documents = storage.categories.find((category) => category.id === 'document');
+  const totalMeasured = storage.categories.reduce((sum, item) => sum + item.bytes, 0);
+  check(
+    'stockage : sommes par catégorie cohérentes avec les fichiers du faux Drive',
+    Boolean(documents) && totalMeasured > 0 && !storage.partial,
+    `${totalMeasured} o mesurés`,
+  );
+
   // --- 6. Recherche ---------------------------------------------------------
   const found = await service2.search(account.accountId, 'devis');
   check('recherche Drive', found.length === 1 && found[0].name === 'Devis 2026.pdf');

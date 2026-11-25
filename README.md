@@ -90,11 +90,11 @@ l’application utilise PKCE (S256) + `state`.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 38 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 41 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # exploration, fichiers partagés, recherche,
-                          # téléchargement réel, dossier entier, pause,
-                          # révocation à la déconnexion — sans réseau, avec un
-                          # faux Google local
+                          # téléchargement réel, dossier entier, stockage,
+                          # pause, révocation à la déconnexion — sans réseau,
+                          # avec un faux Google local
 npm run verify:interface  # six écrans sans compte puis avec un compte simulé
 npm run desktop:paths     # la fenêtre charge dist/ en file://, et possède ses
                           # garde-fous de démarrage (signal de vie, délai, journal)
@@ -193,9 +193,10 @@ Pour publier une version : mettre à jour `version` dans `package.json`, puis
 | **Tous les fichiers** | Explorateur navigable : fil d’Ariane, retour, recherche, tri, filtres par type, sélection multiple ; dossiers Google Drive chargés à la demande ; sous-vue **Partagés avec moi** (ce que d’autres ont partagé avec le compte, indépendamment de vos dossiers) |
 | **Téléchargements** | File unifiée : progression, débit, pause/reprise, annulation ; transferts Google Drive réellement écrits sur le disque, y compris **un dossier entier** (arborescence conservée) |
 | **Favoris** | Collection multi-comptes, recherche, répartition par type |
+| **Stockage** | Quota exact par compte et répartition mesurée par type de fichier ; ce qui n’est pas mesurable est annoncé comme tel, jamais estimé |
 | **Paramètres** | Thème sombre/clair, densité, dossier cible, transferts simultanés, réinitialisation |
 
-Raccourcis : `Ctrl+1…4`, `Ctrl+,`, `Ctrl+A` (sélection), `Échap`, `?`.
+Raccourcis : `Ctrl+1…5`, `Ctrl+,`, `Ctrl+A` (sélection), `Échap`, `?`.
 
 La recherche de l’explorateur couvre **tous les comptes** : chaque résultat affiche
 son cloud, son compte et son chemin ; un clic bascule automatiquement sur le bon compte.
@@ -254,6 +255,7 @@ desktop/
     ├── drive.ts        API Drive v3 en lecture seule (list, search, about, media)
     ├── downloads.ts    Téléchargement réel (.part → renommage), pause, reprise
     ├── tree.ts         Parcours d'un dossier pour un téléchargement en lot (plan)
+    ├── storage.ts      Répartition du stockage : quota exact + sommes bornées
     └── service.ts      Assemblage : comptes, sessions, exploration, transferts
 
 desktop/test/

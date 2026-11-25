@@ -83,6 +83,7 @@ async function parcours({ label, bridge }) {
     'Tous les fichiers',
     'Téléchargements',
     'Favoris',
+    'Stockage',
     'Google Drive',
     'Paramètres',
   ]) {
@@ -163,6 +164,16 @@ const compte = await parcours({
       }),
       search: async () => [],
       download: async () => {},
+      storage: async () => ({
+        usedBytes: 41 * 1024 ** 3,
+        quotaBytes: 200 * 1024 ** 3,
+        emailBytes: null,
+        partial: false,
+        categories: [
+          { id: 'document', bytes: 12 * 1024 ** 3, count: 4213, partial: false },
+          { id: 'video', bytes: 6 * 1024 ** 3, count: 37, partial: false },
+        ],
+      }),
       shared: async () => [
         {
           id: 's1',
@@ -252,6 +263,23 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
       );
     }
   }
+}
+
+/* --- 6. Écran Stockage : ce qui est mesuré est distingué du reste ------- */
+{
+  const { doc, click } = compte;
+  const storage = [...doc.querySelectorAll('.nav-item')].find((button) =>
+    (button.textContent ?? '').includes('Stockage'),
+  );
+  if (storage) await click(storage);
+  const body = doc.querySelector('.page')?.textContent ?? '';
+  check('stockage : quota affiché', /41,0 Go/.test(body) && /200 Go/.test(body), body.slice(0, 80));
+  check('stockage : répartition par type présente', /Documents/.test(body) && /Vidéos/.test(body));
+  check(
+    'stockage : le reste non détaillé est annoncé',
+    /non détaillé/.test(body),
+    'pas de total inventé',
+  );
 }
 
 console.log(
