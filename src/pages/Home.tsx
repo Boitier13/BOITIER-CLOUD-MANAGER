@@ -213,10 +213,12 @@ export function Home({ onNavigate, onOpenEntry, onAddAccount }: HomeProps) {
           <h1 className="page-title">Votre espace cloud, réuni.</h1>
           <div className="home-summary">
             <span className="summary-stat">
-              <b>{formatNumber(state.accounts.length)}</b> comptes
+              <b>{formatNumber(state.accounts.length)}</b>{' '}
+              {state.accounts.length > 1 ? 'comptes' : 'compte'}
             </span>
             <span className="summary-stat">
-              <b>{formatNumber(byProvider.size)}</b> fournisseurs
+              <b>{formatNumber(byProvider.size)}</b>{' '}
+              {byProvider.size > 1 ? 'fournisseurs' : 'fournisseur'}
             </span>
             <span className="summary-stat">
               <b>{formatBytes(totalUsed)}</b> utilisés sur {formatBytes(totalQuota)}
@@ -467,7 +469,7 @@ export function Home({ onNavigate, onOpenEntry, onAddAccount }: HomeProps) {
                     <span className="list-row__main">
                       <span className="list-row__title">{provider.name}</span>
                       <span className="list-row__meta">
-                        {formatDecimal(online)} actifs
+                        {formatDecimal(online)} {online > 1 ? 'actifs' : 'actif'}
                         <span className="dot-sep" />
                         {formatDecimal(accounts.length)} au total
                       </span>

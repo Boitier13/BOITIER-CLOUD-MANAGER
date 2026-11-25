@@ -463,6 +463,98 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   );
 }
 
+/* --- 9. Un seul compte : les accords restent au singulier --------------- */
+/* --- 10. Rafraîchir le quota change vraiment le chiffre affiché --------- */
+{
+  const quota = { usedBytes: 6 * 1024 ** 2, quotaBytes: 15 * 1024 ** 3 };
+  let refreshed = false;
+  const apres = await parcours({
+    label: 'un compte rafraîchi',
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      google: {
+        status: async () => ({ configured: true, source: 'env' }),
+        accounts: async () => [
+          {
+            accountId: 'g-1',
+            name: 'Boitier',
+            email: 'boitierecup@gmail.com',
+            usedBytes: quota.usedBytes,
+            quotaBytes: quota.quotaBytes,
+            status: 'connected',
+          },
+        ],
+        // Google renvoie ici le total du compte, pas l'usage de Drive seul.
+        refresh: async () => {
+          refreshed = true;
+          return {
+            accountId: 'g-1',
+            name: 'Boitier',
+            email: 'boitierecup@gmail.com',
+            usedBytes: 4.9 * 1024 ** 3,
+            quotaBytes: quota.quotaBytes,
+            status: 'connected',
+          };
+        },
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+      },
+    },
+  });
+
+  const accueil = apres.after['Accueil'] ?? '';
+  // Les chiffres collent le mot suivant (« 1 compte1 fournisseur ») : `\b`
+  // échouerait entre « r » et « 6 ». On regarde donc l'absence de « s ».
+  check(
+    'accords : un seul compte s’écrit au singulier',
+    /1 compte(?!s)/.test(accueil) && !/1 comptes/.test(accueil),
+    accueil.match(/1 comptes?/)?.[0] ?? 'introuvable',
+  );
+  check(
+    'accords : un seul fournisseur s’écrit au singulier',
+    /1 fournisseur(?!s)/.test(accueil) && !/1 fournisseurs/.test(accueil),
+    accueil.match(/1 fournisseurs?/)?.[0] ?? 'introuvable',
+  );
+  check(
+    'accords : un seul compte actif s’écrit au singulier',
+    /1 actif(?!s)/.test(accueil) && !/1 actifs/.test(accueil),
+    accueil.match(/1 actifs?/)?.[0] ?? 'introuvable',
+  );
+
+  const drive = apres.after['Google Drive'] ?? '';
+  check(
+    'accords : la carte du fournisseur reste au singulier',
+    !/1 comptes/.test(drive) && !/1 connectés/.test(drive),
+    drive.match(/1 compte[^·]*·[^\n]{0,14}/)?.[0]?.trim() ?? 'introuvable',
+  );
+
+  // Le parcours se termine sur « Paramètres » : il faut revenir à l'écran du
+  // fournisseur pour atteindre le bouton de rafraîchissement.
+  const driveNav = [...apres.doc.querySelectorAll('.nav-item, .cloud-item')].find((button) =>
+    (button.textContent ?? '').includes('Google Drive'),
+  );
+  if (driveNav) await apres.click(driveNav);
+
+  const refreshButton = [...apres.doc.querySelectorAll('.icon-btn')].find((button) =>
+    (button.getAttribute('title') ?? '').includes('Rafraîchir le quota'),
+  );
+  check('quota : bouton de rafraîchissement présent', Boolean(refreshButton));
+  if (refreshButton) {
+    await apres.click(refreshButton);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const page = apres.doc.querySelector('.page')?.textContent ?? '';
+    check(
+      'quota : le rafraîchissement met à jour le chiffre affiché',
+      refreshed && /4,9 Go/.test(page) && !/6,0 Mo/.test(page),
+      page.match(/[\d,]+\s*(?:Go|Mo)\s*sur\s*[\d,]+\s*Go/)?.[0] ?? 'chiffre inchangé',
+    );
+  }
+}
+
 console.log(
   failures === 0
     ? '\nInterface vérifiée : état vide maîtrisé, compte réel affiché, aucun décor.'
