@@ -118,6 +118,19 @@ for (const forbidden of ['démonstration', 'Démonstration', 'fictif', 'simulé'
 }
 
 /* --- 3. Compte connecté : le contenu réel s'affiche --------------------- */
+/**
+ * Identifiants reçus par le pont. Un compte porte deux identifiants : celui de
+ * l'application et celui de Google. Seul le second existe côté processus
+ * principal ; l'interface envoyait le premier, ce qui produisait « Compte
+ * Google inconnu » sur un vrai compte. Ces appels enregistrés sont la seule
+ * façon de le vérifier : le faux pont répond quoi qu'on lui demande.
+ */
+const listCalls = [];
+const pontTrace = (name, result) => async (accountId) => {
+  listCalls.push(`${name}:${accountId}`);
+  return result;
+};
+
 const compte = await parcours({
   label: 'compte réel',
   bridge: {
@@ -136,7 +149,7 @@ const compte = await parcours({
         },
       ],
       onDownload: () => () => {},
-      list: async () => [
+      list: pontTrace('list', [
         {
           id: 'f1',
           name: 'Rapport annuel.pdf',
@@ -153,7 +166,7 @@ const compte = await parcours({
           size: 0,
           modified: new Date().toISOString(),
         },
-      ],
+      ]),
       plan: async () => ({
         files: [
           { fileId: 'p1', path: '2026/Devis.pdf', size: 48_211, mimeType: 'application/pdf' },
@@ -221,6 +234,20 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
     (button.textContent ?? '').includes('Tous les fichiers'),
   );
   if (files) await click(files);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+
+  const table = doc.querySelector('.filetable-wrap')?.textContent ?? '';
+  check(
+    'explorateur : les dossiers réels du compte s’affichent',
+    /Rapport annuel\.pdf/.test(table) && /Projets/.test(table),
+    table.slice(0, 60).trim() || 'file vide',
+  );
+  check(
+    'explorateur : le pont reçoit l’identifiant Google, jamais l’identifiant interne',
+    listCalls.length > 0 && listCalls.every((call) => call === 'list:g-1'),
+    listCalls.join(', ') || 'aucun appel',
+  );
+
   const sharedEntry = [...doc.querySelectorAll('.rail-account--sub')].find((button) =>
     (button.textContent ?? '').includes('Partagés avec moi'),
   );

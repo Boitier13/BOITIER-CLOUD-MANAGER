@@ -4,6 +4,11 @@
  * Seuls les comptes connectés passent par ce cache. Une requête en cours par
  * dossier ; les réponses sont conservées pour éviter de solliciter l'API à
  * chaque rendu.
+ *
+ * **Toutes les clés de ce module sont des identifiants Google**, jamais les
+ * identifiants internes de l'application (`gdrive-real-…`) : ce sont les seuls
+ * que le processus principal sait retrouver dans son coffre. Les confondre
+ * produisait « Compte Google inconnu » au premier affichage de dossier.
  */
 
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
@@ -401,8 +406,9 @@ export function useRemoteSearch(
 }
 
 /** Recharge un compte ou un dossier (bouton resynchroniser). */
-export function useReloadRemote(): (accountId: string, path?: string[]) => void {
-  return useCallback((accountId: string, path?: string[]) => {
+export function useReloadRemote(): (accountId: string | null, path?: string[]) => void {
+  return useCallback((accountId: string | null, path?: string[]) => {
+    if (!accountId) return;
     if (path) remoteCatalog.reload(accountId, path);
     else {
       remoteCatalog.invalidate(accountId);

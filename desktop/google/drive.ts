@@ -22,6 +22,13 @@ export type DriveQuota = {
   name: string;
   email: string;
   picture?: string;
+  /**
+   * Espace **total** du compte : Drive + Gmail + Photos.
+   *
+   * C'est le seul chiffre honnête quand l'interface écrit « utilisé sur
+   * 15 Go » : ne compter que Drive ferait croire à un compte presque vide
+   * alors que Gmail en occupe le tiers.
+   */
   usedBytes: number;
   quotaBytes: number;
   /**
@@ -238,7 +245,10 @@ export async function readQuota(
     storageQuota?: { limit?: string; usage?: string; usageInDrive?: string };
   }>(url.toString(), token, signal);
 
-  const used = Number(payload.storageQuota?.usageInDrive ?? payload.storageQuota?.usage ?? 0);
+  // L'espace consommé est le total du compte. `usageInDrive` sert à la seule
+  // répartition Drive / Gmail / Photos : le prendre pour le total sous-estime
+  // l'occupation (un compte à 5 Go de Gmail s'affichait « 6 Mo / 0 % »).
+  const used = Number(payload.storageQuota?.usage ?? payload.storageQuota?.usageInDrive ?? 0);
   const limit = Number(payload.storageQuota?.limit ?? 0);
   const usage = Number(payload.storageQuota?.usage ?? 0);
   const usageInDrive = Number(payload.storageQuota?.usageInDrive ?? 0);
