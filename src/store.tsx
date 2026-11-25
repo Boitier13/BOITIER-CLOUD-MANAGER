@@ -33,6 +33,7 @@ export type Route =
   | { name: 'downloads' }
   | { name: 'favorites' }
   | { name: 'storage' }
+  | { name: 'recent' }
   | { name: 'settings' };
 
 export interface Favorite {

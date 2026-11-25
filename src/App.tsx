@@ -16,6 +16,7 @@ import { Home } from './pages/Home';
 import { Clouds } from './pages/Clouds';
 import { Files } from './pages/Files';
 import { Storage } from './pages/Storage';
+import { Recent } from './pages/Recent';
 import { Downloads } from './pages/Downloads';
 import { Favorites } from './pages/Favorites';
 import { Settings } from './pages/Settings';
@@ -97,6 +98,9 @@ export default function App() {
       } else if (key === '5') {
         event.preventDefault();
         navigate({ name: 'storage' });
+      } else if (key === '6') {
+        event.preventDefault();
+        navigate({ name: 'recent' });
       } else if (key === ',') {
         event.preventDefault();
         navigate({ name: 'settings' });
@@ -152,6 +156,8 @@ export default function App() {
         return <Favorites onOpenEntry={openEntry} />;
       case 'storage':
         return <Storage onNavigate={navigate} />;
+      case 'recent':
+        return <Recent onNavigate={navigate} />;
       case 'settings':
         return <Settings />;
       default:
@@ -247,6 +253,7 @@ export default function App() {
               ['Téléchargements', 'Ctrl + 3'],
               ['Favoris', 'Ctrl + 4'],
               ['Stockage', 'Ctrl + 5'],
+              ['Récents', 'Ctrl + 6'],
               ['Paramètres', 'Ctrl + ,'],
               ['Tout sélectionner dans un dossier', 'Ctrl + A'],
               ['Vider la sélection / le filtre', 'Échap'],

@@ -19,6 +19,7 @@ export const channels = {
   shared: 'google:shared',
   plan: 'google:plan',
   storage: 'google:storage',
+  recent: 'google:recent',
   download: 'google:download',
   pause: 'google:pause',
   resume: 'google:resume',
@@ -72,6 +73,9 @@ export function registerIpc(_win: BrowserWindow, service: GoogleService): void {
     service.plan(String(accountId), String(folderId)),
   );
   handle(channels.storage, (accountId: string) => service.storage(String(accountId)));
+  handle(channels.recent, (accountId: string, options?: { days?: number; limit?: number }) =>
+    service.recent(String(accountId), options ?? {}),
+  );
   handle(
     channels.download,
     (request: {

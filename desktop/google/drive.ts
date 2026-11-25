@@ -77,15 +77,20 @@ async function listAll(
   query: string,
   orderBy: string,
   signal?: AbortSignal,
+  /** Arrête la pagination dès ce nombre d'éléments (flux « derniers fichiers »). */
+  limit?: number,
 ): Promise<DriveItem[]> {
   const items: DriveItem[] = [];
   let pageToken: string | undefined;
+  const ceiling = limit && limit > 0 ? limit : Infinity;
 
-  for (let page = 0; page < MAX_PAGES; page += 1) {
+  for (let page = 0; page < MAX_PAGES && items.length < ceiling; page += 1) {
     const url = new URL(`${endpoints.drive}/files`);
     url.searchParams.set('q', query);
     url.searchParams.set('fields', FIELDS);
-    url.searchParams.set('pageSize', '1000');
+    // On ne demande jamais plus que ce qui manque : inutile de rapatrier
+    // 1000 entrées pour en garder 60.
+    url.searchParams.set('pageSize', String(Math.min(1000, ceiling - items.length)));
     url.searchParams.set('orderBy', orderBy);
     url.searchParams.set('spaces', 'drive');
     url.searchParams.set('includeItemsFromAllDrives', 'true');
@@ -175,6 +180,35 @@ export async function sumBytes(
   }
 
   return { bytes, count, partial: true };
+}
+
+/**
+ * Derniers fichiers modifiés sur l'ensemble du compte.
+ *
+ * Ce que Google sait : la **date de modification**. Ce qu'il ne transmet pas :
+ * la date d'ouverture. Un fichier ouvert tous les jours mais jamais modifié
+ * n'apparaîtra donc jamais ici — c'est une limite de l'API, pas un oubli, et
+ * l'écran le dit à l'utilisateur plutôt que de laisser croire à un historique.
+ *
+ * `days` borne la fenêtre côté Google (la requête ne remonte que du récent),
+ * `limit` borne le volume : inutile de rapatrier un compte entier.
+ */
+export function listRecent(
+  endpoints: Endpoints,
+  token: string,
+  options: { days?: number; limit?: number; signal?: AbortSignal } = {},
+): Promise<DriveItem[]> {
+  const days = Math.max(1, Math.min(365, options.days ?? 90));
+  const since = new Date(Date.now() - days * 86_400_000).toISOString();
+  const query = `trashed = false and modifiedTime > '${since}'`;
+  return listAll(
+    endpoints,
+    token,
+    query,
+    'modifiedTime desc',
+    options.signal,
+    Math.max(1, Math.min(1000, options.limit ?? 200)),
+  );
 }
 
 /** Recherche par nom sur l'ensemble du compte. */

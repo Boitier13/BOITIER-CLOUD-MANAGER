@@ -23,6 +23,7 @@ import { planFolder, type FolderPlan } from './tree.ts';
 import { readStorageUsage, type StorageUsage } from './storage.ts';
 import {
   listChildren,
+  listRecent,
   listShared,
   readQuota,
   searchFiles,
@@ -186,6 +187,22 @@ export class GoogleService {
   /** Fichiers partagés avec ce compte (hors dossiers de l'utilisateur). */
   async shared(accountId: string): Promise<DriveItem[]> {
     return listShared(this.endpoints, await this.token(accountId));
+  }
+
+  /**
+   * Derniers fichiers modifiés du compte, tous dossiers confondus.
+   *
+   * La fenêtre (en jours) et le plafond sont des paramètres : l'interface peut
+   * demander « 7 jours » ou « 30 jours » sans nouvelle méthode.
+   */
+  async recent(
+    accountId: string,
+    options: { days?: number; limit?: number } = {},
+  ): Promise<DriveItem[]> {
+    return listRecent(this.endpoints, await this.token(accountId), {
+      ...(options.days ? { days: Number(options.days) } : {}),
+      ...(options.limit ? { limit: Number(options.limit) } : {}),
+    });
   }
 
   /**

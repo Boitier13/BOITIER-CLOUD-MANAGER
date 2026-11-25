@@ -1,4 +1,5 @@
 import {
+  Clock,
   Download,
   FolderTree,
   HardDrive,
@@ -19,6 +20,7 @@ interface SidebarProps {
 const NAV = [
   { id: 'home', label: 'Accueil', icon: House },
   { id: 'files', label: 'Tous les fichiers', icon: FolderTree },
+  { id: 'recent', label: 'Récents', icon: Clock },
   { id: 'downloads', label: 'Téléchargements', icon: Download },
   { id: 'favorites', label: 'Favoris', icon: Star },
   { id: 'storage', label: 'Stockage', icon: PieChart },

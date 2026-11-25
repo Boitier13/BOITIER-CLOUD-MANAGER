@@ -105,6 +105,14 @@ export interface BoitierBridge {
     plan(accountId: string, folderId: string): Promise<GoogleFolderPlan>;
     /** Quota exact + répartition mesurée par catégorie (bornée, parfois partielle). */
     storage(accountId: string): Promise<GoogleStorageUsage>;
+    /**
+     * Derniers fichiers **modifiés** (Google ne transmet pas les dates
+     * d'ouverture). `days` borne la fenêtre, `limit` le volume.
+     */
+    recent(
+      accountId: string,
+      options?: { days?: number; limit?: number },
+    ): Promise<GoogleFile[]>;
     download(request: GoogleDownloadRequest): Promise<void>;
     pause(id: string): Promise<void>;
     resume(id: string, accountId: string): Promise<boolean>;

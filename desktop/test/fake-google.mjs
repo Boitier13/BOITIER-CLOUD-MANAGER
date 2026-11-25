@@ -152,6 +152,12 @@ const server = createServer(async (req, res) => {
     const searchMatch = /name contains '([^']+)'/.exec(q);
     // like `sharedWithMe = true` : fichiers partagés par d'autres personnes.
     const sharedOnly = /sharedWithMe\s*=\s*true/.test(q);
+    // Flux « récents » : `modifiedTime > '...'`.
+    const recentMatch = /modifiedTime > '([^']+)'/.exec(q);
+    if (recentMatch) {
+      const since = new Date(recentMatch[1]).getTime();
+      result = result.filter((file) => new Date(file.modifiedTime).getTime() >= since);
+    }
     // Mesure du stockage : `mimeType contains 'video/'` & co.
     const mimeMatch = /mimeType contains '([^']+)'/.exec(q);
     if (mimeMatch) result = result.filter((file) => file.mimeType.includes(mimeMatch[1]));
@@ -160,6 +166,14 @@ const server = createServer(async (req, res) => {
     if (searchMatch) {
       const term = searchMatch[1].toLowerCase();
       result = result.filter((file) => file.name.toLowerCase().includes(term));
+    }
+    // Tri : le vrai Drive applique `orderBy`; le faux doit faire pareil, sinon
+    // le test du flux « récents » ne prouverait rien.
+    const orderBy = url.searchParams.get('orderBy') ?? '';
+    if (orderBy === 'modifiedTime desc') {
+      result = [...result].sort(
+        (a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime(),
+      );
     }
     return json(res, 200, { files: result });
   }
