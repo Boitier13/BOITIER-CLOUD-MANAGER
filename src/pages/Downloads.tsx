@@ -181,7 +181,7 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
         <div className="filter-bar__spacer" />
         <span className="badge">
           Dossier cible · <b style={{ color: 'var(--text-2)', fontWeight: 500 }}>
-            {state.settings.downloadFolder.split('\\').pop()}
+            {state.settings.downloadFolder.split('\\').pop() || 'dossier système'}
           </b>
         </span>
       </div>

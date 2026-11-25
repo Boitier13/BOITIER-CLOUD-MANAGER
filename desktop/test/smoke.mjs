@@ -69,8 +69,8 @@ const { GoogleService } = await import('../google/service.ts');
 const { GoogleSession } = await import('../google/tokens.ts');
 const { endpointsFromEnv } = await import('../google/endpoints.ts');
 const { runLoopbackFlow, exchangeCode } = await import('../google/oauth.ts');
-const { relativeDir } = await import('../google/downloads.ts');
-const { canonicalGmail, findAlias } = await import('../../src/lib/accounts.ts');
+const { relativeDir, DownloadManager } = await import('../google/downloads.ts');
+const { canonicalGmail, findAlias, suggestedName } = await import('../../src/lib/accounts.ts');
 
 const config = { clientId: 'client-test.apps.googleusercontent.com', clientSecret: 'secret' };
 const endpoints = endpointsFromEnv();
@@ -201,6 +201,26 @@ try {
     !findAlias('saturninyoukpo13@gmail.com', [
       { id: 'gdrive-y', email: 'saturninyoukpo8@gmail.com' },
     ]).duplicateOf,
+  );
+
+  // --- 5ter. Noms des comptes -----------------------------------------------
+  check(
+    'noms : les chiffres de l’adresse distinguent deux comptes homonymes',
+    suggestedName({ name: 'saturnin youkpo', email: 'saturninyoukpo8@gmail.com' }) ===
+      'Saturnin Youkpo8' &&
+      suggestedName({ name: 'saturnin youkpo', email: 'saturninyoukpo13@gmail.com' }) ===
+      'Saturnin Youkpo13',
+    suggestedName({ name: 'saturnin youkpo', email: 'saturninyoukpo13@gmail.com' }),
+  );
+  check(
+    'noms : un nom déjà distinctif n’est pas rallongé',
+    suggestedName({ name: 'Boitier First7', email: 'boitierfirst7@gmail.com' }) ===
+      'Boitier First7',
+  );
+  check(
+    'noms : un nom sans chiffre dans l’adresse reste intact',
+    suggestedName({ name: 'Boitier First Recup', email: 'boitierecup@gmail.com' }) ===
+      'Boitier First Recup',
   );
 
   // --- 5quater. Répartition du stockage -------------------------------------
@@ -406,6 +426,41 @@ try {
   await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
 }
 
+/* --- 12. Veilleur : un flux muet devient une erreur, pas un 0 % éternel --- */
+try {
+  const server = await silentStreamServer();
+  const port = server.address().port;
+  // `workDir` a déjà été supprimé à ce stade : dossier temporaire dédié.
+  const dir = await mkdtemp(join(tmpdir(), 'boitier-veilleur-'));
+  const events = [];
+  const manager = new DownloadManager(
+    { drive: `http://127.0.0.1:${port}/drive/v3` },
+    (event) => events.push(event),
+    async () => dir,
+    { stallMs: 400 },
+  );
+  await manager.start({ id: 'muet', fileId: 'f', name: 'v.mp4', size: 1048576, dir }, 'jeton');
+  const ended = await waitFor(
+    () => events.some((event) => event.id === 'muet' && event.status === 'error'),
+    5000,
+  );
+  const final = events.at(-1);
+  check(
+    'veilleur : un flux sans octet est signalé en erreur',
+    ended && final.status === 'error' && /aucune donnée/i.test(final.message ?? ''),
+    final.message ?? 'aucune erreur émise',
+  );
+  check(
+    'veilleur : aucun fichier partiel ne reste sur le disque',
+    !(await exists(join(dir, 'v.mp4'))) && !(await exists(join(dir, 'v.mp4.part'))),
+  );
+  server.close();
+  await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+} catch (cause) {
+  failures += 1;
+  console.error('Veilleur : erreur inattendue', cause);
+}
+
 const passed = results.filter((result) => result.ok).length;
 console.log(`\n${passed}/${results.length} vérifications réussies.`);
 if (failures) {
@@ -423,6 +478,27 @@ async function exists(path) {
   } catch {
     return false;
   }
+}
+
+/**
+ * Flux qui se tait : en-têtes envoyés, aucun octet ensuite.
+ *
+ * C'est le cas qui laissait une ligne « En cours » à 0 % indéfiniment. Le
+ * veilleur doit transformer ce silence en erreur explicite.
+ */
+async function silentStreamServer() {
+  const { createServer } = await import('node:http');
+  const server = createServer((req, res) => {
+    const url = new URL(req.url, 'http://x');
+    if (url.searchParams.get('alt') === 'media') {
+      res.writeHead(200, { 'content-type': 'video/mp4', 'content-length': '1048576' });
+      return; // jamais un octet
+    }
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ id: 'f', name: 'v.mp4', mimeType: 'video/mp4', size: '1048576' }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return server;
 }
 
 async function waitFor(predicate, timeoutMs) {

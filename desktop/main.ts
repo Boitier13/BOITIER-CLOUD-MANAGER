@@ -7,7 +7,7 @@
  * vivent ici.
  */
 
-import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from 'electron';
 import { join } from 'node:path';
 import { registerIpc, emitDownload, channels } from './api.ts';
 import { loadEnvFile, readGoogleConfig } from './config.ts';
@@ -59,6 +59,36 @@ function createWindow(): BrowserWindow {
 
   win.once('ready-to-show', () => win.show());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+
+  /**
+   * Menu contextuel du clic droit.
+   *
+   * Chromium gère les raccourcis clavier sans rien, mais un clic droit n'ouvre
+   * aucun menu tant que l'application ne le construit pas : copier ou coller à
+   * la souris était impossible dans les champs de l'application.
+   */
+  win.webContents.on('context-menu', (_event, params) => {
+    const hasSelection = params.selectionText.trim().length > 0;
+    const template: Electron.MenuItemConstructorOptions[] = [];
+    if (params.isEditable) {
+      template.push(
+        { role: 'cut', label: 'Couper', enabled: hasSelection },
+        { role: 'copy', label: 'Copier', enabled: hasSelection },
+        { role: 'paste', label: 'Coller', enabled: params.editFlags.canPaste },
+        { type: 'separator' },
+        { role: 'selectAll', label: 'Tout sélectionner' },
+      );
+    } else if (hasSelection) {
+      template.push(
+        { role: 'copy', label: 'Copier' },
+        { type: 'separator' },
+        { role: 'selectAll', label: 'Tout sélectionner' },
+      );
+    } else {
+      return;
+    }
+    Menu.buildFromTemplate(template).popup({ window: win });
+  });
   win.webContents.on('will-navigate', (event, url) => {
     const allowed = devServerUrl ?? 'file://';
     if (!url.startsWith(allowed)) {

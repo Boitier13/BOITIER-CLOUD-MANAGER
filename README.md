@@ -117,6 +117,21 @@ sont donc laissées intactes.
 > doublon : elle le constate quand Google renvoie deux adresses identiques. Une
 > détection approximative pourrait fusionner deux comptes réellement distincts.
 
+### Télécharger un fichier : ce qui doit se passer
+
+Un transfert passe par le processus principal, qui écrit sur le disque. Deux
+garde-fous ont été ajoutés après un blocage réel à 0 % :
+
+- **un refus est écrit dans la file.** Si le processus principal refuse le
+  transfert, la ligne passe en « Échec » avec le motif. Avant, seule une
+  notification fugace l'annonçait et la ligne restait « En cours » à 0 % ;
+- **un flux muet est abandonné au bout de 20 secondes** avec un message
+  explicite, au lieu d'attendre indéfiniment.
+
+Le dossier de destination n'est plus une liste de chemins inventés
+(`D:\Médias\…`) : vide, il désigne le dossier du système, et le bouton
+**Choisir…** ouvre la boîte de dialogue de Windows.
+
 ### Ce que les chiffres du stockage veulent dire
 
 Deux confusions rendaient l’écran Stockage trompeur ; les deux sont corrigées.
@@ -201,7 +216,7 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 50 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 55 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,

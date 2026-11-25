@@ -17,15 +17,12 @@ import { formatBytes, formatDecimal, formatNumber } from '../lib/format';
 import { Modal } from '../components/Modal';
 import { BrandMark } from '../components/BrandMark';
 import { useToast } from '../components/toast';
-import { isDesktop } from '../lib/bridge';
+import { getBridge, isDesktop } from '../lib/bridge';
 import { useGoogleClientStatus } from '../hooks/useGoogle';
 
-const FOLDERS = [
-  'C:\\Users\\Boitier\\Téléchargements',
-  'C:\\Users\\Boitier\\Vidéos\\Cloud',
-  'D:\\Médias\\Téléchargements',
-  'E:\\Sauvegardes\\Cloud',
-];
+// Plus de liste inventée : le dossier par défaut est celui du système, et le
+// bouton ouvre la boîte de dialogue de Windows.
+const SYSTEM_FOLDER_LABEL = 'Dossier du système (Téléchargements)';
 
 export function Settings() {
   const { state, dispatch } = useStore();
@@ -211,19 +208,29 @@ export function Settings() {
               </div>
             </div>
             <div className="settings-row__control">
-              <select
-                className="select"
+              <input
+                className="input"
                 value={settings.downloadFolder}
                 onChange={(event) => patch({ downloadFolder: event.target.value })}
-                style={{ maxWidth: 300 }}
+                style={{ maxWidth: 260 }}
+                placeholder={SYSTEM_FOLDER_LABEL}
                 aria-label="Dossier de téléchargement par défaut"
+                spellCheck={false}
+              />
+              <button
+                type="button"
+                className="btn btn--sm"
+                onClick={async () => {
+                  const chosen = await getBridge()?.google.chooseFolder?.();
+                  if (chosen) {
+                    patch({ downloadFolder: chosen });
+                    toast.push('Dossier de destination mis à jour', 'ok');
+                  }
+                }}
               >
-                {FOLDERS.map((folder) => (
-                  <option key={folder} value={folder}>
-                    {folder}
-                  </option>
-                ))}
-              </select>
+                <FolderCog size={12} />
+                Choisir…
+              </button>
             </div>
           </div>
           <div className="settings-row">

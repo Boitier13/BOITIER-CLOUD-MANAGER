@@ -130,7 +130,9 @@ const STORAGE_KEY = 'boitier-cloud-manager:v1';
 const DEFAULT_SETTINGS: Settings = {
   theme: 'dark',
   density: 'confort',
-  downloadFolder: 'C:\\Users\\Boitier\\Téléchargements',
+  // Vide = dossier de téléchargements du système (résolu par le processus
+  // principal). Un chemin Windows en dur ne valait que pour une machine.
+  downloadFolder: '',
   concurrent: 3,
   confirmDelete: true,
 };
