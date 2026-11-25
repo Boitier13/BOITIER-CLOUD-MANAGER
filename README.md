@@ -90,11 +90,11 @@ l’application utilise PKCE (S256) + `state`.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 41 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 43 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
-                          # pause, révocation à la déconnexion — sans réseau,
-                          # avec un faux Google local
+                          # flux des récents, pause, révocation à la
+                          # déconnexion — sans réseau, avec un faux Google local
 npm run verify:interface  # six écrans sans compte puis avec un compte simulé
 npm run desktop:paths     # la fenêtre charge dist/ en file://, et possède ses
                           # garde-fous de démarrage (signal de vie, délai, journal)
@@ -193,10 +193,11 @@ Pour publier une version : mettre à jour `version` dans `package.json`, puis
 | **Tous les fichiers** | Explorateur navigable : fil d’Ariane, retour, recherche, tri, filtres par type, sélection multiple ; dossiers Google Drive chargés à la demande ; sous-vue **Partagés avec moi** (ce que d’autres ont partagé avec le compte, indépendamment de vos dossiers) |
 | **Téléchargements** | File unifiée : progression, débit, pause/reprise, annulation ; transferts Google Drive réellement écrits sur le disque, y compris **un dossier entier** (arborescence conservée) |
 | **Favoris** | Collection multi-comptes, recherche, répartition par type |
+| **Récents** | Flux transversal des derniers fichiers **modifiés** (7 / 30 / 90 jours), filtre par nom, téléchargement direct ; la limite de l’API — Google ne transmet pas la date d’ouverture — est écrite sur l’écran |
 | **Stockage** | Quota exact par compte et répartition mesurée par type de fichier ; ce qui n’est pas mesurable est annoncé comme tel, jamais estimé |
 | **Paramètres** | Thème sombre/clair, densité, dossier cible, transferts simultanés, réinitialisation |
 
-Raccourcis : `Ctrl+1…5`, `Ctrl+,`, `Ctrl+A` (sélection), `Échap`, `?`.
+Raccourcis : `Ctrl+1…6`, `Ctrl+,`, `Ctrl+A` (sélection), `Échap`, `?`.
 
 La recherche de l’explorateur couvre **tous les comptes** : chaque résultat affiche
 son cloud, son compte et son chemin ; un clic bascule automatiquement sur le bon compte.
@@ -209,6 +210,13 @@ totale — affiché avant tout transfert. Rien ne s’écrit avant la confirmati
 Chaque fichier arrive à sa place (`Téléchargements/Projets/2026/Devis.pdf`) ; les
 documents Google natifs sont comptés puis écartés, et un dossier très volumineux
 annonce un plan partiel plutôt que de bloquer la fenêtre.
+
+**Récents.** Un flux unique, tous comptes confondus, trié par date de modification.
+La nuance est assumée et écrite sur l’écran : Google Drive n’expose **pas** la
+date d’ouverture d’un fichier, seulement sa date de modification. Un fichier
+consulté tous les jours mais jamais modifié n’y apparaîtra donc pas — c’est une
+limite de l’API, pas un oubli. Les fenêtres proposées (7 / 30 / 90 jours)
+bornent la requête côté Google, et un plafond de 200 éléments borne le volume.
 
 **Partagés avec moi.** Un fichier qu’une autre personne partage avec vous n’est
 rangé dans aucun de vos dossiers : sans cette vue, il resterait invisible dans

@@ -190,6 +190,25 @@ try {
     `${totalMeasured} o mesurés`,
   );
 
+  // --- 5quinquies. Flux « récents » -----------------------------------------
+  const recent = await service2.recent(account.accountId, { days: 90, limit: 10 });
+  check(
+    'récents : liste triée du plus récent au plus ancien',
+    recent.length > 0 &&
+      recent.every(
+        (file, index) =>
+          index === 0 || new Date(recent[index - 1].modified) >= new Date(file.modified),
+      ),
+    recent.map((file) => file.name).join(' › '),
+  );
+  const futur = new Date(Date.now() + 86_400_000).toISOString();
+  const emptyRecent = await service2.recent(account.accountId, { days: 1, limit: 10 });
+  check(
+    'récents : la fenêtre de temps est bien transmise à Google',
+    Array.isArray(emptyRecent) && emptyRecent.every((file) => new Date(file.modified) <= new Date()),
+    `${emptyRecent.length} élément(s) sur 1 jour (horizon ${futur.slice(0, 10)})`,
+  );
+
   // --- 6. Recherche ---------------------------------------------------------
   const found = await service2.search(account.accountId, 'devis');
   check('recherche Drive', found.length === 1 && found[0].name === 'Devis 2026.pdf');

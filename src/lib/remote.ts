@@ -34,6 +34,14 @@ export const sharedKey = (accountId: string): string => `${accountId}${SHARED_KE
 export const folderKey = (accountId: string, path: string[]): string =>
   `${accountId}::${path.join('/')}`;
 
+/**
+ * Clé du flux « modifiés récemment ».
+ *
+ * Ce n'est pas un dossier non plus : la liste traverse tous les dossiers du
+ * compte. On garde une clé distincte pour ne pas la confondre avec la racine.
+ */
+export const recentKey = (accountId: string): string => `${accountId}::recent`;
+
 /** Extrait l'identifiant Drive du dernier segment de chemin. */
 export function driveFolderId(path: string[]): string {
   if (!path.length) return GOOGLE_ROOT;
@@ -146,6 +154,39 @@ class RemoteCatalog {
     this.publish();
   }
 
+  /** Force la relecture du flux « récents » (bouton Actualiser). */
+  reloadRecent(accountId: string): void {
+    const key = recentKey(accountId);
+    this.states.delete(key);
+    this.loadRecent(accountId);
+  }
+
+  /** Charge les derniers fichiers modifiés du compte (une fois). */
+  loadRecent(accountId: string): void {
+    const key = recentKey(accountId);
+    const existing = this.states.get(key);
+    if (existing && existing.status !== 'error') return;
+    void this.fetchRecent(accountId, key);
+  }
+
+  private async fetchRecent(accountId: string, key: string): Promise<void> {
+    const client = getBridge();
+    if (!client) return;
+    this.states.set(key, { nodes: [], status: 'loading' });
+    this.publish();
+    try {
+      const files = await client.google.recent(accountId, { days: 90, limit: 200 });
+      this.states.set(key, { nodes: files.map(toNode), status: 'ready' });
+    } catch (cause) {
+      this.states.set(key, {
+        nodes: [],
+        status: 'error',
+        error: (cause as Error).message || 'Les fichiers récents sont injoignables.',
+      });
+    }
+    this.publish();
+  }
+
   search(accountId: string, term: string): void {
     const query = term.trim();
     if (query.length < 2) return;
@@ -248,6 +289,58 @@ export function remoteTree(
     }
   }
   return root;
+}
+
+/**
+ * Derniers fichiers modifiés, agrégés sur plusieurs comptes.
+ *
+ * Le flux n'est pas stocké tel quel : on combine les réponses déjà en cache,
+ * triées par date de modification. Chaque entrée garde son compte d'origine,
+ * sinon un fichier « récent » deviendrait impossible à ouvrir.
+ */
+export function useRemoteRecent(accountIds: string[], enabled: boolean): {
+  status: 'idle' | 'loading' | 'ready' | 'error';
+  error?: string;
+  files: { accountId: string; file: FileNode; modified: string }[];
+} {
+  // La clé de dépendance doit être stable : un tableau recréé à chaque rendu
+  // relancerait la souscription en boucle.
+  const signature = accountIds.join(',');
+  const snapshot = useSyncExternalStore(remoteCatalog.subscribe, () => {
+    if (!enabled) return '';
+    return accountIds
+      .map((id) => {
+        const state = remoteCatalog.get(recentKey(id));
+        return `${id}:${state?.status ?? 'idle'}:${state?.nodes.length ?? 0}`;
+      })
+      .join('|');
+  });
+
+  useEffect(() => {
+    if (!enabled) return;
+    for (const id of accountIds) remoteCatalog.loadRecent(id);
+    // `signature` suffit : c'est le contenu du tableau qui compte.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, signature]);
+
+  return useMemo(() => {
+    if (!enabled) return { status: 'idle' as const, files: [] };
+    const files: { accountId: string; file: FileNode; modified: string }[] = [];
+    let loading = false;
+    let failed: string | undefined;
+    for (const id of accountIds) {
+      const state = remoteCatalog.get(recentKey(id));
+      if (!state || state.status === 'loading') loading = true;
+      if (state?.status === 'error' && !failed) failed = state.error;
+      for (const file of state?.nodes ?? []) {
+        files.push({ accountId: id, file, modified: file.modified });
+      }
+    }
+    files.sort((a, b) => new Date(b.modified).getTime() - new Date(a.modified).getTime());
+    if (failed) return { status: 'error' as const, error: failed, files };
+    if (loading) return { status: 'loading' as const, files };
+    return { status: 'ready' as const, files };
+  }, [enabled, signature, snapshot]);
 }
 
 /** État d'un dossier distant, chargé automatiquement (sans rechargement). */

@@ -83,6 +83,7 @@ async function parcours({ label, bridge }) {
     'Tous les fichiers',
     'Téléchargements',
     'Favoris',
+    'Récents',
     'Stockage',
     'Google Drive',
     'Paramètres',
@@ -164,6 +165,24 @@ const compte = await parcours({
       }),
       search: async () => [],
       download: async () => {},
+      recent: async () => [
+        {
+          id: 'r1',
+          name: 'Rapport final.pdf',
+          kind: 'file',
+          mimeType: 'application/pdf',
+          size: 2_400_000,
+          modified: new Date(Date.now() - 3_600_000).toISOString(),
+        },
+        {
+          id: 'r-old',
+          name: 'Vieux dossier',
+          kind: 'folder',
+          mimeType: 'application/vnd.google-apps.folder',
+          size: 0,
+          modified: new Date('2026-01-05T09:00:00.000Z').toISOString(),
+        },
+      ],
       storage: async () => ({
         usedBytes: 41 * 1024 ** 3,
         quotaBytes: 200 * 1024 ** 3,
@@ -279,6 +298,27 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
     'stockage : le reste non détaillé est annoncé',
     /non détaillé/.test(body),
     'pas de total inventé',
+  );
+}
+
+/* --- 7. Écran Récents : la limite de l'API est dite, pas masquée -------- */
+{
+  const { doc, click } = compte;
+  const recent = [...doc.querySelectorAll('.nav-item')].find((button) =>
+    (button.textContent ?? '').includes('Récents'),
+  );
+  if (recent) await click(recent);
+  const body = doc.querySelector('.page')?.textContent ?? '';
+  check('récents : fichier modifié récemment affiché', /Rapport final\.pdf/.test(body));
+  check(
+    'récents : la limite de l’API est écrite à l’écran',
+    /modification/.test(body) && /ne transmet pas la date d’ouverture/.test(body),
+    'pas d’historique inventé',
+  );
+  check(
+    'récents : un fichier hors fenêtre est écarté',
+    !/Vieux dossier/.test(body),
+    'filtre de période appliqué',
   );
 }
 
