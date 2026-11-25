@@ -143,8 +143,26 @@ const compte = await parcours({
           size: 2_400_000,
           modified: new Date().toISOString(),
         },
+        {
+          id: 'd1',
+          name: 'Projets',
+          kind: 'folder',
+          mimeType: 'application/vnd.google-apps.folder',
+          size: 0,
+          modified: new Date().toISOString(),
+        },
       ],
+      plan: async () => ({
+        files: [
+          { fileId: 'p1', path: '2026/Devis.pdf', size: 48_211, mimeType: 'application/pdf' },
+        ],
+        folders: ['2026'],
+        skipped: ['Compte rendu'],
+        truncated: false,
+        totalBytes: 48_211,
+      }),
       search: async () => [],
+      download: async () => {},
       shared: async () => [
         {
           id: 's1',
@@ -190,6 +208,49 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
       'vue partagée : retour aux dossiers du compte',
       !/Partagés avec moi/.test(doc.querySelector('.crumbs')?.textContent ?? ''),
     );
+  }
+}
+
+/* --- 5. Téléchargement d'un dossier entier ------------------------------ */
+{
+  const { doc, click } = compte;
+  const files = [...doc.querySelectorAll('.nav-item')].find((button) =>
+    (button.textContent ?? '').includes('Tous les fichiers'),
+  );
+  if (files) await click(files);
+  const folderButton = doc.querySelector('[aria-label^="Télécharger le dossier"]');
+  check('dossier : commande de téléchargement complet présente', Boolean(folderButton));
+  if (folderButton) {
+    await click(folderButton);
+    await new Promise((r) => setTimeout(r, 250));
+    const dialog = doc.querySelector('.modal')?.textContent ?? '';
+    check('dossier : résumé annoncé avant tout transfert', /1 fichier/.test(dialog), dialog.trim());
+    check('dossier : destination affichée', /Destination/.test(dialog));
+    check(
+      'dossier : document Google natif annoncé',
+      /Google natif/.test(dialog),
+      'compté, pas téléchargé',
+    );
+    const confirm = [...doc.querySelectorAll('.modal__foot .btn')].find((button) =>
+      (button.textContent ?? '').trim() === 'Télécharger',
+    );
+    check('dossier : bouton de confirmation présent', Boolean(confirm));
+    if (confirm) {
+      await click(confirm);
+      check('dossier : dialogue refermé après lancement', !doc.querySelector('.modal'));
+      const downloads = [...doc.querySelectorAll('.nav-item')].find((button) =>
+        (button.textContent ?? '').includes('Téléchargements'),
+      );
+      if (downloads) await click(downloads);
+      const queue = [...doc.querySelectorAll('.download-row__name')].map((row) =>
+        row.textContent ?? '',
+      );
+      check(
+        'dossier : chaque fichier entre dans la file avec son chemin',
+        queue.includes('2026/Devis.pdf'),
+        queue.join(', ') || 'file vide',
+      );
+    }
   }
 }
 

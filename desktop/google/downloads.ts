@@ -32,6 +32,11 @@ export interface DownloadRequest {
   name: string;
   size: number;
   dir: string;
+  /**
+   * Sous-dossier relatif à `dir`, pour un téléchargement de dossier entier :
+   * chaque fichier conserve son emplacement d'origine dans l'arborescence.
+   */
+  subPath?: string;
 }
 
 interface Job {
@@ -41,6 +46,25 @@ interface Job {
   size: number;
   status: DownloadStatus;
   paused: boolean;
+}
+
+/**
+ * Chemin de destination d'une entrée de dossier téléchargé.
+ *
+ * Chaque segment est assaini séparément : un nom de dossier Drive peut contenir
+ * des caractères que Windows refuse, et rien ne doit permettre de sortir du
+ * dossier choisi (ni `..` ni chemin absolu).
+ */
+export function relativeDir(root: string, subPath: string | undefined): string {
+  if (!subPath) return root;
+  const parts = subPath
+    .split('/')
+    // On écarte d'abord les segments de remontée, avant l'assainissement :
+    // `safeFileName('..')` les remplacerait par un nom neutre au lieu de les
+    // supprimer, et un dossier Drive nommé « .. » ne doit pas créer de niveau.
+    .filter((part) => part && part !== '.' && part !== '..')
+    .map((part) => safeFileName(part));
+  return join(root, ...parts);
 }
 
 /** Noms sûrs : pas de séparateur de chemin ni de caractère interdit. */
@@ -147,7 +171,7 @@ export class DownloadManager {
 
   private async run(job: Job, token: string): Promise<void> {
     const { request } = job;
-    const dir = request.dir || (await this.fallbackDir());
+    const dir = relativeDir(request.dir || (await this.fallbackDir()), request.subPath);
     await mkdir(dir, { recursive: true });
     const finalPath = await uniquePath(dir, request.name);
     const partPath = `${finalPath}.part`;
