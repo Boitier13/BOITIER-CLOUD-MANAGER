@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('boitier', {
     search: (accountId, term) => invoke('google:search', accountId, term),
     shared: (accountId) => invoke('google:shared', accountId),
     plan: (accountId, folderId) => invoke('google:plan', accountId, folderId),
+    storage: (accountId) => invoke('google:storage', accountId),
     download: (request) => invoke('google:download', request),
     pause: (id) => invoke('google:pause', id),
     resume: (id, accountId) => invoke('google:resume', id, accountId),

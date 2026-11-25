@@ -20,6 +20,7 @@ import {
 } from './oauth.ts';
 import { endpointsFromEnv, type Endpoints } from './endpoints.ts';
 import { planFolder, type FolderPlan } from './tree.ts';
+import { readStorageUsage, type StorageUsage } from './storage.ts';
 import {
   listChildren,
   listShared,
@@ -185,6 +186,19 @@ export class GoogleService {
   /** Fichiers partagés avec ce compte (hors dossiers de l'utilisateur). */
   async shared(accountId: string): Promise<DriveItem[]> {
     return listShared(this.endpoints, await this.token(accountId));
+  }
+
+  /**
+   * Répartition du stockage du compte.
+   *
+   * Le quota vient de Google et est exact ; la répartition par catégorie est
+   * mesurée par des requêtes bornées. Les deux sont renvoyés ensemble pour que
+   * l'écran puisse dire honnêtement ce qui est complet et ce qui ne l'est pas.
+   */
+  async storage(accountId: string): Promise<StorageUsage> {
+    const token = await this.token(accountId);
+    const quota = await readQuota(this.endpoints, token);
+    return readStorageUsage(this.endpoints, token, quota);
   }
 
   async search(accountId: string, term: string): Promise<DriveItem[]> {

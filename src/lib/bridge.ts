@@ -38,6 +38,24 @@ export type GoogleFolderPlan = {
   totalBytes: number;
 };
 
+/** Répartition du stockage d'un compte Google. */
+export type GoogleStorageCategory = {
+  id: 'document' | 'image' | 'video' | 'audio' | 'archive' | 'other';
+  bytes: number;
+  count: number;
+  /** Somme incomplète : le plafond de pages a été atteint. */
+  partial: boolean;
+};
+
+export type GoogleStorageUsage = {
+  usedBytes: number;
+  quotaBytes: number;
+  /** Drive + Gmail + Photos moins Drive ; `null` si Google ne distingue pas. */
+  emailBytes: number | null;
+  categories: GoogleStorageCategory[];
+  partial: boolean;
+};
+
 export type GoogleDownloadRequest = {
   id: string;
   accountId: string;
@@ -85,6 +103,8 @@ export interface BoitierBridge {
     shared(accountId: string): Promise<GoogleFile[]>;
     /** Parcourt un dossier et renvoie le plan de téléchargement, sans rien écrire. */
     plan(accountId: string, folderId: string): Promise<GoogleFolderPlan>;
+    /** Quota exact + répartition mesurée par catégorie (bornée, parfois partielle). */
+    storage(accountId: string): Promise<GoogleStorageUsage>;
     download(request: GoogleDownloadRequest): Promise<void>;
     pause(id: string): Promise<void>;
     resume(id: string, accountId: string): Promise<boolean>;

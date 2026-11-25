@@ -24,6 +24,13 @@ export type DriveQuota = {
   picture?: string;
   usedBytes: number;
   quotaBytes: number;
+  /**
+   * `usage` couvre Drive + Gmail + Photos ; `usageInDrive` ne couvre que Drive.
+   * Les deux sont conservés : c'est leur écart qui dit si l'on peut afficher
+   * une répartition honnête, ou s'il faut se taire.
+   */
+  usageBytes?: number;
+  usageInDriveBytes?: number;
 };
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
@@ -126,6 +133,50 @@ export function listShared(
   return listAll(endpoints, token, query, 'modifiedTime desc', signal);
 }
 
+/**
+ * Somme des tailles d'une requête Drive, sans rapatrier les métadonnées.
+ *
+ * Sert à la répartition du stockage par catégorie. Volontairement borné : la
+ * fonction renvoie `partial: true` si le plafond de pages est atteint, pour que
+ * l'écran puisse annoncer un chiffre incomplet au lieu de faire croire à un
+ * total exact.
+ */
+export async function sumBytes(
+  endpoints: Endpoints,
+  token: string,
+  query: string,
+  options: { maxPages?: number; signal?: AbortSignal } = {},
+): Promise<{ bytes: number; count: number; partial: boolean }> {
+  const pages = Math.max(1, Math.min(20, options.maxPages ?? 10));
+  let bytes = 0;
+  let count = 0;
+  let pageToken: string | undefined;
+
+  for (let page = 0; page < pages; page += 1) {
+    const url = new URL(`${endpoints.drive}/files`);
+    url.searchParams.set('q', query);
+    url.searchParams.set('fields', 'files(size),nextPageToken');
+    url.searchParams.set('pageSize', '1000');
+    url.searchParams.set('spaces', 'drive');
+    url.searchParams.set('includeItemsFromAllDrives', 'true');
+    url.searchParams.set('supportsAllDrives', 'true');
+    if (pageToken) url.searchParams.set('pageToken', pageToken);
+
+    const payload = await fetchJson<{
+      files?: { size?: string }[];
+      nextPageToken?: string;
+    }>(url.toString(), token, options.signal);
+    for (const raw of payload.files ?? []) {
+      bytes += Number(raw.size ?? 0) || 0;
+      count += 1;
+    }
+    if (!payload.nextPageToken) return { bytes, count, partial: false };
+    pageToken = payload.nextPageToken;
+  }
+
+  return { bytes, count, partial: true };
+}
+
 /** Recherche par nom sur l'ensemble du compte. */
 export function searchFiles(
   endpoints: Endpoints,
@@ -155,12 +206,16 @@ export async function readQuota(
 
   const used = Number(payload.storageQuota?.usageInDrive ?? payload.storageQuota?.usage ?? 0);
   const limit = Number(payload.storageQuota?.limit ?? 0);
+  const usage = Number(payload.storageQuota?.usage ?? 0);
+  const usageInDrive = Number(payload.storageQuota?.usageInDrive ?? 0);
   return {
     name: payload.user?.displayName?.trim() || payload.user?.emailAddress?.split('@')[0] || 'Google Drive',
     email: payload.user?.emailAddress ?? '',
     ...(payload.user?.photoLink ? { picture: payload.user.photoLink } : {}),
     usedBytes: Number.isFinite(used) ? used : 0,
     quotaBytes: Number.isFinite(limit) && limit > 0 ? limit : 0,
+    ...(Number.isFinite(usage) && usage > 0 ? { usageBytes: usage } : {}),
+    ...(Number.isFinite(usageInDrive) && usageInDrive > 0 ? { usageInDriveBytes: usageInDrive } : {}),
   };
 }
 

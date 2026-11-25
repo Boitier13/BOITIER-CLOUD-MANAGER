@@ -3,6 +3,7 @@ import {
   FolderTree,
   HardDrive,
   House,
+  PieChart,
   Settings,
   Star,
 } from 'lucide-react';
@@ -20,6 +21,7 @@ const NAV = [
   { id: 'files', label: 'Tous les fichiers', icon: FolderTree },
   { id: 'downloads', label: 'Téléchargements', icon: Download },
   { id: 'favorites', label: 'Favoris', icon: Star },
+  { id: 'storage', label: 'Stockage', icon: PieChart },
 ] as const;
 
 export function Sidebar({ onNavigate }: SidebarProps) {

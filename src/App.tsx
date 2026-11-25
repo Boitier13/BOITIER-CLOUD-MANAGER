@@ -15,6 +15,7 @@ import { useToast } from './components/toast';
 import { Home } from './pages/Home';
 import { Clouds } from './pages/Clouds';
 import { Files } from './pages/Files';
+import { Storage } from './pages/Storage';
 import { Downloads } from './pages/Downloads';
 import { Favorites } from './pages/Favorites';
 import { Settings } from './pages/Settings';
@@ -93,6 +94,9 @@ export default function App() {
       } else if (key === '4') {
         event.preventDefault();
         navigate({ name: 'favorites' });
+      } else if (key === '5') {
+        event.preventDefault();
+        navigate({ name: 'storage' });
       } else if (key === ',') {
         event.preventDefault();
         navigate({ name: 'settings' });
@@ -146,6 +150,8 @@ export default function App() {
         return <Downloads onNavigate={navigate} />;
       case 'favorites':
         return <Favorites onOpenEntry={openEntry} />;
+      case 'storage':
+        return <Storage onNavigate={navigate} />;
       case 'settings':
         return <Settings />;
       default:
@@ -240,6 +246,7 @@ export default function App() {
               ['Explorateur', 'Ctrl + 2'],
               ['Téléchargements', 'Ctrl + 3'],
               ['Favoris', 'Ctrl + 4'],
+              ['Stockage', 'Ctrl + 5'],
               ['Paramètres', 'Ctrl + ,'],
               ['Tout sélectionner dans un dossier', 'Ctrl + A'],
               ['Vider la sélection / le filtre', 'Échap'],

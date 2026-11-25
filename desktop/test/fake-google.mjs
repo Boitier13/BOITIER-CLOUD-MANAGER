@@ -139,7 +139,9 @@ const server = createServer(async (req, res) => {
   if (url.pathname === '/drive/v3/about') {
     return json(res, 200, {
       user: { displayName: 'Boitier Test', emailAddress: 'boitier.test@gmail.com' },
-      storageQuota: { limit: '16106127360', usage: '2684354560', usageInDrive: '2684354560' },
+      // `usage` > `usageInDrive` : Google distingue Drive de Gmail/Photos, ce
+      // que l'écran Stockage doit savoir afficher sans le deviner.
+      storageQuota: { limit: '16106127360', usage: '3221225472', usageInDrive: '2684354560' },
     });
   }
 
@@ -150,6 +152,9 @@ const server = createServer(async (req, res) => {
     const searchMatch = /name contains '([^']+)'/.exec(q);
     // like `sharedWithMe = true` : fichiers partagés par d'autres personnes.
     const sharedOnly = /sharedWithMe\s*=\s*true/.test(q);
+    // Mesure du stockage : `mimeType contains 'video/'` & co.
+    const mimeMatch = /mimeType contains '([^']+)'/.exec(q);
+    if (mimeMatch) result = result.filter((file) => file.mimeType.includes(mimeMatch[1]));
     if (sharedOnly) result = result.filter((file) => file.shared === true);
     if (parentMatch) result = result.filter((file) => file.parents?.includes(parentMatch[1]));
     if (searchMatch) {
