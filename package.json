@@ -1,7 +1,7 @@
 {
   "name": "boitier-cloud-manager",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "BOITIER CLOUD MANAGER — gestionnaire local multi-cloud (Google Drive réel en lecture seule)",
   "type": "module",
   "scripts": {

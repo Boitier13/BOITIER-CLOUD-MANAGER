@@ -137,7 +137,8 @@ Deux workflows GitHub Actions :
 | **Vérification** | chaque push et chaque PR | types, build, 32 contrôles Google, chemins `file://`, contenu de l'archive |
 | **Installeur Windows** | tag `v*` ou lancement manuel | construit `release/BOITIER-CLOUD-MANAGER-x.y.z-setup.exe` et le joint à la release |
 
-Pour publier une version : `git tag v0.3.0 && git push origin v0.3.0`.
+Pour publier une version : mettre à jour `version` dans `package.json`, puis
+`git tag v0.4.0 && git push origin v0.4.0`.
 
 ## Fonctionnalités
 
