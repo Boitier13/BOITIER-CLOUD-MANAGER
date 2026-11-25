@@ -319,7 +319,8 @@ export function Settings() {
             <div>
               <div className="about-block__name">BOITIER CLOUD MANAGER</div>
               <div className="about-block__meta">
-                Application personnelle de gestion multi-cloud · version 0.1.0 (front-end)
+                Application personnelle de gestion multi-cloud · version {__APP_VERSION__}
+                {isDesktop() ? ' (Windows)' : ' (aperçu navigateur)'}
               </div>
             </div>
             <div className="settings-version">

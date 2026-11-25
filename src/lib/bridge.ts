@@ -55,6 +55,11 @@ export type GoogleClientStatus = {
 
 export interface BoitierBridge {
   platform: string;
+  /**
+   * Signale à la fenêtre que l'interface est interactive. Absent dans un
+   * navigateur : le pont entier l'est aussi.
+   */
+  ready?: () => Promise<unknown>;
   google: {
     status(): Promise<GoogleClientStatus>;
     setClient(clientId: string, clientSecret: string): Promise<GoogleClientStatus>;
@@ -91,4 +96,21 @@ export function getBridge(): BoitierBridge | null {
 /** Vrai lorsque l'application tourne dans sa fenêtre Windows (Electron). */
 export function isDesktop(): boolean {
   return getBridge() !== null;
+}
+
+/**
+ * Annonce que l'interface est montée et répond aux clics.
+ *
+ * Le processus principal attend ce signal : sans lui, il recharge la fenêtre
+ * une fois puis affiche un message, plutôt que de laisser un cadre inerte.
+ * L'appel est sans effet dans un navigateur et ne lève jamais.
+ */
+export function signalReady(): void {
+  const bridge = getBridge();
+  if (!bridge?.ready) return;
+  try {
+    void Promise.resolve(bridge.ready()).catch(() => undefined);
+  } catch {
+    /* le signal est un confort de diagnostic : jamais bloquant */
+  }
 }

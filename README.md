@@ -92,7 +92,8 @@ npm run desktop:test      # 32 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # exploration, recherche, téléchargement réel, pause,
                           # révocation à la déconnexion — sans réseau, avec un
                           # faux Google local
-npm run desktop:paths     # la fenêtre charge bien dist/ en file://
+npm run desktop:paths     # la fenêtre charge dist/ en file://, et possède ses
+                          # garde-fous de démarrage (signal de vie, délai, journal)
 npm run desktop:package-test # contenu de l'archive : complet, sans secret,
                              # fontes embarquées, aucune ressource distante
 ```
@@ -118,6 +119,29 @@ ce qui serait de toute façon sans effet en `file://`) :
 - contrastes des textes secondaires portés au niveau **AA** (≥ 4,5:1) dans les
   deux thèmes, y compris sur les panneaux les plus contrastés (`--panel-3`).
 
+### Démarrage de la fenêtre
+
+Un défaut a été observé en usage réel : au **premier lancement après une mise à
+jour**, la fenêtre s'ouvre mais aucun menu ne réagit ; fermer puis relancer
+rétablit tout. La fenêtre affichait alors un document dont l'interface n'avait
+pas pris la main.
+
+Trois garde-fous empêchent désormais ce cas de passer inaperçu :
+
+| Mécanisme | Rôle |
+| --- | --- |
+| **Signal de vie** (`desktop:renderer-ready`) | l'interface prévient dès qu'elle est montée ; c'est la preuve qu'elle répond |
+| **Délai de 12 s** | sans signal, la fenêtre est rechargée **une fois** ; si elle reste muette, un message propose de relancer |
+| **Journal de démarrage** | `%APPDATA%\BOITIER CLOUD MANAGER\demarrage.log` : version, mode, chargement, incidents |
+
+En cas de défaut, le journal suffit à savoir ce qui s'est passé — plus besoin de
+deviner. Les échecs de chargement (`did-fail-load`) et les arrêts du processus
+d'affichage sont également interceptés et expliqués, au lieu de laisser une
+fenêtre vide.
+
+La version affichée dans **Paramètres → À propos** est lue dans `package.json`
+au moment de la compilation : elle ne peut plus annoncer un numéro périmé.
+
 ### Chargement local (`file://`)
 
 La fenêtre Electron n'ouvre pas un serveur : elle charge `dist/index.html`
@@ -138,7 +162,7 @@ Deux workflows GitHub Actions :
 | **Installeur Windows** | tag `v*` ou lancement manuel | construit `release/BOITIER-CLOUD-MANAGER-x.y.z-setup.exe` et le joint à la release |
 
 Pour publier une version : mettre à jour `version` dans `package.json`, puis
-`git tag v0.4.0 && git push origin v0.4.0`.
+`git tag v0.4.1 && git push origin v0.4.1`.
 
 ## Fonctionnalités
 

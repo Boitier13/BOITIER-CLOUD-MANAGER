@@ -1,5 +1,14 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+
+/**
+ * Version affichée dans l'application, lue dans `package.json` : une seule
+ * source de vérité, jamais de numéro saisi à la main qui finirait par mentir.
+ */
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as {
+  version: string;
+};
 
 /**
  * Application 100 % locale : aucun proxy, aucune API distante.
@@ -17,6 +26,9 @@ export default defineConfig({
   // pointeraient vers la racine du disque, pas vers l'application).
   base: './',
   plugins: [react()],
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   build: {
     // Un seul fichier JS : la fenêtre Electron charge `dist/index.html` en
     // `file://`, où les imports dynamiques échoueraient (CORS / import.meta).

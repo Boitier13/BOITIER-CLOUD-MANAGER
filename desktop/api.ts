@@ -25,6 +25,8 @@ export const channels = {
   event: 'google:download-event',
   openExternal: 'desktop:open-external',
   openFolder: 'desktop:open-folder',
+  /** Signal de vie : émis par l'interface dès qu'elle est interactive. */
+  ready: 'desktop:renderer-ready',
 } as const;
 
 const CONSOLE_LINKS = /^https:\/\/(console\.cloud\.google\.com|developers\.google\.com)\//;
