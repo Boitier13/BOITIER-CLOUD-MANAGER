@@ -70,6 +70,7 @@ const { GoogleSession } = await import('../google/tokens.ts');
 const { endpointsFromEnv } = await import('../google/endpoints.ts');
 const { runLoopbackFlow, exchangeCode } = await import('../google/oauth.ts');
 const { relativeDir } = await import('../google/downloads.ts');
+const { canonicalGmail, findAlias } = await import('../../src/lib/accounts.ts');
 
 const config = { clientId: 'client-test.apps.googleusercontent.com', clientSecret: 'secret' };
 const endpoints = endpointsFromEnv();
@@ -168,6 +169,32 @@ try {
   check(
     'vue « Partagés avec moi » : le fichier n’est pas dans la racine',
     !rootFiles.some((file) => file.id === shared[0]?.id),
+  );
+
+  // --- 5bis. Adresses Gmail : les alias ne font pas un second compte ---------
+  check(
+    'adresses Gmail : les variantes désignent la même boîte',
+    canonicalGmail('First.Boitier1+2@gmail.com') === 'firstboitier1@gmail.com' &&
+      canonicalGmail('firstboitier1@googlemail.com') === 'firstboitier1@gmail.com',
+  );
+  check(
+    'adresses Gmail : un domaine non Gmail est laissé intact',
+    canonicalGmail('boitier@monentreprise.fr') === null,
+  );
+  const alias = findAlias('firstboitier1+2@gmail.com', [
+    { id: 'gdrive-x', email: 'firstboitier1@gmail.com' },
+    { id: 'gdrive-y', email: 'saturninyoukpo8@gmail.com' },
+  ]);
+  check(
+    'adresses Gmail : l’alias est reconnu comme une adresse déjà connectée',
+    alias.duplicateOf?.id === 'gdrive-x' && alias.variant,
+    alias.duplicateOf?.email ?? 'aucune correspondance',
+  );
+  check(
+    'adresses Gmail : un compte distinct reste distinct',
+    !findAlias('saturninyoukpo13@gmail.com', [
+      { id: 'gdrive-y', email: 'saturninyoukpo8@gmail.com' },
+    ]).duplicateOf,
   );
 
   // --- 5quater. Répartition du stockage -------------------------------------

@@ -84,6 +84,39 @@ l’application utilise PKCE (S256) + `state`.
 | Pause et reprise | Une pause annule le flux réseau et supprime le fichier partiel ; la reprise repart du début. |
 | Comptes professionnels | Un administrateur Google Workspace peut interdire les applications tierces. |
 
+### Plusieurs comptes Gmail, et les alias
+
+Gmail ignore les points et tout ce qui suit un `+` dans l’adresse :
+
+| Adresse demandée | Boîte réellement ouverte |
+| --- | --- |
+| `firstboitier1@gmail.com` | `firstboitier1@gmail.com` |
+| `first.boitier1@gmail.com` | `firstboitier1@gmail.com` |
+| `firstboitier1+2@gmail.com` | `firstboitier1@gmail.com` |
+| `firstboitier1@googlemail.com` | `firstboitier1@gmail.com` |
+
+Ce ne sont pas quatre comptes : c’est **une seule boîte**, donc **un seul Drive**,
+un seul quota. Google renvoie d’ailleurs toujours l’adresse principale, jamais
+l’alias.
+
+Conséquence dans l’application :
+
+- l’identifiant d’un compte est calculé sur la **forme canonique** de son
+  adresse, si bien qu’une variante retombe sur le compte existant ;
+- si le compte était déjà connecté, la connexion le **met à jour** et l’interface
+  le dit (« était déjà connecté — informations mises à jour ») au lieu de laisser
+  croire à un ajout ;
+- l’écran **Google Drive** signale les adresses qui sont des variantes, pour
+  éviter de chercher un compte qui n’existe pas.
+
+La règle ne s’applique **qu’à Gmail** : sur un domaine d’entreprise,
+`jean+compta@` et `jean+paie@` peuvent être deux boîtes distinctes. Ces adresses
+sont donc laissées intactes.
+
+> **Ce que ce n’est pas.** L’application ne devine jamais qu’un alias est un
+> doublon : elle le constate quand Google renvoie deux adresses identiques. Une
+> détection approximative pourrait fusionner deux comptes réellement distincts.
+
 ### Éviter la reconnexion chaque semaine (gratuit, 5 minutes)
 
 Par défaut, un projet Google Cloud reste en **Testing** : Google invalide alors
@@ -135,7 +168,8 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 43 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 47 contrôles : OAuth/PKCE, coffre chiffré, quota,
+                          # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
                           # flux des récents, pause, révocation à la

@@ -12,12 +12,13 @@ import {
   X,
 } from 'lucide-react';
 import { PROVIDERS, type Account, type AccountStatus, type ProviderId } from '../data/catalog';
-import { KeyRound, LockKeyhole, Unplug } from 'lucide-react';
+import { KeyRound, LockKeyhole, TriangleAlert, Unplug } from 'lucide-react';
 import { useStore, type Route } from '../store';
 import { GoogleConnectDialog, GoogleSetupDialog } from '../components/GoogleDialogs';
 import { useGoogleAccountSync, useGoogleClientStatus } from '../hooks/useGoogle';
 import { getBridge, isDesktop } from '../lib/bridge';
 import { isRealAccount, realAccountId } from '../lib/google';
+import { looksLikeGmailVariant } from '../lib/accounts';
 import { formatBytes, formatDecimal, normalize, percent } from '../lib/format';
 import { Meter, ProviderMark } from '../components/visuals';
 import { Modal } from '../components/Modal';
@@ -70,6 +71,13 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
   const def = PROVIDERS[provider];
   const accounts = state.accounts.filter((account) => account.provider === provider);
   const realAccounts = accounts.filter(isRealAccount);
+
+  // Adresses qui ne désignent pas un compte distinct : variantes `+` et à
+  // points d'un compte Gmail. On les montre au lieu de laisser croire à des
+  // comptes séparés.
+  const gmailAliasAccounts = realAccounts.filter((account) =>
+    looksLikeGmailVariant(account.email),
+  );
 
   const filtered = useMemo(() => {
     const q = normalize(query.trim());
@@ -418,6 +426,24 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
         )}
       </div>
 
+      {gmailAliasAccounts.length > 0 ? (
+        <div className="callout" style={{ marginTop: 16 }}>
+          <TriangleAlert size={13} style={{ flex: 'none', marginTop: 1 }} />
+          <span>
+            {formatDecimal(gmailAliasAccounts.length)}{' '}
+            {gmailAliasAccounts.length > 1 ? 'comptes utilisent' : 'compte utilise'} une
+            variante d’adresse Gmail (
+            {gmailAliasAccounts
+              .slice(0, 3)
+              .map((account) => account.email)
+              .join(', ')}
+            {gmailAliasAccounts.length > 3 ? '…' : ''}). Une adresse avec « + » ou des
+            points désigne la <b>même boîte</b> que l’adresse principale, donc le même
+            Drive : Google ne la comptera pas comme un second compte.
+          </span>
+        </div>
+      ) : null}
+
       <p
         style={{
           marginTop: 16,
@@ -460,7 +486,14 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
           onConnected={(info) => {
             applyGoogleAccount(info);
             setDialog(null);
-            toast.push(`Compte ${info.email} connecté`, 'ok');
+            // Google renvoie toujours l'adresse principale : si le compte
+            // existait déjà, on le dit au lieu de laisser croire à un ajout.
+            toast.push(
+              info.alreadyConnected
+                ? `${info.email} était déjà connecté — informations mises à jour`
+                : `Compte ${info.email} connecté`,
+              'ok',
+            );
           }}
         />
       ) : null}
