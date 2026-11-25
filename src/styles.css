@@ -4055,3 +4055,95 @@ tr.is-folder .cell-name__text {
     display: none;
   }
 }
+
+/* ----------------------------------------------------------------------------
+ * Volet des comptes : filtre et marque de couleur.
+ *
+ * Dix comptes, c'est une colonne qu'on fait défiler. Le filtre évite le
+ * défilement ; la marque de couleur évite la confusion entre deux adresses
+ * qui se ressemblent (`…07`, `…08`, `…82`).
+ * ------------------------------------------------------------------------- */
+
+.rail-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rail-label__count {
+  font-size: 10.5px;
+  letter-spacing: 0;
+  font-weight: 500;
+  color: var(--text-4);
+}
+
+.rail-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 3px 8px 5px;
+  padding: 0 7px;
+  height: 26px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: var(--input-bg);
+  color: var(--text-4);
+}
+
+.rail-search:focus-within {
+  border-color: var(--line-strong);
+  color: var(--text-3);
+}
+
+.rail-search__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.rail-search__input::placeholder {
+  color: var(--text-4);
+}
+
+.rail-search__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  color: var(--text-4);
+  flex: none;
+}
+
+.rail-search__clear:hover {
+  background: var(--hover);
+  color: var(--text-2);
+}
+
+/* Marque de couleur stable, dérivée de l'adresse : jamais criarde. */
+.rail-mark {
+  width: 3px;
+  height: 13px;
+  border-radius: 2px;
+  flex: none;
+  background: var(--mark, var(--text-4));
+  opacity: 0.75;
+}
+
+.rail-account.is-active .rail-mark {
+  opacity: 1;
+}
+
+.rail-empty {
+  padding: 10px 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-4);
+}

@@ -117,6 +117,19 @@ sont donc laissées intactes.
 > doublon : elle le constate quand Google renvoie deux adresses identiques. Une
 > détection approximative pourrait fusionner deux comptes réellement distincts.
 
+### Beaucoup de comptes
+
+Le volet des comptes de l’explorateur reste utilisable au-delà de quelques
+comptes :
+
+- au-delà de cinq comptes, un **filtre** apparaît en tête du volet : il cherche
+  dans le nom et l’adresse, et dit clairement quand rien ne correspond ;
+- chaque compte porte une **marque de couleur** stable, calculée sur son adresse.
+  Deux comptes voisins (`boitierfirst7`, `boitierfirst8`, `boitierfirst82`) se
+  distinguent sans lire ;
+- la ligne affiche l’**adresse** plutôt qu’un libellé répétitif : c’est ce qui
+  différencie deux comptes créés dans la même minute.
+
 ### Éviter la reconnexion chaque semaine (gratuit, 5 minutes)
 
 Par défaut, un projet Google Cloud reste en **Testing** : Google invalide alors

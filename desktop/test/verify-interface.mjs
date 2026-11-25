@@ -322,6 +322,71 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   );
 }
 
+/* --- 8bis. Dix comptes : le volet reste utilisable --------------------- */
+{
+  const emails = [
+    'boitierecup@gmail.com',
+    'boitierfirst7@gmail.com',
+    'boitierfirst8@gmail.com',
+    'boitierfirst82@gmail.com',
+    'saturninyoukpo8@gmail.com',
+    'saturninyoukpo13@gmail.com',
+    'saturninyoukpo82@gmail.com',
+    'firstboitier1@gmail.com',
+    'firstboitier2@gmail.com',
+    'firstboitier3@gmail.com',
+  ];
+  const dix = await parcours({
+    label: 'dix comptes',
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      google: {
+        status: async () => ({ configured: true, source: 'env' }),
+        accounts: async () =>
+          emails.map((email, index) => ({
+            accountId: `g-${index}`,
+            name: `Drive ${index + 1}`,
+            email,
+            usedBytes: 1 * 1024 ** 3,
+            quotaBytes: 15 * 1024 ** 3,
+            status: 'connected',
+          })),
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+      },
+    },
+  });
+  const files = [...dix.doc.querySelectorAll('.nav-item')].find((button) =>
+    (button.textContent ?? '').includes('Tous les fichiers'),
+  );
+  if (files) await dix.click(files);
+
+  const railInput = dix.doc.querySelector('.rail-search__input');
+  check('dix comptes : un filtre apparaît dans le volet', Boolean(railInput));
+
+  const marks = [...dix.doc.querySelectorAll('.rail-mark')].map(
+    (mark) => mark.getAttribute('style') ?? '',
+  );
+  check(
+    'dix comptes : chaque compte porte une marque de couleur',
+    marks.length >= 10 && new Set(marks).size >= 3,
+    `${marks.length} marques, ${new Set(marks).size} teintes`,
+  );
+
+  const names = [...dix.doc.querySelectorAll('.rail-account__name')].map(
+    (node) => node.textContent ?? '',
+  );
+  check(
+    'dix comptes : le nom affiché est l’adresse, pas un libellé répétitif',
+    names.includes('boitierfirst82') && names.includes('saturninyoukpo13'),
+    names.slice(0, 3).join(', '),
+  );
+}
+
 /* --- 8. Comptes Google : la variante d'adresse est signalée ------------- */
 {
   // Un second compte dont l'adresse est une variante `+` de la première : la
