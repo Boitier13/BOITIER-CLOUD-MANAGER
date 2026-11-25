@@ -95,6 +95,27 @@ if (existsSync(mainBundle)) {
   check('__dirname utilisé', code.includes('__dirname'));
   check('preload embarqué', existsSync(join(root, 'desktop', 'dist', 'preload.cjs')));
 
+  // --- 3 bis. La fenêtre ne peut pas rester inerte sans le dire -------------
+  // Défaut réellement observé : au premier lancement après une mise à jour, la
+  // fenêtre s'ouvre et aucun menu ne réagit ; seule une relance rétablit tout.
+  // Ces contrôles garantissent qu'un tel cas est désormais détecté et expliqué.
+  check(
+    'garde-fou de chargement dans le processus principal',
+    code.includes('did-fail-load') && code.includes('render-process-gone'),
+  );
+  check(
+    'délai de réaction de l’interface',
+    /RENDERER_TIMEOUT_MS/.test(code) || /12_?000/.test(code),
+  );
+  check('journal de démarrage', existsSync(join(root, 'desktop', 'log.ts')));
+
+  const preload = readFileSync(join(root, 'desktop', 'dist', 'preload.cjs'), 'utf8');
+  check(
+    'signal de vie exposé par le preload',
+    preload.includes('renderer-ready'),
+    preload.includes('renderer-ready') ? '' : 'l’interface ne peut pas se signaler',
+  );
+
   // Résolution réelle : équivalent de desktop/dist/main.cjs en production.
   const module = await import('../paths.ts');
   const devRenderer = module.resolveRendererDir(join(root, 'desktop', 'dist'));

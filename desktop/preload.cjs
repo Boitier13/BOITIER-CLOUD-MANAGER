@@ -9,6 +9,13 @@ const invoke = (channel, ...args) => ipcRenderer.invoke(channel, ...args);
 
 contextBridge.exposeInMainWorld('boitier', {
   platform: process.platform,
+  /**
+   * Signale au processus principal que l'interface est interactive.
+   * Sans ce signal, la fenêtre peut afficher un cadre inerte (cas observé au
+   * premier lancement après une mise à jour) : le processus principal recharge
+   * alors une fois, puis prévient l'utilisateur.
+   */
+  ready: () => invoke('desktop:renderer-ready'),
   google: {
     status: () => invoke('google:status'),
     setClient: (clientId, clientSecret) => invoke('google:set-client', clientId, clientSecret),
