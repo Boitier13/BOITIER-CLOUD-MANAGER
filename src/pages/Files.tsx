@@ -29,6 +29,7 @@ import {
   type FileNode,
 } from '../data/catalog';
 import { catalogKey, useCatalog, useStore } from '../store';
+import { accountMark, shortAddress } from '../lib/accounts';
 import { isRealAccount, realAccountId } from '../lib/google';
 import {
   displaySegment,
@@ -89,6 +90,21 @@ export function Files() {
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
+  /** Filtre du volet des comptes : avec dix comptes, la liste devient longue. */
+  const [railQuery, setRailQuery] = useState('');
+  const railMatches = useMemo(() => {
+    const q = normalize(railQuery.trim());
+    if (!q) return null;
+    return new Set(
+      state.accounts
+        .filter(
+          (acc) =>
+            normalize(acc.name).includes(q) ||
+            normalize(acc.email).includes(q),
+        )
+        .map((acc) => acc.id),
+    );
+  }, [railQuery, state.accounts]);
 
   const sharedView = state.explorer.view === 'shared';
   const remoteFolder = useRemoteFolder(
@@ -493,9 +509,38 @@ export function Files() {
 
       <div className="explorer">
         <div className="explorer__rail" ref={railRef}>
-          <div className="rail-label">Comptes</div>
+          <div className="rail-label">
+            <span>Comptes</span>
+            {state.accounts.length > 5 ? (
+              <span className="rail-label__count tnum">{state.accounts.length}</span>
+            ) : null}
+          </div>
+          {state.accounts.length > 5 ? (
+            <div className="rail-search">
+              <Search size={12} />
+              <input
+                className="rail-search__input"
+                placeholder="Filtrer les comptes…"
+                value={railQuery}
+                onChange={(event) => setRailQuery(event.target.value)}
+                aria-label="Filtrer les comptes du volet"
+              />
+              {railQuery ? (
+                <button
+                  type="button"
+                  className="rail-search__clear"
+                  onClick={() => setRailQuery('')}
+                  aria-label="Effacer le filtre des comptes"
+                >
+                  <X size={11} />
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {PROVIDER_LIST.map((item) => {
-            const accs = state.accounts.filter((a) => a.provider === item.id);
+            const accs = state.accounts
+              .filter((a) => a.provider === item.id)
+              .filter((acc) => !railMatches || railMatches.has(acc.id));
             if (!accs.length) return null;
             return (
               <div key={item.id}>
@@ -520,8 +565,11 @@ export function Files() {
                     }}
                     title={acc.email}
                   >
-                    <span className="rail-account__dot" />
-                    <span className="rail-account__name">{acc.name}</span>
+                    <span
+                      className="rail-mark"
+                      style={{ ['--mark' as string]: accountMark(acc.email) }}
+                    />
+                    <span className="rail-account__name">{shortAddress(acc.email)}</span>
                     {isRealAccount(acc) ? (
                       <span className="rail-account__live" title="Compte Google réel" />
                     ) : null}
@@ -557,6 +605,11 @@ export function Files() {
               </div>
             );
           })}
+          {railMatches && railMatches.size === 0 ? (
+            <p className="rail-empty">
+              Aucun compte ne correspond à « {railQuery.trim()} ».
+            </p>
+          ) : null}
           <div className="rail-foot">
             <div className="rail-foot__label">
               Occupation

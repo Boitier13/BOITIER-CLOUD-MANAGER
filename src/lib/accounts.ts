@@ -83,3 +83,39 @@ export function findAlias(
     variant,
   };
 }
+
+/**
+ * Couleur stable associée à un compte.
+ *
+ * Deux adresses voisines (`boitierfirst7`, `boitierfirst8`, `boitierfirst82`) se
+ * ressemblent au point de se confondre dans une liste. Une teinte calculée sur
+ * l'adresse reste la même d'une session à l'autre, sans rien stocker.
+ *
+ * Les teintes sont volontairement désaturées et de luminosité voisine : elles
+ * servent de repère, pas de décoration.
+ */
+const MARKS = [
+  '#6b93e0', // bleu
+  '#5aa9a0', // turquoise
+  '#8f7fd0', // violet
+  '#c08a5a', // ambre
+  '#6aa86a', // vert
+  '#c07a8a', // rose
+  '#8a93a8', // ardoise
+  '#b09a5a', // ocre
+] as const;
+
+export function accountMark(email: string): string {
+  const key = canonicalGmail(email) ?? email.trim().toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) {
+    hash = (hash * 31 + key.charCodeAt(i)) % 100000;
+  }
+  return MARKS[hash % MARKS.length];
+}
+
+/** Nom court lisible : la partie avant le `@`, tronquée proprement. */
+export function shortAddress(email: string): string {
+  const local = email.split('@')[0] ?? email;
+  return local.length > 22 ? `${local.slice(0, 21)}…` : local;
+}
