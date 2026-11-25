@@ -14,7 +14,7 @@
  */
 
 import { createPackage, extractAll } from '@electron/asar';
-import { cp, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
@@ -94,6 +94,30 @@ try {
     const reachable = target.startsWith(distRoot + sep) && existsSync(target);
     check(`ressource dans l’archive : ${asset}`, reachable);
   }
+
+  // Les deux fontes doivent voyager avec l'application : en `file://`, aucun
+  // réseau n'est disponible et un `@import` distant laisserait la fenêtre en
+  // Segoe UI. On vérifie les fichiers réellement livrés, pas la déclaration.
+  const assetDir = join(extracted, 'dist/assets');
+  const fontFiles = existsSync(assetDir)
+    ? (await readdir(assetDir)).filter((name) => name.endsWith('.woff2'))
+    : [];
+  for (const family of ['dm-sans', 'manrope']) {
+    check(
+      `fonte embarquée : ${family}`,
+      fontFiles.some((name) => name.startsWith(family)),
+      `${fontFiles.length} fichier(s) .woff2`,
+    );
+  }
+
+  // Aucune ressource distante : l'application doit rester utilisable hors ligne.
+  const shippedAssets = assets
+    .map((asset) => readFileSync(resolve(distRoot, asset), 'utf8'))
+    .join('');
+  check(
+    'aucune ressource distante',
+    !/(?:src|href)=["']https?:/.test(html) && !/url\(\s*["']?https?:/.test(shippedAssets),
+  );
 
   const mainCode = readFileSync(join(extracted, 'desktop/dist/main.cjs'), 'utf8');
   check('pas d’import.meta dans le bundle', !/import\.meta/.test(mainCode));

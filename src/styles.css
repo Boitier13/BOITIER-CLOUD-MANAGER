@@ -6,8 +6,13 @@
 /* --- Tokens --------------------------------------------------------------- */
 
 :root {
-  --font-ui: 'Inter Variable', 'Segoe UI Variable Text', 'Segoe UI', system-ui,
+  /* DM Sans : texte d'interface, plus large et plus ouverte qu'Inter aux
+     petites tailles. Manrope : titres, chiffres et nom de l'application. */
+  --font-ui: 'DM Sans Variable', 'Segoe UI Variable Text', 'Segoe UI', system-ui,
     -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Manrope Variable', 'DM Sans Variable', 'Segoe UI Variable Display',
+    'Segoe UI', system-ui, sans-serif;
+  --font-num: 'Manrope Variable', 'DM Sans Variable', ui-monospace, monospace;
 
   --radius-xs: 4px;
   --radius-sm: 6px;
@@ -41,10 +46,10 @@
   --line: rgba(255, 255, 255, 0.075);
   --line-soft: rgba(255, 255, 255, 0.045);
   --line-strong: rgba(255, 255, 255, 0.13);
-  --text: #e9ebee;
-  --text-2: #a6acb5;
-  --text-3: #6f7681;
-  --text-4: #565c65;
+  --text: #eceef1;
+  --text-2: #b3b9c2;
+  --text-3: #8d949e;
+  --text-4: #737a85;
   --hover: rgba(255, 255, 255, 0.045);
   --active: rgba(255, 255, 255, 0.075);
   --input-bg: rgba(255, 255, 255, 0.028);
@@ -81,10 +86,10 @@
   --line: rgba(28, 25, 20, 0.1);
   --line-soft: rgba(28, 25, 20, 0.06);
   --line-strong: rgba(28, 25, 20, 0.17);
-  --text: #1d1b17;
-  --text-2: #565149;
-  --text-3: #837c71;
-  --text-4: #9d968a;
+  --text: #1b1915;
+  --text-2: #4d4841;
+  --text-3: #6b645a;
+  --text-4: #767062;
   --hover: rgba(28, 25, 20, 0.045);
   --active: rgba(28, 25, 20, 0.075);
   --input-bg: rgba(255, 255, 255, 0.6);
@@ -116,13 +121,14 @@ body,
 body {
   margin: 0;
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: 13.5px;
   line-height: 1.5;
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
+  /* DM Sans n'expose pas les variantes stylistiques propres à Inter
+     (cv05, cv08, ss03) : ses formes par défaut sont déjà les bonnes. */
   text-rendering: optimizeLegibility;
-  font-feature-settings: 'cv05' 1, 'cv08' 1, 'ss03' 1;
 }
 
 button,
@@ -197,6 +203,10 @@ a {
 }
 
 .tnum {
+  /* DM Sans n'expose pas de chiffres tabulaires : Manrope les fournit
+     (feature `tnum` vérifiée dans la fonte elle-même). Sans cela, les
+     compteurs et les tailles oscilleraient pendant la progression. */
+  font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum' 1;
 }
@@ -309,17 +319,18 @@ a {
 }
 
 .brand__name {
-  font-size: 12px;
-  font-weight: 650;
-  letter-spacing: 0.15em;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
   color: var(--text);
   line-height: 1;
 }
 
 .brand__sub {
-  font-size: 8.5px;
-  font-weight: 550;
-  letter-spacing: 0.19em;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
   color: var(--text-3);
   line-height: 1;
 }
@@ -341,16 +352,16 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-4);
   padding: 0 8px 7px;
 }
 
 .nav-label__value {
-  font-size: 9.5px;
+  font-size: 10.5px;
   letter-spacing: 0.04em;
   color: var(--text-4);
 }
@@ -365,7 +376,7 @@ a {
   padding: 0 9px;
   border-radius: var(--radius-sm);
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 450;
   transition: background 140ms var(--ease), color 140ms var(--ease);
   text-align: left;
@@ -411,7 +422,7 @@ a {
 
 .nav-item__count {
   margin-left: auto;
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-4);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
@@ -430,7 +441,7 @@ a {
   padding: 0 9px;
   border-radius: var(--radius-sm);
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: 13px;
   transition: background 140ms var(--ease), color 140ms var(--ease);
   text-align: left;
 }
@@ -464,7 +475,7 @@ a {
 
 .cloud-item__count {
   margin-left: auto;
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-variant-numeric: tabular-nums;
   color: var(--text-4);
   min-width: 16px;
@@ -486,7 +497,7 @@ a {
   border-radius: var(--radius-sm);
   border: 1px dashed var(--line);
   color: var(--text-4);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.4;
 }
 
@@ -511,25 +522,26 @@ a {
 }
 
 .page-eyebrow {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.11em;
   text-transform: uppercase;
   color: var(--text-4);
   margin-bottom: 7px;
 }
 
 .page-title {
-  font-size: 21px;
-  font-weight: 600;
-  letter-spacing: -0.022em;
+  font-family: var(--font-display);
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.018em;
   color: var(--text);
   line-height: 1.2;
 }
 
 .page-subtitle {
   margin-top: 6px;
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--text-3);
   max-width: 66ch;
 }
@@ -555,7 +567,7 @@ a {
   border: 1px solid var(--line);
   background: var(--panel-2);
   color: var(--text);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
   transition: background 140ms var(--ease), border-color 140ms var(--ease),
@@ -637,7 +649,7 @@ a {
 .btn--sm {
   height: 27px;
   padding: 0 9px;
-  font-size: 11.5px;
+  font-size: 12.5px;
 }
 
 .btn--block {
@@ -692,7 +704,7 @@ a {
   border: 1px solid var(--line);
   background: var(--input-bg);
   color: var(--text);
-  font-size: 12.5px;
+  font-size: 13px;
   transition: border-color 140ms var(--ease), background 140ms var(--ease),
     box-shadow 140ms var(--ease);
 }
@@ -713,7 +725,7 @@ a {
 
 .input--mono {
   font-family: ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, monospace;
-  font-size: 11.5px;
+  font-size: 12.5px;
   letter-spacing: -0.01em;
 }
 
@@ -758,14 +770,14 @@ a {
 }
 
 .field__label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 550;
   letter-spacing: 0.02em;
   color: var(--text-2);
 }
 
 .field__hint {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-4);
   line-height: 1.45;
 }
@@ -786,7 +798,7 @@ a {
   background-repeat: no-repeat;
   background-position: right 9px center;
   color: var(--text-2);
-  font-size: 12px;
+  font-size: 12.5px;
   appearance: none;
   transition: border-color 140ms var(--ease), color 140ms var(--ease);
 }
@@ -823,7 +835,7 @@ a {
   height: 25px;
   padding: 0 10px;
   border-radius: 5px;
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 500;
   color: var(--text-3);
   transition: background 140ms var(--ease), color 140ms var(--ease);
@@ -844,7 +856,7 @@ a {
 }
 
 .segmented__count {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-4);
   font-variant-numeric: tabular-nums;
 }
@@ -877,9 +889,10 @@ a {
 }
 
 .section-title {
-  font-size: 12.5px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.004em;
   color: var(--text);
   display: flex;
   align-items: center;
@@ -887,7 +900,7 @@ a {
 }
 
 .section-title__count {
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 500;
   color: var(--text-4);
   padding: 1px 6px;
@@ -897,7 +910,7 @@ a {
 }
 
 .section-link {
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--text-3);
   display: inline-flex;
   align-items: center;
@@ -974,7 +987,7 @@ a {
   width: 24px;
   height: 24px;
   border-radius: 7px;
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 700;
   letter-spacing: 0.01em;
   color: var(--brand);
@@ -986,18 +999,18 @@ a {
   width: 19px;
   height: 19px;
   border-radius: 5px;
-  font-size: 9px;
+  font-size: 10.5px;
 }
 
 .provider-mark--lg {
   width: 34px;
   height: 34px;
   border-radius: 9px;
-  font-size: 13px;
+  font-size: 13.5px;
 }
 
 .cloud-tile__name {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 550;
   letter-spacing: -0.005em;
   overflow: hidden;
@@ -1007,7 +1020,7 @@ a {
 
 .cloud-tile__meta {
   margin-left: auto;
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-4);
   font-variant-numeric: tabular-nums;
   flex: none;
@@ -1023,7 +1036,7 @@ a {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-4);
   font-variant-numeric: tabular-nums;
 }
@@ -1109,7 +1122,7 @@ a {
 }
 
 .list-row__title {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text);
   overflow: hidden;
@@ -1121,7 +1134,7 @@ a {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-4);
   min-width: 0;
   overflow: hidden;
@@ -1212,7 +1225,7 @@ a {
   height: 20px;
   padding: 0 7px;
   border-radius: 99px;
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 500;
   color: var(--text-3);
   background: var(--hover);
@@ -1281,7 +1294,7 @@ a {
   border-radius: 4px;
   border: 1px solid var(--line);
   background: var(--panel-2);
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 500;
   color: var(--text-3);
   font-family: var(--font-ui);
@@ -1293,7 +1306,7 @@ a {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.02em;
   color: var(--text-4);
   margin-bottom: 8px;
@@ -1315,7 +1328,7 @@ a {
   display: flex;
   align-items: baseline;
   gap: 5px;
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--text-3);
 }
 
@@ -1355,7 +1368,7 @@ a {
 }
 
 .transfer-mini__name {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1365,7 +1378,7 @@ a {
 }
 
 .transfer-mini__pct {
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
   flex: none;
@@ -1376,7 +1389,7 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-4);
   font-variant-numeric: tabular-nums;
 }
@@ -1406,7 +1419,7 @@ a {
 }
 
 .fav-mini__name {
-  font-size: 12px;
+  font-size: 12.5px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1415,7 +1428,7 @@ a {
 }
 
 .fav-mini__meta {
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-4);
   flex: none;
 }
@@ -1448,7 +1461,7 @@ a {
 }
 
 .recent-row__name {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 450;
   color: var(--text);
   overflow: hidden;
@@ -1460,7 +1473,7 @@ a {
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-4);
   min-width: 0;
   overflow: hidden;
@@ -1468,14 +1481,14 @@ a {
 }
 
 .recent-row__size {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
   flex: none;
 }
 
 .recent-row__date {
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-4);
   flex: none;
   width: 74px;
@@ -1508,13 +1521,14 @@ a {
 }
 
 .provider-hero__name {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-family: var(--font-display);
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: -0.008em;
 }
 
 .provider-hero__tag {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-3);
   margin-top: 1px;
 }
@@ -1535,21 +1549,22 @@ a {
 }
 
 .stat-block__label {
-  font-size: 9.5px;
+  font-size: 10.5px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-4);
 }
 
 .stat-block__value {
-  font-size: 13px;
-  font-weight: 550;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }
 
 .stat-block__value small {
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-4);
   font-weight: 400;
   margin-left: 2px;
@@ -1580,7 +1595,7 @@ a {
   height: 30px;
   border-radius: 8px;
   flex: none;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.02em;
   color: var(--brand);
@@ -1597,7 +1612,7 @@ a {
 }
 
 .account-row__name {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 550;
   display: flex;
   align-items: center;
@@ -1612,7 +1627,7 @@ a {
 }
 
 .account-row__email {
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-4);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1636,7 +1651,7 @@ a {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-4);
   font-variant-numeric: tabular-nums;
 }
@@ -1668,7 +1683,7 @@ a {
   padding: 0 9px;
   border-radius: 5px;
   border: 1px solid var(--line);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-2);
   background: var(--panel-2);
   transition: all 130ms var(--ease);
@@ -1692,7 +1707,7 @@ a {
 }
 
 .filter-hint {
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-4);
   white-space: nowrap;
   overflow: hidden;
@@ -1729,7 +1744,7 @@ a {
 }
 
 .rail-label {
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.13em;
   text-transform: uppercase;
@@ -1742,7 +1757,7 @@ a {
   align-items: center;
   gap: 6px;
   padding: 9px 8px 4px;
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 550;
   letter-spacing: 0.09em;
   text-transform: uppercase;
@@ -1757,7 +1772,7 @@ a {
   height: 25px;
   padding: 0 8px;
   border-radius: 5px;
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--text-2);
   text-align: left;
   transition: background 130ms var(--ease), color 130ms var(--ease);
@@ -1796,7 +1811,7 @@ a {
 }
 
 .rail-account__count {
-  font-size: 9.5px;
+  font-size: 10.5px;
   color: var(--text-4);
   font-variant-numeric: tabular-nums;
 }
@@ -1810,7 +1825,7 @@ a {
 .rail-foot__label {
   display: flex;
   justify-content: space-between;
-  font-size: 9.5px;
+  font-size: 10.5px;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--text-4);
@@ -1818,7 +1833,7 @@ a {
 }
 
 .rail-foot__value {
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-3);
   text-transform: none;
   letter-spacing: 0;
@@ -1865,13 +1880,13 @@ a {
 
 .explorer__filters .search .input {
   height: 28px;
-  font-size: 12px;
+  font-size: 12.5px;
 }
 
 .explorer__filters .segmented__item {
   height: 23px;
   padding: 0 8px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .crumbs {
@@ -1881,7 +1896,7 @@ a {
   min-width: 0;
   flex: 1;
   overflow: visible;
-  font-size: 12px;
+  font-size: 12.5px;
 }
 
 .crumb-seg {
@@ -1938,7 +1953,7 @@ a {
 }
 
 .crumb-menu__label {
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.11em;
   text-transform: uppercase;
@@ -1954,7 +1969,7 @@ a {
   height: 27px;
   padding: 0 8px;
   border-radius: 5px;
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--text-2);
   text-align: left;
   white-space: nowrap;
@@ -1980,7 +1995,7 @@ a {
 
 .sortmenu .btn {
   height: 28px;
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--text-2);
   background: var(--input-bg);
 }
@@ -2021,7 +2036,7 @@ a {
   height: 28px;
   padding: 0 8px;
   border-radius: 5px;
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--text-2);
   text-align: left;
   white-space: nowrap;
@@ -2100,7 +2115,7 @@ a {
   padding: 0 10px 0 12px;
   background: color-mix(in srgb, var(--panel-2) 55%, transparent);
   border-bottom: 1px solid var(--line-soft);
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--text-3);
   transition: background 160ms var(--ease), border-color 160ms var(--ease);
 }
@@ -2115,7 +2130,7 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 500;
   color: var(--text-2);
   overflow: hidden;
@@ -2132,7 +2147,7 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-4);
 }
 
@@ -2167,7 +2182,7 @@ a {
 
 .selection-bar .btn {
   height: 26px;
-  font-size: 11.5px;
+  font-size: 12.5px;
   background: color-mix(in srgb, var(--panel) 70%, transparent);
 }
 
@@ -2198,7 +2213,7 @@ a {
   padding: 0 8px;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -2298,7 +2313,7 @@ a {
 .filetable td {
   padding: 0 8px;
   border-bottom: 1px solid var(--line-soft);
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--text-2);
   overflow: hidden;
   white-space: nowrap;
@@ -2334,7 +2349,7 @@ a {
 }
 
 .cell-name__path {
-  font-size: 9.5px;
+  font-size: 10.5px;
   color: var(--text-4);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2356,7 +2371,7 @@ tr.is-folder .cell-name__text {
 .col-size .truncate,
 .col-date .truncate {
   font-variant-numeric: tabular-nums;
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--text-3);
 }
 
@@ -2453,13 +2468,13 @@ tr.is-folder .cell-name__text {
 }
 
 .filetable-empty__title {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 500;
   color: var(--text-2);
 }
 
 .filetable-empty__text {
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--text-4);
   max-width: 42ch;
   line-height: 1.5;
@@ -2471,7 +2486,7 @@ tr.is-folder .cell-name__text {
   gap: 8px;
   padding: 8px 13px;
   border-top: 1px solid var(--line);
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-4);
   background: color-mix(in srgb, var(--panel-2) 45%, transparent);
   font-variant-numeric: tabular-nums;
@@ -2529,7 +2544,7 @@ tr.is-folder .cell-name__text {
 }
 
 .download-row__name {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text);
   overflow: hidden;
@@ -2542,7 +2557,7 @@ tr.is-folder .cell-name__text {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-4);
   white-space: nowrap;
   overflow: hidden;
@@ -2559,7 +2574,7 @@ tr.is-folder .cell-name__text {
 }
 
 .download-row__pct {
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
   width: 34px;
@@ -2568,7 +2583,7 @@ tr.is-folder .cell-name__text {
 }
 
 .download-row__speed {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
   display: flex;
@@ -2578,7 +2593,7 @@ tr.is-folder .cell-name__text {
 }
 
 .download-row__speed small {
-  font-size: 9.5px;
+  font-size: 10.5px;
   color: var(--text-4);
 }
 
@@ -2656,14 +2671,15 @@ tr.is-folder .cell-name__text {
 }
 
 .summary-cell__value {
-  font-size: 13px;
-  font-weight: 550;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }
 
 .summary-cell__label {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-4);
   letter-spacing: 0.02em;
 }
@@ -2709,7 +2725,7 @@ tr.is-folder .cell-name__text {
 }
 
 .fav-row__name {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text);
   overflow: hidden;
@@ -2729,7 +2745,7 @@ tr.is-folder .cell-name__text {
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-4);
   min-width: 0;
   white-space: nowrap;
@@ -2750,7 +2766,7 @@ tr.is-folder .cell-name__text {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: ui-monospace, 'Cascadia Mono', monospace;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: -0.01em;
   color: var(--text-4);
 }
@@ -2771,14 +2787,14 @@ tr.is-folder .cell-name__text {
 }
 
 .fav-row__size {
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
   line-height: 1.3;
 }
 
 .fav-row__added {
-  font-size: 9.5px;
+  font-size: 10.5px;
   color: var(--text-4);
   line-height: 1.3;
   white-space: nowrap;
@@ -2820,7 +2836,7 @@ tr.is-folder .cell-name__text {
 }
 
 .settings-group__title {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.01em;
 }
@@ -2843,13 +2859,13 @@ tr.is-folder .cell-name__text {
 }
 
 .settings-row__label {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 450;
   color: var(--text);
 }
 
 .settings-row__desc {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-4);
   margin-top: 2px;
   line-height: 1.45;
@@ -2931,7 +2947,7 @@ tr.is-folder .cell-name__text {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-2);
 }
 
@@ -2976,7 +2992,7 @@ tr.is-folder .cell-name__text {
 .stepper__value {
   min-width: 34px;
   text-align: center;
-  font-size: 12px;
+  font-size: 12.5px;
   font-variant-numeric: tabular-nums;
   color: var(--text);
   border-left: 1px solid var(--line);
@@ -3042,13 +3058,13 @@ tr.is-folder .cell-name__text {
 }
 
 .about-block__name {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
 }
 
 .about-block__meta {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-4);
   margin-top: 2px;
 }
@@ -3058,7 +3074,7 @@ tr.is-folder .cell-name__text {
   align-items: center;
   gap: 8px;
   margin-left: auto;
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-4);
   font-variant-numeric: tabular-nums;
 }
@@ -3122,13 +3138,13 @@ tr.is-folder .cell-name__text {
 }
 
 .modal__title {
-  font-size: 14.5px;
+  font-size: 15.5px;
   font-weight: 600;
-  letter-spacing: -0.012em;
+  letter-spacing: -0.008em;
 }
 
 .modal__desc {
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--text-3);
   margin-top: 4px;
   line-height: 1.5;
@@ -3181,7 +3197,7 @@ tr.is-folder .cell-name__text {
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: var(--input-bg);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.5;
   color: var(--text-3);
 }
@@ -3225,7 +3241,7 @@ tr.is-folder .cell-name__text {
   border: 1px solid var(--line-strong);
   background: var(--panel-3);
   box-shadow: var(--shadow-pop);
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--text);
   max-width: 380px;
   animation: toast-in 190ms var(--ease);
@@ -3288,7 +3304,7 @@ tr.is-folder .cell-name__text {
   padding: 0 14px;
   border-top: 1px solid var(--line);
   background: var(--rail-bg);
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-4);
   letter-spacing: 0.01em;
   user-select: none;
@@ -3350,13 +3366,13 @@ tr.is-folder .cell-name__text {
 }
 
 .empty__title {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 500;
   color: var(--text-2);
 }
 
 .empty__text {
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--text-4);
   max-width: 46ch;
   line-height: 1.55;
@@ -3485,7 +3501,7 @@ tr.is-folder .cell-name__text {
   }
 
   .page-title {
-    font-size: 19px;
+    font-size: 20px;
   }
 
   .cloud-strip {
@@ -3579,12 +3595,12 @@ tr.is-folder .cell-name__text {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--text-2);
 }
 
 .breakdown-row__top span:last-child {
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--text-4);
 }
 
@@ -3633,7 +3649,7 @@ tr.is-folder .cell-name__text {
   gap: 8px;
   padding: 28px 0;
   color: var(--text-3);
-  font-size: 11.5px;
+  font-size: 12.5px;
 }
 
 /* État d'erreur d'une requête distante. */
@@ -3648,13 +3664,13 @@ tr.is-folder .cell-name__text {
 }
 
 .filetable-error__title {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--text-2);
   margin: 0;
 }
 
 .filetable-error__text {
-  font-size: 11px;
+  font-size: 12px;
   margin: 0;
   max-width: 380px;
   line-height: 1.5;
@@ -3665,7 +3681,7 @@ tr.is-folder .cell-name__text {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--warn, var(--text-3));
 }
 

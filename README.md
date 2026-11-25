@@ -93,8 +93,29 @@ npm run desktop:test      # 32 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # révocation à la déconnexion — sans réseau, avec un
                           # faux Google local
 npm run desktop:paths     # la fenêtre charge bien dist/ en file://
-npm run desktop:package-test # contenu de l'archive : complet, sans secret
+npm run desktop:package-test # contenu de l'archive : complet, sans secret,
+                             # fontes embarquées, aucune ressource distante
 ```
+
+### Typographie
+
+Deux fontes variables sont embarquées dans l'application (aucun appel réseau,
+ce qui serait de toute façon sans effet en `file://`) :
+
+| Usage | Fonte | Graisses |
+| --- | --- | --- |
+| Texte, navigation, boutons, formulaires | **DM Sans** | 100–1000 |
+| Titres, titres de panneaux, chiffres, logo | **Manrope** | 200–800 |
+
+- plancher de **10 px** pour tous les textes secondaires, corps à **13,5 px**,
+  titres de panneaux à **13,5 px**, H1 à **23 px** ; les textes porteurs
+  d'information (chemins, libellés, compteurs) sont remontés d'environ 1 px
+  par rapport à la version précédente ;
+- les compteurs (classe `.tnum`) passent en **Manrope** : DM Sans n'expose pas la
+  fonctionnalité `tnum`, sans quoi les chiffres danseraient pendant les
+  transferts ;
+- contrastes des textes secondaires portés au niveau **AA** (≥ 4,5:1) dans les
+  deux thèmes.
 
 ### Chargement local (`file://`)
 

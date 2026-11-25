@@ -1,5 +1,7 @@
-// Poids variables uniquement, sous-ensemble latin (app légère).
-import '@fontsource-variable/inter/wght.css';
+// Poids variables uniquement, sous-ensembles latin (app légère, hors ligne).
+// DM Sans pour l'interface, Manrope pour les titres et les chiffres.
+import '@fontsource-variable/dm-sans/wght.css';
+import '@fontsource-variable/manrope/wght.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
