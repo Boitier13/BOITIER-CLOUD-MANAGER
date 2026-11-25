@@ -115,7 +115,7 @@ ce qui serait de toute façon sans effet en `file://`) :
   fonctionnalité `tnum`, sans quoi les chiffres danseraient pendant les
   transferts ;
 - contrastes des textes secondaires portés au niveau **AA** (≥ 4,5:1) dans les
-  deux thèmes.
+  deux thèmes, y compris sur les panneaux les plus contrastés (`--panel-3`).
 
 ### Chargement local (`file://`)
 
