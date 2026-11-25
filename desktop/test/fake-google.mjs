@@ -60,6 +60,9 @@ const FILES = [
   },
 ];
 
+/** Jetons révoqués, consultables via GET /state pour les tests. */
+const REVOKED = [];
+
 const json = (res, status, body) => {
   const payload = JSON.stringify(body);
   res.writeHead(status, { 'content-type': 'application/json' });
@@ -100,8 +103,14 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === '/revoke') {
+    // Trace la révocation : permet de vérifier qu'elle est bien demandée.
+    REVOKED.push(url.searchParams.get('token') ?? '');
     res.writeHead(200, { 'content-type': 'application/json' }).end('{}');
     return;
+  }
+
+  if (url.pathname === '/state') {
+    return json(res, 200, { revoked: REVOKED });
   }
 
   if (url.pathname === '/userinfo') {

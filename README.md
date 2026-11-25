@@ -88,9 +88,10 @@ l’application utilise PKCE (S256) + `state`.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 30 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 32 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # exploration, recherche, téléchargement réel, pause,
-                          # révocation — sans réseau, avec un faux Google local
+                          # révocation à la déconnexion — sans réseau, avec un
+                          # faux Google local
 npm run desktop:paths     # la fenêtre charge bien dist/ en file://
 npm run desktop:package-test # contenu de l'archive : complet, sans secret
 ```
@@ -111,7 +112,7 @@ Deux workflows GitHub Actions :
 
 | Workflow | Déclencheur | Effet |
 | --- | --- | --- |
-| **Vérification** | chaque push et chaque PR | types, build, 30 contrôles Google, chemins `file://`, contenu de l'archive |
+| **Vérification** | chaque push et chaque PR | types, build, 32 contrôles Google, chemins `file://`, contenu de l'archive |
 | **Installeur Windows** | tag `v*` ou lancement manuel | construit `release/BOITIER-CLOUD-MANAGER-x.y.z-setup.exe` et le joint à la release |
 
 Pour publier une version : `git tag v0.3.0 && git push origin v0.3.0`.
