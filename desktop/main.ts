@@ -8,15 +8,19 @@
  */
 
 import { app, BrowserWindow, safeStorage, shell } from 'electron';
-import { fileURLToPath } from 'node:url';
-import { dirname, join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { registerIpc, emitDownload } from './api.ts';
 import { loadEnvFile, readGoogleConfig } from './config.ts';
+import { resolveDataDir, resolvePreload, resolveRendererDir } from './paths.ts';
 import { Vault } from './google/vault.ts';
 import { GoogleService } from './google/service.ts';
 import { endpointsFromEnv } from './google/endpoints.ts';
 
-const here = dirname(fileURLToPath(import.meta.url));
+/**
+ * Le processus principal est empaqueté en CommonJS : `__dirname` est toujours
+ * défini, contrairement à `import.meta.url` qui serait vide après bundling.
+ */
+const here = __dirname;
 const devServerUrl = process.env.BOITIER_DEV_SERVER_URL;
 
 const windows: BrowserWindow[] = [];
@@ -34,7 +38,7 @@ function createWindow(): BrowserWindow {
     title: 'BOITIER CLOUD MANAGER',
     autoHideMenuBar: true,
     webPreferences: {
-      preload: join(here, 'preload.cjs'),
+      preload: resolvePreload(here),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -53,7 +57,7 @@ function createWindow(): BrowserWindow {
   });
 
   if (devServerUrl) void win.loadURL(devServerUrl);
-  else void win.loadFile(resolve(here, '../dist/index.html'));
+  else void win.loadFile(join(resolveRendererDir(here), 'index.html'));
 
   return win;
 }
@@ -76,7 +80,7 @@ function boot(): void {
   // En développement, les identifiants peuvent venir de .env.local.
   loadEnvFile();
   const config = readGoogleConfig();
-  const vault = new Vault(app.getPath('userData'), protect, unprotect);
+  const vault = new Vault(resolveDataDir(app.getPath('appData')), protect, unprotect);
   const win = createWindow();
   windows.push(win);
   current = win;

@@ -63,14 +63,12 @@ Object.assign(process.env, {
   BOITIER_GOOGLE_DRIVE_URL: `${BASE}/drive/v3`,
 });
 
-const root = new URL('../../', import.meta.url);
-const load = (path) => import(new URL(path, root).href);
-
-const { Vault } = await load('desktop/google/vault.ts');
-const { GoogleService } = await load('desktop/google/service.ts');
-const { GoogleSession } = await load('desktop/google/tokens.ts');
-const { endpointsFromEnv } = await load('desktop/google/endpoints.ts');
-const { runLoopbackFlow, exchangeCode } = await load('desktop/google/oauth.ts');
+// Node 22 exécute le TypeScript nativement (types effacés à la volée).
+const { Vault } = await import('../google/vault.ts');
+const { GoogleService } = await import('../google/service.ts');
+const { GoogleSession } = await import('../google/tokens.ts');
+const { endpointsFromEnv } = await import('../google/endpoints.ts');
+const { runLoopbackFlow, exchangeCode } = await import('../google/oauth.ts');
 
 const config = { clientId: 'client-test.apps.googleusercontent.com', clientSecret: 'secret' };
 const endpoints = endpointsFromEnv();

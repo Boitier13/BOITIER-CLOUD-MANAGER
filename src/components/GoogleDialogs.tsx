@@ -45,7 +45,6 @@ export function GoogleSetupDialog({
     setSaving(true);
     setError(null);
     try {
-      const { getBridge } = await import('../lib/bridge');
       const bridge = getBridge();
       if (!bridge) throw new Error('La connexion Google nécessite l’application Windows.');
       const next = await bridge.google.setClient(clientId.trim(), clientSecret.trim());
@@ -154,7 +153,6 @@ export function GoogleConnectDialog({
     setPhase('waiting');
     setError(null);
     try {
-      const { getBridge } = await import('../lib/bridge');
       const bridge = getBridge();
       if (!bridge) throw new Error('La connexion Google nécessite l’application Windows.');
       const account = await bridge.google.connect();
