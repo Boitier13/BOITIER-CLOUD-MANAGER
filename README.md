@@ -107,10 +107,11 @@ ce qui serait de toute façon sans effet en `file://`) :
 | Texte, navigation, boutons, formulaires | **DM Sans** | 100–1000 |
 | Titres, titres de panneaux, chiffres, logo | **Manrope** | 200–800 |
 
-- plancher de **10 px** pour tous les textes secondaires, corps à **13,5 px**,
-  titres de panneaux à **13,5 px**, H1 à **23 px** ; les textes porteurs
-  d'information (chemins, libellés, compteurs) sont remontés d'environ 1 px
-  par rapport à la version précédente ;
+- plancher de **10,5 px** pour tous les textes secondaires, corps à **14 px**,
+  titres de panneaux à **14 px**, H1 à **24 px** ; les textes porteurs
+  d'information (chemins, libellés, compteurs) sont remontés d'environ 1,5 px
+  par rapport à la version précédente, et les rangées cliquables (navigation,
+  boutons, champs, tableau) ont été rehaussées en conséquence ;
 - les compteurs (classe `.tnum`) passent en **Manrope** : DM Sans n'expose pas la
   fonctionnalité `tnum`, sans quoi les chiffres danseraient pendant les
   transferts ;
