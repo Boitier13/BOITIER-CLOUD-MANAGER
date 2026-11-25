@@ -85,6 +85,9 @@ export type Action =
       name?: string;
       email?: string;
       status?: AccountStatus;
+      /** Chiffres fraîchement relus chez Google (bouton « actualiser »). */
+      usedBytes?: number;
+      quotaBytes?: number;
     }
   | { type: 'account/remove'; id: string }
   | { type: 'favorite/toggle'; accountId: string; path: string[] }
@@ -273,6 +276,10 @@ function reducer(state: AppState, action: Action): AppState {
                 ...(action.name !== undefined ? { name: action.name } : {}),
                 ...(action.email !== undefined ? { email: action.email } : {}),
                 ...(action.status !== undefined ? { status: action.status } : {}),
+                ...(action.usedBytes !== undefined ? { usedBytes: action.usedBytes } : {}),
+                ...(action.quotaBytes !== undefined && action.quotaBytes > 0
+                  ? { quotaBytes: action.quotaBytes }
+                  : {}),
               }
             : account,
         ),

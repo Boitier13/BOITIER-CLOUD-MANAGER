@@ -174,8 +174,9 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
           <div>
             <div className="provider-hero__name">{def.name}</div>
             <div className="provider-hero__tag">
-              {formatDecimal(accounts.length)} comptes · {formatDecimal(totals.connected)}{' '}
-              connectés
+              {formatDecimal(accounts.length)} {accounts.length > 1 ? 'comptes' : 'compte'} ·{' '}
+              {formatDecimal(totals.connected)}{' '}
+              {totals.connected > 1 ? 'connectés' : 'connecté'}
             </div>
           </div>
         </div>
@@ -371,10 +372,15 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                           ?.google.refresh(googleId)
                           .then((info) => {
                             if (!info) return;
+                            // Les chiffres relus doivent atteindre l'écran : sans
+                            // eux, le message « quota actualisé » s'affichait
+                            // devant des valeurs inchangées.
                             dispatch({
                               type: 'account/patch',
                               id: account.id,
                               status: info.status,
+                              usedBytes: info.usedBytes,
+                              quotaBytes: info.quotaBytes,
                             });
                             toast.push('Quota Google actualisé', 'ok');
                           })
