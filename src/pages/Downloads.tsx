@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   ArrowDownToLine,
   Check,
+  TriangleAlert,
   Download,
   FolderOpen,
   Gauge,
@@ -16,6 +17,7 @@ import { useCatalog, useStore, type Route } from '../store';
 import { formatBytes, formatDecimal, formatSpeed, percent } from '../lib/format';
 import { formatEta, statusLabels, type DownloadStatus } from '../lib/downloads';
 import { Meter, ProviderMark, TypeIcon } from '../components/visuals';
+import { getBridge } from '../lib/bridge';
 import { useToast } from '../components/toast';
 
 const STATUS_BADGE: Record<DownloadStatus, string> = {
@@ -23,6 +25,7 @@ const STATUS_BADGE: Record<DownloadStatus, string> = {
   queued: '',
   paused: 'badge--warn',
   done: 'badge--ok',
+  error: 'badge--danger',
 };
 
 const FILTERS = [
@@ -31,6 +34,7 @@ const FILTERS = [
   { id: 'queued', label: 'En attente' },
   { id: 'paused', label: 'En pause' },
   { id: 'done', label: 'Terminés' },
+  { id: 'error', label: 'Échecs' },
 ] as const;
 
 export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }) {
@@ -59,8 +63,8 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
   const done = state.downloads.filter((item) => item.status === 'done');
   const speed = active.reduce((sum, item) => sum + item.speed, 0);
   const remaining = state.downloads
-    .filter((item) => item.status !== 'done')
-    .reduce((sum, item) => sum + (item.size - item.received), 0);
+    .filter((item) => item.status !== 'done' && item.status !== 'error')
+    .reduce((sum, item) => sum + Math.max(item.size - item.received, 0), 0);
   const totalDone = done.reduce((sum, item) => sum + item.size, 0);
 
   // Suggest recent files not already in the queue.
@@ -69,6 +73,9 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
     const accountsById = new Map(state.accounts.map((account) => [account.id, account]));
     const seen = new Set<string>();
     return [...catalog.entries]
+      // Un compte réel n'est pas indexé : ses suggestions viendraient de dossiers
+      // non visités, et le transfert direct se fait depuis l'explorateur.
+      .filter((entry) => accountsById.get(entry.accountId)?.source !== 'google')
       .filter((entry) => entry.node.type === 'video' && !inQueue.has(entry.node.name))
       .filter((entry) => {
         if (seen.has(entry.node.name)) return false;
@@ -88,8 +95,9 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
           <div className="page-eyebrow">Transferts</div>
           <h1 className="page-title">Téléchargements</h1>
           <p className="page-subtitle">
-            File de démonstration — progression, débit et statuts simulés localement. Aucun
-            fichier n’est réellement téléchargé.
+            {state.downloads.some((item) => item.remoteId)
+              ? 'Les fichiers Google Drive sont réellement enregistrés sur ce disque. Les autres transferts restent des simulations.'
+              : 'File de démonstration — progression, débit et statuts simulés localement. Aucun fichier n’est réellement téléchargé.'}
           </p>
         </div>
         <div className="page-head__actions">
@@ -124,7 +132,9 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
           </span>
           <div className="summary-cell__body">
             <span className="summary-cell__value tnum">{formatSpeed(speed)}</span>
-            <span className="summary-cell__label">Débit total simulé</span>
+            <span className="summary-cell__label">
+              {state.downloads.some((item) => item.remoteId) ? 'Débit total' : 'Débit total simulé'}
+            </span>
           </div>
         </div>
         <div className="summary-cell">
@@ -242,7 +252,19 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
                     {item.accountName}
                     <span className="dot-sep" />
                     {formatBytes(item.size)}
+                    {item.remoteId ? (
+                      <>
+                        <span className="dot-sep" />
+                        <span style={{ color: 'var(--accent)' }}>Réel</span>
+                      </>
+                    ) : null}
                   </div>
+                  {item.status === 'error' && item.error ? (
+                    <div className="download-row__note">
+                      <TriangleAlert size={11} />
+                      {item.error}
+                    </div>
+                  ) : null}
                   <div
                     className={`download-row__progress${
                       item.status === 'active' ? ' progress-running' : ''
@@ -258,8 +280,12 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
                     {item.status === 'active'
                       ? `${formatEta(item)} restants`
                       : item.status === 'done'
-                        ? 'Terminé'
-                        : `${formatBytes(item.size - item.received)}`}
+                        ? item.savedPath
+                          ? 'Enregistré'
+                          : 'Terminé'
+                        : item.status === 'error'
+                          ? 'Interrompu'
+                          : `${formatBytes(Math.max(item.size - item.received, 0))}`}
                   </small>
                 </div>
                 <div className="download-row__status">
@@ -300,9 +326,29 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
                     <button
                       type="button"
                       className="icon-btn"
-                      title="Relancer la simulation"
+                      title={item.savedPath ? 'Afficher dans le dossier' : 'Relancer la simulation'}
                       aria-label="Relancer le téléchargement"
-                      onClick={() => toast.push('Fichier déjà présent dans le dossier cible', 'warn')}
+                      onClick={() => {
+                        if (item.savedPath) {
+                          void getBridge()?.google.openFolder?.(item.savedPath);
+                          return;
+                        }
+                        toast.push('Fichier déjà présent dans le dossier cible', 'warn');
+                      }}
+                    >
+                      <RotateCw size={13} />
+                    </button>
+                  ) : null}
+                  {item.status === 'error' && item.remoteId ? (
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      title="Réessayer"
+                      aria-label="Réessayer le téléchargement"
+                      onClick={() => {
+                        dispatch({ type: 'downloads/resume', id: item.id });
+                        toast.push(`Nouvelle tentative pour ${item.name}`);
+                      }}
                     >
                       <RotateCw size={13} />
                     </button>
@@ -314,7 +360,10 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
                     aria-label="Annuler le transfert"
                     onClick={() => {
                       dispatch({ type: 'downloads/cancel', id: item.id });
-                      toast.push('Transfert annulé', 'warn');
+                      toast.push(
+                        item.remoteId ? 'Téléchargement annulé, fichier partiel supprimé' : 'Transfert annulé',
+                        'warn',
+                      );
                     }}
                   >
                     <X size={13} />

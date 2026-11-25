@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
+  CloudOff,
+  RefreshCw,
   ChevronDown,
   ChevronUp,
   Download,
@@ -23,6 +25,15 @@ import {
   type FileNode,
 } from '../data/catalog';
 import { catalogKey, useCatalog, useStore } from '../store';
+import { isRealAccount, realAccountId } from '../lib/google';
+import {
+  displaySegment,
+  ID_SEPARATOR,
+  useReloadRemote,
+  useRemoteFolder,
+  useRemoteSearch,
+} from '../lib/remote';
+import { getBridge } from '../lib/bridge';
 import {
   formatBytes,
   formatDate,
@@ -54,6 +65,7 @@ export function Files() {
 
   const account = state.accounts.find((a) => a.id === state.explorer.accountId);
   const path = state.explorer.path;
+  const remote = Boolean(account && isRealAccount(account));
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({
     key: 'name',
@@ -65,10 +77,22 @@ export function Files() {
   const searchRef = useRef<HTMLInputElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
 
+  const remoteFolder = useRemoteFolder(account?.id ?? null, path, remote);
+  const remoteQuery = query.trim().length >= 2 ? query : '';
+  const remoteSearchState = useRemoteSearch(account?.id ?? null, remoteQuery, remote);
+  const reloadRemote = useReloadRemote();
+
   const children = useMemo(() => {
     if (!account) return [];
+    if (isRealAccount(account)) return remoteFolder?.nodes ?? [];
     return getChildren(catalog.trees[account.id] ?? [], path) ?? [];
-  }, [catalog.trees, account, path]);
+  }, [catalog.trees, account, path, remoteFolder]);
+
+  // Nom lisible des segments réels : le chemin technique porte l'identifiant Drive.
+  const cleanPath = useMemo(
+    () => (remote ? path.map(displaySegment) : path),
+    [path, remote],
+  );
 
   const favoriteSet = useMemo(
     () => new Set(state.favorites.map((fav) => catalogKey(fav.accountId, fav.path))),
@@ -79,6 +103,22 @@ export function Files() {
   const searchResults = useMemo(() => {
     const q = normalize(query.trim());
     if (q.length < 2) return [];
+    if (remote && account) {
+      // Un compte réel n'est pas indexé localement : la recherche est faite
+      // par Google, sur l'ensemble du compte.
+      return (remoteSearchState?.nodes ?? [])
+        .filter((node) => {
+          if (typeFilter === 'all') return true;
+          if (typeFilter === 'folder') return Boolean(node.children);
+          return node.type === typeFilter;
+        })
+        .map((node) => ({
+          node,
+          path: [node.name],
+          depth: 0,
+          accountId: account.id,
+        }));
+    }
     return catalog.entries
       .filter((entry) => normalize(entry.node.name).includes(q))
       .filter((entry) => {
@@ -108,7 +148,7 @@ export function Files() {
         depth: entry.path.length - 1,
         accountId: entry.accountId,
       }));
-  }, [catalog.entries, query, typeFilter]);
+  }, [catalog.entries, query, typeFilter, remote, account, remoteSearchState]);
 
   const searchMode = normalize(query.trim()).length >= 2;
   const rows: {
@@ -120,7 +160,7 @@ export function Files() {
     ? searchResults
     : children.map((node) => ({
         node,
-        path: [...path, node.name],
+        path: [...path, remote && node.children ? `${node.name}${ID_SEPARATOR}${node.id}` : node.name],
         depth: path.length,
         accountId: state.explorer.accountId,
       }));
@@ -239,7 +279,11 @@ export function Files() {
 
   const openNode = (node: FileNode) => {
     if (node.children) {
-      dispatch({ type: 'explorer/enter', name: node.name });
+      // Un dossier réel conserve son identifiant Drive dans le segment de chemin.
+      dispatch({
+        type: 'explorer/enter',
+        name: remote ? `${node.name}${ID_SEPARATOR}${node.id}` : node.name,
+      });
       return;
     }
     setFocusedId(node.id);
@@ -255,6 +299,8 @@ export function Files() {
       toast.push('Les dossiers doivent être ouverts avant d’être téléchargés', 'warn');
       return;
     }
+    const real = isRealAccount(source);
+    const googleId = real ? realAccountId(source) : undefined;
     const items = downloadable.map((node) =>
       createDownload({
         id: `${node.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -266,11 +312,39 @@ export function Files() {
         accountName: source.name,
         path: [...basePath, node.name],
         seed: node.name.length * 7 + node.size,
+        ...(real && googleId ? { remoteId: node.id, remoteAccount: googleId } : {}),
       }),
     );
+
+    // Compte réel : on confie le transfert au processus principal, qui écrit
+    // vraiment sur le disque et renvoie la progression.
+    if (items.length && items[0].remoteId && googleId) {
+      const bridge = getBridge();
+      const sizes = new Map(downloadable.map((node) => [node.id, node.size]));
+      void Promise.all(
+        items.map((item) =>
+          bridge?.google
+            .download({
+              id: item.id,
+              accountId: googleId,
+              fileId: item.remoteId as string,
+              name: item.name,
+              size: sizes.get(item.remoteId as string) ?? 0,
+              dir: state.settings.downloadFolder,
+            })
+            .catch((cause: Error) =>
+              toast.push(cause.message || 'Téléchargement impossible', 'error'),
+            ),
+        ),
+      );
+    }
     dispatch({ type: 'downloads/add', items });
     toast.push(
-      `${plural(items.length, 'transfert')} ajouté${items.length > 1 ? 's' : ''} à la file`,
+      items[0].remoteId
+        ? `${plural(items.length, 'téléchargement')} réel${
+            items.length > 1 ? 's' : ''
+          } démarré${items.length > 1 ? 's' : ''}`
+        : `${plural(items.length, 'transfert')} ajouté${items.length > 1 ? 's' : ''} à la file`,
       'ok',
     );
   };
@@ -282,7 +356,7 @@ export function Files() {
           <div className="page-eyebrow">Explorateur</div>
           <h1 className="page-title">Tous les fichiers</h1>
           <p className="page-subtitle">
-            Parcourez les arborescences de vos comptes fictifs. Sélection simple ou multiple
+            Parcourez les arborescences de vos comptes. Sélection simple ou multiple
             (Ctrl / Maj), recherche et tri instantanés.
           </p>
         </div>
@@ -325,6 +399,9 @@ export function Files() {
                   >
                     <span className="rail-account__dot" />
                     <span className="rail-account__name">{acc.name}</span>
+                    {isRealAccount(acc) ? (
+                      <span className="rail-account__live" title="Compte Google réel" />
+                    ) : null}
                   </button>
                 ))}
               </div>
@@ -377,7 +454,7 @@ export function Files() {
             <Breadcrumbs
               accountName={account.name}
               brand={provider.brand}
-              path={path}
+              path={cleanPath}
               onRoot={() => dispatch({ type: 'explorer/root' })}
               onNavigate={(target) =>
                 dispatch({ type: 'explorer/open', accountId: account.id, path: target })
@@ -392,7 +469,9 @@ export function Files() {
               <input
                 ref={searchRef}
                 className="input"
-                placeholder="Rechercher dans tous les comptes…"
+                placeholder={
+                  remote ? 'Rechercher dans ce compte Google…' : 'Rechercher dans tous les comptes…'
+                }
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 aria-label="Rechercher dans ce dossier"
@@ -436,13 +515,17 @@ export function Files() {
               <>
                 <span className="selection-bar__path">
                   {searchMode ? <Search size={12} /> : <Folder size={12} />}
-                  {searchMode ? 'Tous les comptes' : plural(fileCount, 'fichier')}
+                  {searchMode
+                    ? remote
+                      ? `${provider.name} · ${account.name}`
+                      : 'Tous les comptes'
+                    : plural(fileCount, 'fichier')}
                 </span>
                 <span className="selection-bar__size">
                   {searchMode
                     ? `${formatDecimal(searchResults.length)} résultat${
                         searchResults.length > 1 ? 's' : ''
-                      } · tous les comptes`
+                      } · ${remote ? 'ce compte' : 'tous les comptes'}`
                     : [
                         folderCount > 0 ? plural(folderCount, 'dossier') : null,
                         formatBytes(children.reduce((sum, node) => sum + node.size, 0)),
@@ -537,7 +620,33 @@ export function Files() {
           </div>
 
           <div className="filetable-wrap">
-            {rows.length === 0 ? (
+            {remote && searchMode && remoteSearchState?.status === 'loading' ? (
+              <div className="filetable-loading">
+                <RefreshCw size={13} className="spin" />
+                Recherche dans Google Drive…
+              </div>
+            ) : remote && remoteFolder?.status === 'loading' && rows.length === 0 ? (
+              <div className="filetable-loading">
+                <RefreshCw size={13} className="spin" />
+                Chargement du dossier depuis Google Drive…
+              </div>
+            ) : remote && remoteFolder?.status === 'error' && rows.length === 0 ? (
+              <div className="filetable-error">
+                <CloudOff size={20} />
+                <p className="filetable-error__title">Google Drive est injoignable</p>
+                <p className="filetable-error__text">{remoteFolder.error}</p>
+                <button
+                  type="button"
+                  className="btn btn--sm"
+                  onClick={() => {
+                    reloadRemote(account.id, path);
+                  }}
+                >
+                  <RotateCcw size={12} />
+                  Réessayer
+                </button>
+              </div>
+            ) : rows.length === 0 ? (
               <div className="filetable-empty">
                 {searchMode ? <SearchX size={20} /> : <ListFilter size={20} />}
                 <p className="filetable-empty__title">
@@ -549,10 +658,14 @@ export function Files() {
                 </p>
                 <p className="filetable-empty__text">
                   {searchMode
-                    ? 'La recherche couvre tous les comptes. Essayez un autre terme ou un nom plus court.'
+                    ? remote
+                      ? 'La recherche interroge tout ce compte Google. Essayez un autre terme.'
+                      : 'La recherche couvre tous les comptes. Essayez un autre terme ou un nom plus court.'
                     : query
                       ? 'Saisissez au moins deux caractères pour chercher dans tout le compte.'
-                      : 'Ce dossier de démonstration ne contient aucun élément.'}
+                      : remote
+                        ? 'Ce dossier Google Drive est vide.'
+                        : 'Ce dossier de démonstration ne contient aucun élément.'}
                 </p>
                 {query ? (
                   <button
@@ -737,7 +850,13 @@ export function Files() {
                         </td>
                         <td className="col-size">
                           <span className="truncate">
-                            {node.children ? `${node.children.length} él.` : formatBytes(node.size)}
+                            {node.children
+                              ? node.children.length
+                                ? `${node.children.length} él.`
+                                : 'Dossier'
+                              : node.size
+                                ? formatBytes(node.size)
+                                : '—'}
                           </span>
                         </td>
                         <td className="col-date">
@@ -835,9 +954,11 @@ export function Files() {
             <span className="filetable-foot__sep">/</span>
             <span className="filetable-foot__path">
               {searchMode
-                ? 'Recherche globale'
-                : path.length
-                  ? path.join(' / ')
+                ? remote
+                  ? 'Recherche Google'
+                  : 'Recherche globale'
+                : cleanPath.length
+                  ? cleanPath.join(' / ')
                   : 'Racine'}
             </span>
           </div>

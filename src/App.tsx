@@ -59,6 +59,15 @@ export default function App() {
     [dispatch, state.accounts, toast],
   );
 
+  // Raccourci vers Clouds (depuis les paramètres : configurer Google).
+  useEffect(() => {
+    const onNavigateClouds = () => {
+      dispatch({ type: 'route', route: { name: 'clouds', provider: 'gdrive' } });
+    };
+    window.addEventListener('boitier:navigate-clouds', onNavigateClouds);
+    return () => window.removeEventListener('boitier:navigate-clouds', onNavigateClouds);
+  }, [dispatch]);
+
   // Raccourcis clavier globaux.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -97,6 +106,7 @@ export default function App() {
   const queue = state.downloads.filter((item) => item.status !== 'done');
   const totalSpeed = activeDownloads.reduce((sum, item) => sum + item.speed, 0);
   const totalCount = catalog.entries.length;
+  const realCount = state.accounts.filter((account) => account.source === 'google').length;
 
   const explorerLabel = useMemo(() => {
     const account = state.accounts.find((a) => a.id === state.explorer.accountId);
@@ -154,9 +164,14 @@ export default function App() {
           left={
             <>
               <span className="statusbar__item">
-                <CircleDot size={10} style={{ color: 'var(--ok)' }} />
+                <CircleDot
+                  size={10}
+                  style={{ color: realCount ? 'var(--accent)' : 'var(--ok)' }}
+                />
                 {formatDecimal(state.accounts.length)} comptes ·{' '}
-                {formatDecimal(PROVIDER_LIST.length)} fournisseurs
+                {realCount
+                  ? `${formatDecimal(realCount)} réel${realCount > 1 ? 's' : ''}`
+                  : `${formatDecimal(PROVIDER_LIST.length)} fournisseurs`}
               </span>
               <span className="statusbar__item statusbar__item--optional">
                 <HardDrive size={10} />

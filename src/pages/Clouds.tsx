@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowUpRight,
   Cable,
@@ -20,7 +20,12 @@ import {
   type AccountStatus,
   type ProviderId,
 } from '../data/catalog';
+import { KeyRound, LockKeyhole, Unplug } from 'lucide-react';
 import { defaultDraft, useStore, type Route } from '../store';
+import { GoogleConnectDialog, GoogleSetupDialog } from '../components/GoogleDialogs';
+import { useGoogleAccountSync, useGoogleClientStatus } from '../hooks/useGoogle';
+import { getBridge, isDesktop } from '../lib/bridge';
+import { isRealAccount, realAccountId } from '../lib/google';
 import { formatBytes, formatDate, formatDecimal, normalize, percent } from '../lib/format';
 import { Meter, ProviderMark } from '../components/visuals';
 import { Modal } from '../components/Modal';
@@ -49,13 +54,32 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
   const [statusFilter, setStatusFilter] = useState<'all' | AccountStatus>('all');
   const [dialog, setDialog] = useState<
     | { kind: 'add' }
+    | { kind: 'googleSetup' }
+    | { kind: 'googleConnect' }
     | { kind: 'rename'; account: Account }
     | { kind: 'delete'; account: Account }
     | null
   >(null);
 
+  const googleClient = useGoogleClientStatus();
+  const applyGoogleAccount = useGoogleAccountSync();
+  const desktop = isDesktop();
+
+  // Ouverture directe du dialogue demandé depuis un autre écran.
+  useEffect(() => {
+    if (provider !== 'gdrive' || !desktop) return;
+    const pending = window.sessionStorage.getItem('boitier:google-connect');
+    if (!pending) return;
+    window.sessionStorage.removeItem('boitier:google-connect');
+    setDialog(
+      googleClient.status?.configured ? { kind: 'googleConnect' } : { kind: 'googleSetup' },
+    );
+  }, [provider, desktop, googleClient.status?.configured]);
+
   const def = PROVIDERS[provider];
   const accounts = state.accounts.filter((account) => account.provider === provider);
+  const realAccounts = accounts.filter(isRealAccount);
+  const demoAccounts = accounts.filter((account) => !isRealAccount(account));
   const otherProviders = PROVIDER_LIST.filter((item) => item.id !== provider);
 
   const filtered = useMemo(() => {
@@ -94,20 +118,74 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
           <div className="page-eyebrow">Clouds</div>
           <h1 className="page-title">{def.name}</h1>
           <p className="page-subtitle">
-            {def.tagline} — {formatDecimal(accounts.length)} compte
-            {accounts.length > 1 ? 's' : ''} de démonstration. Chaque compte possède sa
-            propre arborescence fictive.
+            {provider === 'gdrive' && realAccounts.length
+              ? `${formatDecimal(realAccounts.length)} compte${
+                  realAccounts.length > 1 ? 's' : ''
+                } Google réel${realAccounts.length > 1 ? 's' : ''} en lecture seule${
+                  demoAccounts.length
+                    ? ` · ${formatDecimal(demoAccounts.length)} compte${
+                        demoAccounts.length > 1 ? 's' : ''
+                      } de démonstration`
+                    : ''
+                }.`
+              : `${def.tagline} — ${formatDecimal(accounts.length)} compte${
+                  accounts.length > 1 ? 's' : ''
+                } de démonstration. Chaque compte possède sa propre arborescence fictive.`}
           </p>
         </div>
         <div className="page-head__actions">
-          <button
-            type="button"
-            className="btn btn--primary"
-            onClick={() => setDialog({ kind: 'add' })}
-          >
-            <Plus size={14} strokeWidth={2.4} />
-            Ajouter un compte
-          </button>
+          {provider === 'gdrive' && desktop ? (
+            <>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                title="Ajouter un compte de démonstration fictif"
+                onClick={() => setDialog({ kind: 'add' })}
+              >
+                <Plus size={13} />
+                Démonstration
+              </button>
+              {googleClient.status?.configured ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn--ghost"
+                    title="Modifier l’identifiant client OAuth"
+                    onClick={() => setDialog({ kind: 'googleSetup' })}
+                  >
+                    <KeyRound size={13} />
+                    Configurer
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--primary"
+                    onClick={() => setDialog({ kind: 'googleConnect' })}
+                  >
+                    <Plus size={14} strokeWidth={2.4} />
+                    Connecter un compte Google
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() => setDialog({ kind: 'googleSetup' })}
+                >
+                  <KeyRound size={13} />
+                  Configurer Google Drive
+                </button>
+              )}
+            </>
+          ) : (
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={() => setDialog({ kind: 'add' })}
+            >
+              <Plus size={14} strokeWidth={2.4} />
+              Ajouter un compte
+            </button>
+          )}
         </div>
       </div>
 
@@ -211,9 +289,10 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                 type="button"
                 className="btn btn--sm btn--primary"
                 onClick={() => setDialog({ kind: 'add' })}
+                title="Ajouter un compte de démonstration"
               >
                 <Plus size={13} />
-                Ajouter
+                Démonstration
               </button>
             </div>
           </div>
@@ -227,11 +306,21 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                   className="account-row__avatar"
                   style={{ ['--brand' as string]: def.brand }}
                 >
-                  {initials(account.name)}
+                  {account.avatarUrl ? (
+                    <img src={account.avatarUrl} alt="" referrerPolicy="no-referrer" />
+                  ) : (
+                    initials(account.name)
+                  )}
                 </span>
                 <div className="account-row__id">
                   <span className="account-row__name">
                     <span>{account.name}</span>
+                    {isRealAccount(account) ? (
+                      <span className="badge badge--live" title="Compte Google connecté — accès en lecture seule">
+                        <LockKeyhole size={9} />
+                        Réel
+                      </span>
+                    ) : null}
                   </span>
                   <span className="account-row__email">{account.email}</span>
                 </div>
@@ -264,8 +353,20 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                     <button
                       type="button"
                       className="icon-btn"
-                      title="Rafraîchir la session (simulation)"
+                      title={
+                        isRealAccount(account)
+                          ? 'Autorisation expirée — se reconnecter'
+                          : 'Rafraîchir la session (simulation)'
+                      }
                       onClick={() => {
+                        if (isRealAccount(account)) {
+                          setDialog(
+                            googleClient.status?.configured
+                              ? { kind: 'googleConnect' }
+                              : { kind: 'googleSetup' },
+                          );
+                          return;
+                        }
                         dispatch({
                           type: 'account/patch',
                           id: account.id,
@@ -275,6 +376,32 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                       }}
                     >
                       <Cable size={14} />
+                    </button>
+                  ) : isRealAccount(account) ? (
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      title="Rafraîchir le quota depuis Google"
+                      onClick={() => {
+                        const googleId = realAccountId(account);
+                        if (!googleId) return;
+                        void getBridge()
+                          ?.google.refresh(googleId)
+                          .then((info) => {
+                            if (!info) return;
+                            dispatch({
+                              type: 'account/patch',
+                              id: account.id,
+                              status: info.status,
+                            });
+                            toast.push('Quota Google actualisé', 'ok');
+                          })
+                          .catch((cause: Error) =>
+                            toast.push(cause.message || 'Rafraîchissement impossible', 'error'),
+                          );
+                      }}
+                    >
+                      <RefreshCw size={14} />
                     </button>
                   ) : (
                     <button
@@ -298,9 +425,11 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                     type="button"
                     className="icon-btn"
                     title={
-                      state.settings.confirmDelete
-                        ? `Supprimer ${account.name}`
-                        : `Supprimer ${account.name} immédiatement`
+                      isRealAccount(account)
+                        ? `Déconnecter ${account.name}`
+                        : state.settings.confirmDelete
+                          ? `Supprimer ${account.name}`
+                          : `Supprimer ${account.name} immédiatement`
                     }
                     onClick={() => {
                       if (state.settings.confirmDelete) {
@@ -318,10 +447,15 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                         }
                       }
                       dispatch({ type: 'account/remove', id: account.id });
-                      toast.push(`Compte ${account.name} supprimé`, 'warn');
+                      toast.push(
+                        isRealAccount(account)
+                          ? `Accès Google révoqué pour ${account.name}`
+                          : `Compte ${account.name} supprimé`,
+                        'warn',
+                      );
                     }}
                   >
-                    <Trash2 size={14} />
+                    {isRealAccount(account) ? <Unplug size={14} /> : <Trash2 size={14} />}
                   </button>
                 </div>
               </div>
@@ -373,9 +507,42 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
           gap: 6,
         }}
       >
-        <CircleSlash size={11} /> Aucune connexion réelle — les ajouts et suppressions
-        affectent uniquement le stockage local de démonstration.
+        {realAccounts.length ? (
+          <>
+            <LockKeyhole size={11} /> Les comptes marqués « Réel » sont connectés à Google
+            Drive en lecture seule. Cet écran n’affiche que des métadonnées : aucun jeton ne
+            circule dans l’interface.
+          </>
+        ) : (
+          <>
+            <CircleSlash size={11} /> Aucune connexion réelle — les ajouts et suppressions
+            affectent uniquement le stockage local de démonstration.
+          </>
+        )}
       </p>
+
+      {dialog?.kind === 'googleSetup' ? (
+        <GoogleSetupDialog
+          status={googleClient.status}
+          onClose={() => setDialog(null)}
+          onSaved={async (status) => {
+            await googleClient.reload();
+            toast.push('Client OAuth Google enregistré', 'ok');
+            setDialog(status.configured ? { kind: 'googleConnect' } : null);
+          }}
+        />
+      ) : null}
+
+      {dialog?.kind === 'googleConnect' ? (
+        <GoogleConnectDialog
+          onClose={() => setDialog(null)}
+          onConnected={(info) => {
+            applyGoogleAccount(info);
+            setDialog(null);
+            toast.push(`Compte ${info.email} connecté`, 'ok');
+          }}
+        />
+      ) : null}
 
       {dialog?.kind === 'add' ? (
         <AddAccountDialog
