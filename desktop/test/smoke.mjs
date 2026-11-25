@@ -245,9 +245,19 @@ try {
   const brokenState = await brokenSession.account('gdrive-broken');
   check('révocation détectée', expired && brokenState?.status === 'expired');
 
-  // --- 12. Déconnexion ------------------------------------------------------
+  // --- 12. Déconnexion : révocation côté Google + purge locale ------------
   await service2.disconnect(account.accountId);
   check('compte retiré du coffre', (await service2.accounts()).length === 0);
+  const revoked = await (await fetch(`${BASE}/state`)).json();
+  check(
+    'jeton révoqué chez Google',
+    revoked.revoked.includes('fake-refresh-token'),
+    revoked.revoked.join(','),
+  );
+  const remaining = await readFile(join(userData, 'google-accounts.enc'))
+    .then((cipher) => unprotect(cipher) ?? '')
+    .catch(() => '');
+  check('jeton effacé du coffre', !remaining.includes('fake-refresh-token'));
 } catch (cause) {
   failures += 1;
   console.error('Erreur inattendue :', cause);
