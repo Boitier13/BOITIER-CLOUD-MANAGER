@@ -78,11 +78,56 @@ l’application utilise PKCE (S256) + `state`.
 
 | Limite | Explication |
 | --- | --- |
-| Mode *Testing* : reconnexion hebdomadaire | Google expire les jetons de rafraîchissement au bout de **7 jours** tant que l’application n’est pas publiée. Publier l’application (« Publier l’application », sans demander la vérification) supprime cette limite pour un usage personnel. |
-| Écran « Google n’a pas vérifié cette application » | Normal pour un projet personnel non vérifié : *Paramètres avancés → Continuer*. |
+| Mode *Testing* : reconnexion hebdomadaire | Google expire les jetons au bout de **7 jours** tant que l’application reste en *Testing*. **Une seule action gratuite supprime cette limite pour toujours** : cf. la section suivante. Avec plusieurs comptes, cette contrainte se paie une fois par compte et par semaine. |
+| Écran « Google n’a pas vérifié cette application » | Normal pour un projet personnel non vérifié : *Paramètres avancés → Continuer*. **Publier l’application ne change rien à cet écran** : il apparaît déjà aujourd’hui, et il réapparaît une fois après la publication. |
 | Documents Google natifs | Docs, Sheets et Slides n’ont pas de fichier binaire : ils doivent être exportés depuis Google Drive. L’application l’indique clairement. |
 | Pause et reprise | Une pause annule le flux réseau et supprime le fichier partiel ; la reprise repart du début. |
 | Comptes professionnels | Un administrateur Google Workspace peut interdire les applications tierces. |
+
+### Éviter la reconnexion chaque semaine (gratuit, 5 minutes)
+
+Par défaut, un projet Google Cloud reste en **Testing** : Google invalide alors
+chaque jeton de rafraîchissement au bout de **7 jours**. Avec un seul compte,
+c’est une reconnexion hebdomadaire ; avec treize, c’est treize reconnexions.
+
+**Publier l’application met fin à cette limite, sans rien payer et sans demander
+la vérification de Google.**
+
+1. Google Cloud Console → **API et services** → **Écran de consentement OAuth**
+   (ou *Google Auth Platform* → **Audience**).
+2. Sous « État de publication », cliquer **Publier l’application** puis confirmer.
+   L’état passe de *Testing* à *En production*.
+3. Reconnecter **une dernière fois** chaque compte dans l’application : Google
+   n’émet un jeton durable qu’au moment où le consentement est donné.
+
+**Si le bouton « Publier » est grisé**, c’est que Google exige une configuration
+de marque avant publication. Trois champs suffisent, tous gratuits :
+
+- **Page d’accueil** de l’application (une page publique qui la décrit) ;
+- **Politique de confidentialité** (une page publique également) ;
+- **Domaine autorisé** : le domaine qui héberge ces deux pages.
+
+Une page GitHub Pages convient parfaitement : c’est gratuit, public, et le
+domaine est vérifiable. Renseigner les trois champs dans **Branding**, enregistrer,
+puis revenir sur **Audience** pour publier.
+
+#### Ce que la publication ne demande pas
+
+- **Aucun paiement.** La vérification des périmètres restreints (dont
+  `drive.readonly`) est gratuite. L’audit de sécurité annuel payant (CASA) ne
+  concerne que les applications qui font transiter les données des utilisateurs
+  par un serveur : ce n’est pas le cas ici, l’application parle directement de
+  la machine à Google.
+- **Aucune vérification.** Rester « publié mais non vérifié » est un état stable
+  et autorisé. L’application fonctionne intégralement.
+- **Aucun changement pour l’écran d’avertissement** : il s’affiche comme
+  aujourd’hui, et une fois de plus après la publication.
+
+#### Et le plafond de 100 utilisateurs ?
+
+Il ne s’applique pas à un usage personnel : chaque compte ajouté est une
+autorisation que **vous** donnez, pas un nouvel utilisateur de l’application.
+Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 
 ## Vérification
 
