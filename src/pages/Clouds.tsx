@@ -2,9 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowUpRight,
   Cable,
-  Check,
   CircleSlash,
-  CloudUpload,
   Pencil,
   Plus,
   RefreshCw,
@@ -13,20 +11,14 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import {
-  PROVIDERS,
-  PROVIDER_LIST,
-  type Account,
-  type AccountStatus,
-  type ProviderId,
-} from '../data/catalog';
+import { PROVIDERS, type Account, type AccountStatus, type ProviderId } from '../data/catalog';
 import { KeyRound, LockKeyhole, Unplug } from 'lucide-react';
-import { defaultDraft, useStore, type Route } from '../store';
+import { useStore, type Route } from '../store';
 import { GoogleConnectDialog, GoogleSetupDialog } from '../components/GoogleDialogs';
 import { useGoogleAccountSync, useGoogleClientStatus } from '../hooks/useGoogle';
 import { getBridge, isDesktop } from '../lib/bridge';
 import { isRealAccount, realAccountId } from '../lib/google';
-import { formatBytes, formatDate, formatDecimal, normalize, percent } from '../lib/format';
+import { formatBytes, formatDecimal, normalize, percent } from '../lib/format';
 import { Meter, ProviderMark } from '../components/visuals';
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/toast';
@@ -53,7 +45,6 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | AccountStatus>('all');
   const [dialog, setDialog] = useState<
-    | { kind: 'add' }
     | { kind: 'googleSetup' }
     | { kind: 'googleConnect' }
     | { kind: 'rename'; account: Account }
@@ -79,8 +70,6 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
   const def = PROVIDERS[provider];
   const accounts = state.accounts.filter((account) => account.provider === provider);
   const realAccounts = accounts.filter(isRealAccount);
-  const demoAccounts = accounts.filter((account) => !isRealAccount(account));
-  const otherProviders = PROVIDER_LIST.filter((item) => item.id !== provider);
 
   const filtered = useMemo(() => {
     const q = normalize(query.trim());
@@ -118,72 +107,54 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
           <div className="page-eyebrow">Clouds</div>
           <h1 className="page-title">{def.name}</h1>
           <p className="page-subtitle">
-            {provider === 'gdrive' && realAccounts.length
+            {realAccounts.length
               ? `${formatDecimal(realAccounts.length)} compte${
                   realAccounts.length > 1 ? 's' : ''
-                } Google réel${realAccounts.length > 1 ? 's' : ''} en lecture seule${
-                  demoAccounts.length
-                    ? ` · ${formatDecimal(demoAccounts.length)} compte${
-                        demoAccounts.length > 1 ? 's' : ''
-                      } de démonstration`
-                    : ''
-                }.`
-              : `${def.tagline} — ${formatDecimal(accounts.length)} compte${
-                  accounts.length > 1 ? 's' : ''
-                } de démonstration. Chaque compte possède sa propre arborescence fictive.`}
+                } Google connecté${realAccounts.length > 1 ? 's' : ''} en lecture seule — ` +
+                'aucune modification n’est possible depuis cette application.'
+              : 'Aucun compte connecté. Vos fichiers restent chez Google : l’application ne lit que ce que vous l’autorisez.'}
           </p>
         </div>
         <div className="page-head__actions">
-          {provider === 'gdrive' && desktop ? (
+          {desktop ? (
             <>
-              <button
-                type="button"
-                className="btn btn--ghost"
-                title="Ajouter un compte de démonstration fictif"
-                onClick={() => setDialog({ kind: 'add' })}
-              >
-                <Plus size={13} />
-                Démonstration
-              </button>
               {googleClient.status?.configured ? (
-                <>
-                  <button
-                    type="button"
-                    className="btn btn--ghost"
-                    title="Modifier l’identifiant client OAuth"
-                    onClick={() => setDialog({ kind: 'googleSetup' })}
-                  >
-                    <KeyRound size={13} />
-                    Configurer
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn--primary"
-                    onClick={() => setDialog({ kind: 'googleConnect' })}
-                  >
-                    <Plus size={14} strokeWidth={2.4} />
-                    Connecter un compte Google
-                  </button>
-                </>
-              ) : (
                 <button
                   type="button"
-                  className="btn btn--primary"
+                  className="btn btn--ghost"
+                  title="Modifier l’identifiant client OAuth"
                   onClick={() => setDialog({ kind: 'googleSetup' })}
                 >
                   <KeyRound size={13} />
-                  Configurer Google Drive
+                  Configurer
                 </button>
-              )}
+              ) : null}
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() =>
+                  setDialog(
+                    googleClient.status?.configured
+                      ? { kind: 'googleConnect' }
+                      : { kind: 'googleSetup' },
+                  )
+                }
+              >
+                <Plus size={14} strokeWidth={2.4} />
+                {googleClient.status?.configured
+                  ? 'Connecter un compte Google'
+                  : 'Configurer Google Drive'}
+              </button>
             </>
           ) : (
             <button
               type="button"
-              className="btn btn--primary"
-              onClick={() => setDialog({ kind: 'add' })}
+              className="btn btn--ghost"
+              onClick={() => onNavigate({ name: 'settings' })}
+              title="La connexion Google nécessite la version Windows"
             >
-              <Plus size={14} strokeWidth={2.4} />
-              Ajouter un compte
+              <KeyRound size={13} />
+              Connexion disponible sous Windows
             </button>
           )}
         </div>
@@ -269,31 +240,46 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
             <span className="empty__icon">
               <Users size={18} />
             </span>
-            <p className="empty__title">Aucun compte ne correspond</p>
+            <p className="empty__title">
+              {accounts.length === 0 ? 'Aucun compte connecté' : 'Aucun compte ne correspond'}
+            </p>
             <p className="empty__text">
-              Modifiez la recherche ou le filtre d’état, ou ajoutez un nouveau compte de
-              démonstration.
+              {accounts.length === 0
+                ? desktop
+                  ? 'Connectez votre compte Google pour explorer vos fichiers. L’application n’a accès qu’en lecture : rien ne peut être supprimé ni modifié chez Google.'
+                  : 'La connexion Google est disponible dans l’application Windows. Dans le navigateur, l’application n’a aucun accès à vos fichiers.'
+                : 'Modifiez la recherche ou le filtre d’état pour retrouver un compte.'}
             </p>
             <div className="empty__actions">
-              <button
-                type="button"
-                className="btn btn--sm"
-                onClick={() => {
-                  setQuery('');
-                  setStatusFilter('all');
-                }}
-              >
-                Réinitialiser les filtres
-              </button>
-              <button
-                type="button"
-                className="btn btn--sm btn--primary"
-                onClick={() => setDialog({ kind: 'add' })}
-                title="Ajouter un compte de démonstration"
-              >
-                <Plus size={13} />
-                Démonstration
-              </button>
+              {accounts.length === 0 ? (
+                desktop ? (
+                  <button
+                    type="button"
+                    className="btn btn--sm btn--primary"
+                    onClick={() =>
+                      setDialog(
+                        googleClient.status?.configured
+                          ? { kind: 'googleConnect' }
+                          : { kind: 'googleSetup' },
+                      )
+                    }
+                  >
+                    <Plus size={13} />
+                    Connecter Google Drive
+                  </button>
+                ) : null
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn--sm"
+                  onClick={() => {
+                    setQuery('');
+                    setStatusFilter('all');
+                  }}
+                >
+                  Réinitialiser les filtres
+                </button>
+              )}
             </div>
           </div>
         ) : (
@@ -315,12 +301,13 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                 <div className="account-row__id">
                   <span className="account-row__name">
                     <span>{account.name}</span>
-                    {isRealAccount(account) ? (
-                      <span className="badge badge--live" title="Compte Google connecté — accès en lecture seule">
-                        <LockKeyhole size={9} />
-                        Réel
-                      </span>
-                    ) : null}
+                    <span
+                      className="badge badge--live"
+                      title="Compte Google connecté — accès en lecture seule"
+                    >
+                      <LockKeyhole size={9} />
+                      Lecture seule
+                    </span>
                   </span>
                   <span className="account-row__email">{account.email}</span>
                 </div>
@@ -353,31 +340,18 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                     <button
                       type="button"
                       className="icon-btn"
-                      title={
-                        isRealAccount(account)
-                          ? 'Autorisation expirée — se reconnecter'
-                          : 'Rafraîchir la session (simulation)'
+                      title="Autorisation expirée — se reconnecter"
+                      onClick={() =>
+                        setDialog(
+                          googleClient.status?.configured
+                            ? { kind: 'googleConnect' }
+                            : { kind: 'googleSetup' },
+                        )
                       }
-                      onClick={() => {
-                        if (isRealAccount(account)) {
-                          setDialog(
-                            googleClient.status?.configured
-                              ? { kind: 'googleConnect' }
-                              : { kind: 'googleSetup' },
-                          );
-                          return;
-                        }
-                        dispatch({
-                          type: 'account/patch',
-                          id: account.id,
-                          status: 'connected',
-                        });
-                        toast.push(`Session rétablie pour ${account.name}`, 'ok');
-                      }}
                     >
                       <Cable size={14} />
                     </button>
-                  ) : isRealAccount(account) ? (
+                  ) : (
                     <button
                       type="button"
                       className="icon-btn"
@@ -403,15 +377,6 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                     >
                       <RefreshCw size={14} />
                     </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      title="Resynchroniser (simulation)"
-                      onClick={() => toast.push(`Synchronisation simulée de ${account.name}`)}
-                    >
-                      <RefreshCw size={14} />
-                    </button>
                   )}
                   <button
                     type="button"
@@ -424,13 +389,7 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                   <button
                     type="button"
                     className="icon-btn"
-                    title={
-                      isRealAccount(account)
-                        ? `Déconnecter ${account.name}`
-                        : state.settings.confirmDelete
-                          ? `Supprimer ${account.name}`
-                          : `Supprimer ${account.name} immédiatement`
-                    }
+                    title={`Déconnecter ${account.name}`}
                     onClick={() => {
                       if (state.settings.confirmDelete) {
                         setDialog({ kind: 'delete', account });
@@ -447,54 +406,16 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                         }
                       }
                       dispatch({ type: 'account/remove', id: account.id });
-                      toast.push(
-                        isRealAccount(account)
-                          ? `Accès Google révoqué pour ${account.name}`
-                          : `Compte ${account.name} supprimé`,
-                        'warn',
-                      );
+                      toast.push(`Accès Google révoqué pour ${account.name}`, 'warn');
                     }}
                   >
-                    {isRealAccount(account) ? <Unplug size={14} /> : <Trash2 size={14} />}
+                    <Unplug size={14} />
                   </button>
                 </div>
               </div>
             );
           })
         )}
-      </div>
-
-      <div className="section" style={{ marginTop: 20 }}>
-        <div className="section-head">
-          <h2 className="section-title">Autres fournisseurs</h2>
-        </div>
-        <div className="panel">
-          {otherProviders.map((item) => {
-            const count = state.accounts.filter((a) => a.provider === item.id).length;
-            const used = state.accounts
-              .filter((a) => a.provider === item.id)
-              .reduce((sum, a) => sum + a.usedBytes, 0);
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className="list-row list-row--button"
-                onClick={() => onNavigate({ name: 'clouds', provider: item.id })}
-              >
-                <ProviderMark provider={item.id} />
-                <span className="list-row__main">
-                  <span className="list-row__title">{item.name}</span>
-                  <span className="list-row__meta">
-                    {formatDecimal(count)} comptes
-                    <span className="dot-sep" />
-                    {formatBytes(used)} utilisés
-                  </span>
-                </span>
-                <ArrowUpRight size={14} className="muted" />
-              </button>
-            );
-          })}
-        </div>
       </div>
 
       <p
@@ -509,14 +430,14 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
       >
         {realAccounts.length ? (
           <>
-            <LockKeyhole size={11} /> Les comptes marqués « Réel » sont connectés à Google
-            Drive en lecture seule. Cet écran n’affiche que des métadonnées : aucun jeton ne
-            circule dans l’interface.
+            <LockKeyhole size={11} /> Accès en lecture seule : aucun fichier ne peut être
+            supprimé, déplacé ni modifié depuis cette application. Aucun jeton ne circule
+            dans l’interface.
           </>
         ) : (
           <>
-            <CircleSlash size={11} /> Aucune connexion réelle — les ajouts et suppressions
-            affectent uniquement le stockage local de démonstration.
+            <CircleSlash size={11} /> Aucun compte connecté : l’application n’a accès à
+            aucun de vos fichiers.
           </>
         )}
       </p>
@@ -540,18 +461,6 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
             applyGoogleAccount(info);
             setDialog(null);
             toast.push(`Compte ${info.email} connecté`, 'ok');
-          }}
-        />
-      ) : null}
-
-      {dialog?.kind === 'add' ? (
-        <AddAccountDialog
-          provider={provider}
-          onClose={() => setDialog(null)}
-          onConfirm={(name, email) => {
-            dispatch({ type: 'account/add', provider, name, email });
-            setDialog(null);
-            toast.push(`Compte ${name} ajouté à ${def.name}`, 'ok');
           }}
         />
       ) : null}
@@ -585,122 +494,6 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
 }
 
 /* -------------------------------------------------------------------------- */
-
-function AddAccountDialog({
-  provider,
-  onClose,
-  onConfirm,
-}: {
-  provider: ProviderId;
-  onClose: () => void;
-  onConfirm: (name: string, email: string) => void;
-}) {
-  const { state } = useStore();
-  const draft = defaultDraft(provider, state.accounts);
-  const [name, setName] = useState(draft.name);
-  const [email, setEmail] = useState(draft.email);
-  const [authorized, setAuthorized] = useState(true);
-
-  const nameConflict = state.accounts.some(
-    (account) => account.provider === provider && normalize(account.name) === normalize(name.trim()),
-  );
-  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-  const canSubmit = name.trim().length > 0 && emailValid && !nameConflict && authorized;
-
-  return (
-    <Modal
-      title={`Ajouter un compte ${PROVIDERS[provider].name}`}
-      description="Simulation locale : le compte est créé immédiatement avec son propre catalogue fictif."
-      icon={<CloudUpload size={16} />}
-      onClose={onClose}
-      footer={
-        <>
-          <button type="button" className="btn btn--ghost" onClick={onClose}>
-            Annuler
-          </button>
-          <button
-            type="button"
-            className="btn btn--primary"
-            disabled={!canSubmit}
-            onClick={() => onConfirm(name.trim(), email.trim())}
-          >
-            <Check size={14} strokeWidth={2.6} />
-            Ajouter le compte
-          </button>
-        </>
-      }
-    >
-      <div className="field">
-        <label className="field__label" htmlFor="account-name">
-          Nom personnalisé
-        </label>
-        <input
-          id="account-name"
-          className="input"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          placeholder="MEGA12"
-          autoComplete="off"
-          spellCheck={false}
-        />
-        {nameConflict ? (
-          <span className="field__hint" style={{ color: 'var(--danger)' }}>
-            Ce nom est déjà utilisé pour ce fournisseur.
-          </span>
-        ) : (
-          <span className="field__hint">
-            Sert d’identifiant dans la barre latérale et l’explorateur.
-          </span>
-        )}
-      </div>
-      <div className="field">
-        <label className="field__label" htmlFor="account-email">
-          Adresse fictive
-        </label>
-        <input
-          id="account-email"
-          className="input"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          placeholder={`compte@${PROVIDERS[provider].domain}`}
-          autoComplete="off"
-          spellCheck={false}
-        />
-        {!emailValid && email.length > 0 ? (
-          <span className="field__hint" style={{ color: 'var(--danger)' }}>
-            Format d’adresse invalide.
-          </span>
-        ) : null}
-      </div>
-      <div className="callout">
-        <RefreshCw size={13} />
-        <span>
-          Quota simulé : {formatBytes(PROVIDERS[provider].quota)}.{' '}
-          {formatDate(new Date().toISOString())} — aucune authentification n’est effectuée.
-        </span>
-      </div>
-      <label
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: 9,
-          fontSize: 11.5,
-          color: 'var(--text-3)',
-          cursor: 'pointer',
-          lineHeight: 1.45,
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={authorized}
-          onChange={(event) => setAuthorized(event.target.checked)}
-          style={{ marginTop: 2, accentColor: 'var(--accent)' }}
-        />
-        Je comprends que ce compte est fictif et reste stocké sur cet ordinateur.
-      </label>
-    </Modal>
-  );
-}
 
 function RenameDialog({
   account,
@@ -774,8 +567,8 @@ function DeleteDialog({
 
   return (
     <Modal
-      title={`Supprimer ${account.name} ?`}
-      description="Le compte de démonstration et ses favoris associés seront retirés de l’application."
+      title={`Déconnecter ${account.name} ?`}
+      description="L’accès de l’application à ce compte Google sera révoqué. Vos fichiers restent intacts chez Google."
       icon={<Trash2 size={15} />}
       onClose={onClose}
       footer={
@@ -788,8 +581,8 @@ function DeleteDialog({
             className="btn btn--danger"
             onClick={() => onConfirm(isCurrent && reassign ? reassign : undefined)}
           >
-            <Trash2 size={13} />
-            Supprimer définitivement
+            <Unplug size={13} />
+            Déconnecter
           </button>
         </>
       }
@@ -797,8 +590,8 @@ function DeleteDialog({
       <div className="callout callout--warn">
         <CircleSlash size={13} />
         <span>
-          {formatBytes(account.usedBytes)} de fichiers fictifs et les entrées favorites de
-          ce compte seront oubliés.
+          L’autorisation accordée à l’application sera révoquée chez Google et le jeton
+          chiffré conservé sur cet ordinateur sera effacé. Vos fichiers ne sont pas touchés.
         </span>
       </div>
       {isCurrent && others.length > 0 ? (
@@ -822,9 +615,12 @@ function DeleteDialog({
         </div>
       ) : null}
       {others.length === 0 ? (
-        <div className="callout callout--warn">
+        <div className="callout">
           <CircleSlash size={13} />
-          <span>Le dernier compte ne peut pas être supprimé.</span>
+          <span>
+            C’est votre seul compte : l’application reviendra à un écran vide et proposera de
+            vous reconnecter.
+          </span>
         </div>
       ) : null}
     </Modal>

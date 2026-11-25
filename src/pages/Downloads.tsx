@@ -13,7 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { PROVIDERS, type FileType } from '../data/catalog';
-import { useCatalog, useStore, type Route } from '../store';
+import { useStore, type Route } from '../store';
 import { formatBytes, formatDecimal, formatSpeed, percent } from '../lib/format';
 import { formatEta, statusLabels, type DownloadStatus } from '../lib/downloads';
 import { Meter, ProviderMark, TypeIcon } from '../components/visuals';
@@ -39,7 +39,6 @@ const FILTERS = [
 
 export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }) {
   const { state, dispatch } = useStore();
-  const catalog = useCatalog();
   const toast = useToast();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]['id']>('all');
 
@@ -67,27 +66,6 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
     .reduce((sum, item) => sum + Math.max(item.size - item.received, 0), 0);
   const totalDone = done.reduce((sum, item) => sum + item.size, 0);
 
-  // Suggest recent files not already in the queue.
-  const suggestions = useMemo(() => {
-    const inQueue = new Set(state.downloads.map((item) => item.name));
-    const accountsById = new Map(state.accounts.map((account) => [account.id, account]));
-    const seen = new Set<string>();
-    return [...catalog.entries]
-      // Un compte réel n'est pas indexé : ses suggestions viendraient de dossiers
-      // non visités, et le transfert direct se fait depuis l'explorateur.
-      .filter((entry) => accountsById.get(entry.accountId)?.source !== 'google')
-      .filter((entry) => entry.node.type === 'video' && !inQueue.has(entry.node.name))
-      .filter((entry) => {
-        if (seen.has(entry.node.name)) return false;
-        seen.add(entry.node.name);
-        return true;
-      })
-      .sort((a, b) => new Date(b.node.modified).getTime() - new Date(a.node.modified).getTime())
-      .slice(0, 3)
-      .map((entry) => ({ entry, account: accountsById.get(entry.accountId) }))
-      .filter((item) => item.account);
-  }, [catalog.entries, state.downloads, state.accounts]);
-
   return (
     <div className="page">
       <div className="page-head">
@@ -95,9 +73,8 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
           <div className="page-eyebrow">Transferts</div>
           <h1 className="page-title">Téléchargements</h1>
           <p className="page-subtitle">
-            {state.downloads.some((item) => item.remoteId)
-              ? 'Les fichiers Google Drive sont réellement enregistrés sur ce disque. Les autres transferts restent des simulations.'
-              : 'File de démonstration — progression, débit et statuts simulés localement. Aucun fichier n’est réellement téléchargé.'}
+            Les fichiers Google Drive sont réellement enregistrés sur ce disque. Une pause
+            interrompt le flux et supprime le fichier partiel : la reprise repart du début.
           </p>
         </div>
         <div className="page-head__actions">
@@ -133,7 +110,7 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
           <div className="summary-cell__body">
             <span className="summary-cell__value tnum">{formatSpeed(speed)}</span>
             <span className="summary-cell__label">
-              {state.downloads.some((item) => item.remoteId) ? 'Débit total' : 'Débit total simulé'}
+              Débit total
             </span>
           </div>
         </div>
@@ -219,8 +196,8 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
               {filter === 'all' ? 'La file est vide' : 'Aucun transfert dans cette catégorie'}
             </p>
             <p className="empty__text">
-              Ouvrez un fichier depuis l’explorateur ou ajoutez une suggestion ci-dessous
-              pour simuler un téléchargement.
+              Ouvrez un fichier ou un dossier depuis l’explorateur, puis choisissez
+              « Télécharger » : le fichier est enregistré sur ce disque.
             </p>
             <div className="empty__actions">
               <button
@@ -326,7 +303,7 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
                     <button
                       type="button"
                       className="icon-btn"
-                      title={item.savedPath ? 'Afficher dans le dossier' : 'Relancer la simulation'}
+                      title={item.savedPath ? 'Afficher dans le dossier' : 'Relancer le transfert'}
                       aria-label="Relancer le téléchargement"
                       onClick={() => {
                         if (item.savedPath) {
@@ -375,69 +352,6 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
         )}
       </div>
 
-      {suggestions.length > 0 ? (
-        <div className="section">
-          <div className="section-head">
-            <h2 className="section-title">Suggestions récentes</h2>
-            <button
-              type="button"
-              className="section-link"
-              onClick={() => onNavigate({ name: 'files' })}
-            >
-              Parcourir tout
-            </button>
-          </div>
-          <div className="panel">
-            {suggestions.map(({ entry, account }) => (
-              <div className="list-row" key={`${entry.accountId}-${entry.path.join('/')}`}>
-                <TypeIcon type={entry.node.type} size={13} />
-                <span className="list-row__main">
-                  <span className="list-row__title">{entry.node.name}</span>
-                  <span className="list-row__meta">
-                    {account ? <ProviderMark provider={account.provider} size="sm" /> : null}
-                    {account?.name}
-                    <span className="dot-sep" />
-                    {formatBytes(entry.node.size)}
-                    <span className="dot-sep" />
-                    /{entry.parentPath.join('/')}
-                  </span>
-                </span>
-                <button
-                  type="button"
-                  className="btn btn--sm"
-                  onClick={() => {
-                    if (!account) return;
-                    dispatch({
-                      type: 'downloads/add',
-                      items: [
-                        {
-                          id: `${entry.node.id}-${Date.now()}`,
-                          name: entry.node.name,
-                          type: entry.node.type,
-                          size: entry.node.size,
-                          received: 0,
-                          speed: 0,
-                          baseSpeed: 28 * 1024 * 1024,
-                          status: 'queued',
-                          provider: account.provider,
-                          accountId: account.id,
-                          accountName: account.name,
-                          path: entry.path,
-                          addedAt: new Date().toISOString(),
-                        },
-                      ],
-                    });
-                    toast.push('Ajouté à la file', 'ok');
-                  }}
-                >
-                  <ArrowDownToLine size={12} />
-                  Ajouter
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

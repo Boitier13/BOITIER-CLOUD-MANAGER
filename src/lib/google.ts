@@ -2,8 +2,8 @@
  * Couche Google côté interface.
  *
  * Elle ne connaît ni jetons ni secrets : tout passe par le pont Electron.
- * Dans un navigateur, chaque helper renvoie `null`/`false` et l'application
- * continue de fonctionner avec ses comptes de démonstration.
+ * Dans un navigateur, chaque helper renvoie `null`/`false` : l'application
+ * affiche alors un état vide invitant à utiliser la version Windows.
  */
 
 import { detectType, GB, type Account, type FileNode, type FileType } from '../data/catalog';

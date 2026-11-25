@@ -128,7 +128,7 @@ export default function App() {
             onOpenEntry={openEntry}
             onAddAccount={(provider?: ProviderId) => {
               if (provider) navigate({ name: 'clouds', provider });
-              else navigate({ name: 'clouds', provider: 'mega' });
+              else navigate({ name: 'clouds', provider: 'gdrive' });
             }}
           />
         );
@@ -168,7 +168,8 @@ export default function App() {
                   size={10}
                   style={{ color: realCount ? 'var(--accent)' : 'var(--ok)' }}
                 />
-                {formatDecimal(state.accounts.length)} comptes ·{' '}
+                {formatDecimal(state.accounts.length)} compte
+                {state.accounts.length > 1 ? 's' : ''} ·{' '}
                 {realCount
                   ? `${formatDecimal(realCount)} réel${realCount > 1 ? 's' : ''}`
                   : `${formatDecimal(PROVIDER_LIST.length)} fournisseurs`}

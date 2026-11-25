@@ -78,6 +78,14 @@ export function Files() {
   const railRef = useRef<HTMLDivElement>(null);
 
   const remoteFolder = useRemoteFolder(account?.id ?? null, path, remote);
+
+  // Arrivée sur l'écran sans compte sélectionné (première connexion, compte
+  // retiré) : on ouvre le premier compte disponible au lieu de laisser une
+  // invite alors qu'un compte existe.
+  useEffect(() => {
+    if (account || state.accounts.length === 0) return;
+    dispatch({ type: 'explorer/chooseAccount', accountId: state.accounts[0].id });
+  }, [account, state.accounts, dispatch]);
   const remoteQuery = query.trim().length >= 2 ? query : '';
   const remoteSearchState = useRemoteSearch(account?.id ?? null, remoteQuery, remote);
   const reloadRemote = useReloadRemote();
@@ -237,23 +245,39 @@ export function Files() {
   if (!account) {
     return (
       <div className="page">
+        <div className="page-head">
+          <div className="page-head__text">
+            <div className="page-eyebrow">Explorateur</div>
+            <h1 className="page-title">Tous les fichiers</h1>
+          </div>
+        </div>
+        <div className="panel empty-panel">
         <div className="empty">
           <span className="empty__icon">
             <Folder size={18} />
           </span>
-          <p className="empty__title">Aucun compte sélectionné</p>
+          <p className="empty__title">
+            {state.accounts.length === 0
+              ? 'Aucun compte connecté'
+              : 'Aucun compte sélectionné'}
+          </p>
           <p className="empty__text">
-            Ajoutez un compte de démonstration pour commencer à parcourir les fichiers.
+            {state.accounts.length === 0
+              ? 'Connectez votre compte Google pour parcourir vos fichiers. L’application lit uniquement ce que vous autorisez : rien n’est copié, déplacé ni supprimé.'
+              : 'Choisissez un compte dans la liste de gauche pour afficher son contenu.'}
           </p>
           <div className="empty__actions">
             <button
               type="button"
               className="btn btn--primary btn--sm"
-              onClick={() => dispatch({ type: 'route', route: { name: 'clouds', provider: 'mega' } })}
+              onClick={() =>
+                dispatch({ type: 'route', route: { name: 'clouds', provider: 'gdrive' } })
+              }
             >
-              Ouvrir les clouds
+              {state.accounts.length === 0 ? 'Connecter Google Drive' : 'Ouvrir les clouds'}
             </button>
           </div>
+        </div>
         </div>
       </div>
     );
@@ -316,8 +340,14 @@ export function Files() {
       }),
     );
 
-    // Compte réel : on confie le transfert au processus principal, qui écrit
-    // vraiment sur le disque et renvoie la progression.
+    // Le transfert est confié au processus principal, qui écrit réellement sur
+    // le disque et renvoie la progression. Sans « pont » (aperçu navigateur),
+    // la file reste vide : on ne simule plus de téléchargement.
+    if (!getBridge()) {
+      toast.push('Téléchargement indisponible dans le navigateur — utilisez la version Windows', 'warn');
+      return;
+    }
+
     if (items.length && items[0].remoteId && googleId) {
       const bridge = getBridge();
       const sizes = new Map(downloadable.map((node) => [node.id, node.size]));
@@ -339,14 +369,7 @@ export function Files() {
       );
     }
     dispatch({ type: 'downloads/add', items });
-    toast.push(
-      items[0].remoteId
-        ? `${plural(items.length, 'téléchargement')} réel${
-            items.length > 1 ? 's' : ''
-          } démarré${items.length > 1 ? 's' : ''}`
-        : `${plural(items.length, 'transfert')} ajouté${items.length > 1 ? 's' : ''} à la file`,
-      'ok',
-    );
+    toast.push(`${plural(items.length, 'téléchargement')} démarré${items.length > 1 ? 's' : ''}`, 'ok');
   };
 
   return (
@@ -660,12 +683,12 @@ export function Files() {
                   {searchMode
                     ? remote
                       ? 'La recherche interroge tout ce compte Google. Essayez un autre terme.'
-                      : 'La recherche couvre tous les comptes. Essayez un autre terme ou un nom plus court.'
+                      : 'La recherche couvre tous les comptes. Essayez un autre terme.'
                     : query
                       ? 'Saisissez au moins deux caractères pour chercher dans tout le compte.'
                       : remote
                         ? 'Ce dossier Google Drive est vide.'
-                        : 'Ce dossier de démonstration ne contient aucun élément.'}
+                        : 'Ce dossier ne contient aucun élément.'}
                 </p>
                 {query ? (
                   <button

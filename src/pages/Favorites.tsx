@@ -201,6 +201,13 @@ export function Favorites({ onOpenEntry }: FavoritesProps) {
                         ? { remoteId: entry.node.id, remoteAccount: account.googleId }
                         : {}),
                     });
+                    if (!getBridge()) {
+                      toast.push(
+                        'Téléchargement indisponible dans le navigateur — utilisez la version Windows',
+                        'warn',
+                      );
+                      return;
+                    }
                     dispatch({ type: 'downloads/add', items: [item] });
                     if (real && account.googleId) {
                       void getBridge()

@@ -1,9 +1,9 @@
 /**
  * Catalogue réel, chargé à la demande depuis Google Drive.
  *
- * Les comptes de démonstration restent entièrement fictifs : seuls les comptes
- * d'origine Google passent par ce cache. Une requête en cours par dossier, les
- * réponses sont conservées pour éviter de solliciter l'API à chaque rendu.
+ * Seuls les comptes connectés passent par ce cache. Une requête en cours par
+ * dossier ; les réponses sont conservées pour éviter de solliciter l'API à
+ * chaque rendu.
  */
 
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
