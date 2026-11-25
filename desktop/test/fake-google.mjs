@@ -52,6 +52,16 @@ const FILES = [
     parents: ['folder-projets'],
   },
   {
+    id: 'file-partage',
+    name: 'Planning équipe.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    size: '15360',
+    modifiedTime: '2026-11-24T18:00:00.000Z',
+    parents: ['shared-root'],
+    shared: true,
+    ownedByMe: false,
+  },
+  {
     id: 'file-doc',
     name: 'Compte rendu',
     mimeType: 'application/vnd.google-apps.document',
@@ -138,6 +148,9 @@ const server = createServer(async (req, res) => {
     let result = FILES;
     const parentMatch = /'([^']+)' in parents/.exec(q);
     const searchMatch = /name contains '([^']+)'/.exec(q);
+    // like `sharedWithMe = true` : fichiers partagés par d'autres personnes.
+    const sharedOnly = /sharedWithMe\s*=\s*true/.test(q);
+    if (sharedOnly) result = result.filter((file) => file.shared === true);
     if (parentMatch) result = result.filter((file) => file.parents?.includes(parentMatch[1]));
     if (searchMatch) {
       const term = searchMatch[1].toLowerCase();

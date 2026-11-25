@@ -20,6 +20,17 @@ interface FolderState {
 /** Séparation `nom lisible::identifiant Drive` dans les segments de chemin. */
 export const ID_SEPARATOR = '::';
 
+/**
+ * Clé de l'ensemble « partagés avec moi ».
+ *
+ * Ce n'est pas un dossier : les fichiers partagés n'existent dans aucun dossier
+ * de l'utilisateur. On réutilise le cache de dossiers en donnant à cet ensemble
+ * une clé qui ne peut pas entrer en collision avec un chemin réel.
+ */
+export const SHARED_KEY = '::shared';
+
+export const sharedKey = (accountId: string): string => `${accountId}${SHARED_KEY}`;
+
 export const folderKey = (accountId: string, path: string[]): string =>
   `${accountId}::${path.join('/')}`;
 
@@ -109,6 +120,32 @@ class RemoteCatalog {
     this.publish();
   }
 
+  /** Charge la liste des fichiers partagés avec ce compte. */
+  loadShared(accountId: string): void {
+    const key = sharedKey(accountId);
+    const existing = this.states.get(key);
+    if (existing && existing.status !== 'error') return;
+    void this.fetchShared(accountId, key);
+  }
+
+  private async fetchShared(accountId: string, key: string): Promise<void> {
+    const client = getBridge();
+    if (!client) return;
+    this.states.set(key, { nodes: [], status: 'loading' });
+    this.publish();
+    try {
+      const files = await client.google.shared(accountId);
+      this.states.set(key, { nodes: files.map(toNode), status: 'ready' });
+    } catch (cause) {
+      this.states.set(key, {
+        nodes: [],
+        status: 'error',
+        error: (cause as Error).message || 'Les fichiers partagés sont injoignables.',
+      });
+    }
+    this.publish();
+  }
+
   search(accountId: string, term: string): void {
     const query = term.trim();
     if (query.length < 2) return;
@@ -166,7 +203,10 @@ export const remoteCatalog = new RemoteCatalog();
  * visités, imbriqués selon leur chemin. Sert aux vues globales (favoris,
  * suggestions) sans télécharger tout le Drive.
  */
-export function remoteTree(accountId: string): FileNode[] {
+export function remoteTree(
+  accountId: string,
+  options: { includeShared?: boolean } = {},
+): FileNode[] {
   const root: FileNode[] = [];
   const folders = new Map<string, FileNode[]>();
   folders.set('', root);
@@ -191,6 +231,13 @@ export function remoteTree(accountId: string): FileNode[] {
     return list;
   };
 
+  const shared = options.includeShared ? remoteCatalog.get(sharedKey(accountId)) : undefined;
+  if (shared && shared.status === 'ready') {
+    for (const node of shared.nodes) {
+      if (!root.some((item) => item.id === node.id)) root.push(node);
+    }
+  }
+
   for (const path of remoteCatalog.loadedPaths(accountId)) {
     const parent = ensure(path);
     const state = remoteCatalog.get(folderKey(accountId, path));
@@ -204,6 +251,23 @@ export function remoteTree(accountId: string): FileNode[] {
 }
 
 /** État d'un dossier distant, chargé automatiquement (sans rechargement). */
+export function useRemoteShared(
+  accountId: string | null,
+  enabled: boolean,
+): FolderState | undefined {
+  const key = accountId ? sharedKey(accountId) : '';
+  const state = useSyncExternalStore(remoteCatalog.subscribe, () =>
+    accountId && enabled ? remoteCatalog.get(key) : undefined,
+  );
+
+  useEffect(() => {
+    if (!enabled || !accountId) return;
+    remoteCatalog.loadShared(accountId);
+  }, [accountId, enabled]);
+
+  return state;
+}
+
 export function useRemoteFolder(
   accountId: string | null,
   path: string[],

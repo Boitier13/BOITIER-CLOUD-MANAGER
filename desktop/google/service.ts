@@ -21,6 +21,7 @@ import {
 import { endpointsFromEnv, type Endpoints } from './endpoints.ts';
 import {
   listChildren,
+  listShared,
   readQuota,
   searchFiles,
   type DriveItem,
@@ -178,6 +179,11 @@ export class GoogleService {
 
   async list(accountId: string, folderId: string): Promise<DriveItem[]> {
     return listChildren(this.endpoints, await this.token(accountId), folderId || 'root');
+  }
+
+  /** Fichiers partagés avec ce compte (hors dossiers de l'utilisateur). */
+  async shared(accountId: string): Promise<DriveItem[]> {
+    return listShared(this.endpoints, await this.token(accountId));
   }
 
   async search(accountId: string, term: string): Promise<DriveItem[]> {

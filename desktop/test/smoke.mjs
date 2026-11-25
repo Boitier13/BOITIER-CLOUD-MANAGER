@@ -157,6 +157,18 @@ try {
   const children = await service2.list(account.accountId, folder.id);
   check('dossier enfant exploré', children.some((file) => file.name === 'Devis 2026.pdf'));
 
+  // --- 5ter. Fichiers partagés avec moi -------------------------------------
+  const shared = await service2.shared(account.accountId);
+  check(
+    'vue « Partagés avec moi » : un fichier partagé remonte',
+    shared.length === 1 && shared[0].name === 'Planning équipe.xlsx',
+    shared.map((file) => file.name).join(', ') || 'aucun',
+  );
+  check(
+    'vue « Partagés avec moi » : le fichier n’est pas dans la racine',
+    !rootFiles.some((file) => file.id === shared[0]?.id),
+  );
+
   // --- 6. Recherche ---------------------------------------------------------
   const found = await service2.search(account.accountId, 'devis');
   check('recherche Drive', found.length === 1 && found[0].name === 'Devis 2026.pdf');

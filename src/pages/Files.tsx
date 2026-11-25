@@ -4,6 +4,7 @@ import {
   CloudOff,
   RefreshCw,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Download,
   Folder,
@@ -16,6 +17,7 @@ import {
   Search,
   SearchX,
   Star,
+  Users,
   X,
 } from 'lucide-react';
 import {
@@ -32,6 +34,7 @@ import {
   useReloadRemote,
   useRemoteFolder,
   useRemoteSearch,
+  useRemoteShared,
 } from '../lib/remote';
 import { getBridge } from '../lib/bridge';
 import {
@@ -77,7 +80,17 @@ export function Files() {
   const searchRef = useRef<HTMLInputElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
 
-  const remoteFolder = useRemoteFolder(account?.id ?? null, path, remote);
+  const sharedView = state.explorer.view === 'shared';
+  const remoteFolder = useRemoteFolder(
+    account?.id ?? null,
+    path,
+    remote && !sharedView,
+  );
+  // Les fichiers partagés ne sont dans aucun dossier de l'utilisateur : ils
+  // viennent d'une requête dédiée (sharedWithMe), pas du parcours de la racine.
+  const sharedState = useRemoteShared(account?.id ?? null, remote && sharedView);
+  /** État distant de la vue affichée : dossier courant ou fichiers partagés. */
+  const activeState = sharedView ? sharedState : remoteFolder;
 
   // Arrivée sur l'écran sans compte sélectionné (première connexion, compte
   // retiré) : on ouvre le premier compte disponible au lieu de laisser une
@@ -92,9 +105,10 @@ export function Files() {
 
   const children = useMemo(() => {
     if (!account) return [];
+    if (sharedView) return sharedState?.nodes ?? [];
     if (isRealAccount(account)) return remoteFolder?.nodes ?? [];
     return getChildren(catalog.trees[account.id] ?? [], path) ?? [];
-  }, [catalog.trees, account, path, remoteFolder]);
+  }, [catalog.trees, account, path, remoteFolder, sharedView, sharedState]);
 
   // Nom lisible des segments réels : le chemin technique porte l'identifiant Drive.
   const cleanPath = useMemo(
@@ -158,7 +172,9 @@ export function Files() {
       }));
   }, [catalog.entries, query, typeFilter, remote, account, remoteSearchState]);
 
-  const searchMode = normalize(query.trim()).length >= 2;
+  // En vue partagée, la saisie filtre la liste affichée plutôt que d'interroger
+  // tout le compte : on ne montre pas des résultats qui ne sont pas partagés.
+  const searchMode = !sharedView && normalize(query.trim()).length >= 2;
   const rows: {
     node: FileNode;
     path: string[];
@@ -427,6 +443,33 @@ export function Files() {
                     ) : null}
                   </button>
                 ))}
+                {accs
+                  .filter((acc) => isRealAccount(acc) && acc.id === account.id)
+                  .map((acc) => (
+                    <button
+                      key={`${acc.id}-shared`}
+                      type="button"
+                      className={`rail-account rail-account--sub${
+                        sharedView ? ' is-active' : ''
+                      }`}
+                      style={{ ['--brand' as string]: item.brand }}
+                      onClick={() =>
+                        dispatch({
+                          type: 'explorer/view',
+                          view: sharedView ? 'files' : 'shared',
+                          accountId: acc.id,
+                        })
+                      }
+                      title={
+                        sharedView
+                          ? 'Revenir aux dossiers du compte'
+                          : 'Fichiers que d’autres personnes ont partagés avec ce compte'
+                      }
+                    >
+                      <Users size={12} strokeWidth={1.9} />
+                      <span className="rail-account__name">Partagés avec moi</span>
+                    </button>
+                  ))}
               </div>
             );
           })}
@@ -466,23 +509,60 @@ export function Files() {
             <button
               type="button"
               className="icon-btn icon-btn--bordered"
-              onClick={() => dispatch({ type: 'explorer/root' })}
-              disabled={path.length === 0}
-              title="Racine du compte"
-              aria-label="Racine du compte"
+              onClick={() =>
+                sharedView
+                  ? dispatch({ type: 'explorer/view', view: 'files', accountId: account.id })
+                  : dispatch({ type: 'explorer/root' })
+              }
+              disabled={!sharedView && path.length === 0}
+              title={sharedView ? 'Revenir aux dossiers' : 'Racine du compte'}
+              aria-label={sharedView ? 'Revenir aux dossiers' : 'Racine du compte'}
             >
               <HomeIcon size={14} />
             </button>
 
-            <Breadcrumbs
-              accountName={account.name}
-              brand={provider.brand}
-              path={cleanPath}
-              onRoot={() => dispatch({ type: 'explorer/root' })}
-              onNavigate={(target) =>
-                dispatch({ type: 'explorer/open', accountId: account.id, path: target })
-              }
-            />
+            {sharedView ? (
+              <nav className="crumbs" aria-label="Fil d’Ariane">
+                <button
+                  type="button"
+                  className="crumb crumb--root"
+                  title={account.name}
+                  onClick={() =>
+                    dispatch({ type: 'explorer/view', view: 'files', accountId: account.id })
+                  }
+                >
+                  <span
+                    style={{
+                      width: 5,
+                      height: 5,
+                      borderRadius: 99,
+                      background: provider.brand,
+                      flex: 'none',
+                    }}
+                  />
+                  <span className="crumb__label">{account.name}</span>
+                </button>
+                <span className="crumb-seg">
+                  <span className="crumb-sep">
+                    <ChevronRight size={12} />
+                  </span>
+                  <span className="crumb crumb--inline">
+                    <Users size={12} strokeWidth={1.9} />
+                    Partagés avec moi
+                  </span>
+                </span>
+              </nav>
+            ) : (
+              <Breadcrumbs
+                accountName={account.name}
+                brand={provider.brand}
+                path={cleanPath}
+                onRoot={() => dispatch({ type: 'explorer/root' })}
+                onNavigate={(target) =>
+                  dispatch({ type: 'explorer/open', accountId: account.id, path: target })
+                }
+              />
+            )}
 
           </div>
 
@@ -493,7 +573,11 @@ export function Files() {
                 ref={searchRef}
                 className="input"
                 placeholder={
-                  remote ? 'Rechercher dans ce compte Google…' : 'Rechercher dans tous les comptes…'
+                  sharedView
+                    ? 'Filtrer les fichiers partagés…'
+                    : remote
+                      ? 'Rechercher dans ce compte Google…'
+                      : 'Rechercher dans tous les comptes…'
                 }
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -537,12 +621,14 @@ export function Files() {
             {selected.size === 0 ? (
               <>
                 <span className="selection-bar__path">
-                  {searchMode ? <Search size={12} /> : <Folder size={12} />}
+                  {searchMode ? <Search size={12} /> : sharedView ? <Users size={12} /> : <Folder size={12} />}
                   {searchMode
                     ? remote
                       ? `${provider.name} · ${account.name}`
                       : 'Tous les comptes'
-                    : plural(fileCount, 'fichier')}
+                    : sharedView
+                      ? 'Partagés avec moi'
+                      : plural(fileCount, 'fichier')}
                 </span>
                 <span className="selection-bar__size">
                   {searchMode
@@ -648,21 +734,26 @@ export function Files() {
                 <RefreshCw size={13} className="spin" />
                 Recherche dans Google Drive…
               </div>
-            ) : remote && remoteFolder?.status === 'loading' && rows.length === 0 ? (
+            ) : remote && activeState?.status === 'loading' && rows.length === 0 ? (
               <div className="filetable-loading">
                 <RefreshCw size={13} className="spin" />
-                Chargement du dossier depuis Google Drive…
+                {sharedView
+                  ? 'Recherche des fichiers partagés…'
+                  : 'Chargement du dossier depuis Google Drive…'}
               </div>
-            ) : remote && remoteFolder?.status === 'error' && rows.length === 0 ? (
+            ) : remote && activeState?.status === 'error' && rows.length === 0 ? (
               <div className="filetable-error">
                 <CloudOff size={20} />
-                <p className="filetable-error__title">Google Drive est injoignable</p>
-                <p className="filetable-error__text">{remoteFolder.error}</p>
+                <p className="filetable-error__title">
+                  {sharedView ? 'Fichiers partagés injoignables' : 'Google Drive est injoignable'}
+                </p>
+                <p className="filetable-error__text">{activeState.error}</p>
                 <button
                   type="button"
                   className="btn btn--sm"
                   onClick={() => {
-                    reloadRemote(account.id, path);
+                    if (sharedView) reloadRemote(account.id);
+                    else reloadRemote(account.id, path);
                   }}
                 >
                   <RotateCcw size={12} />
@@ -671,24 +762,38 @@ export function Files() {
               </div>
             ) : rows.length === 0 ? (
               <div className="filetable-empty">
-                {searchMode ? <SearchX size={20} /> : <ListFilter size={20} />}
+                {searchMode ? (
+                  <SearchX size={20} />
+                ) : sharedView ? (
+                  <Users size={20} />
+                ) : (
+                  <ListFilter size={20} />
+                )}
                 <p className="filetable-empty__title">
                   {searchMode
                     ? 'Aucun fichier ne correspond'
-                    : query
-                      ? 'Aucun résultat dans ce dossier'
-                      : 'Dossier vide'}
+                    : sharedView
+                      ? query
+                        ? 'Aucun fichier partagé ne correspond'
+                        : 'Aucun fichier partagé'
+                      : query
+                        ? 'Aucun résultat dans ce dossier'
+                        : 'Dossier vide'}
                 </p>
                 <p className="filetable-empty__text">
                   {searchMode
                     ? remote
                       ? 'La recherche interroge tout ce compte Google. Essayez un autre terme.'
                       : 'La recherche couvre tous les comptes. Essayez un autre terme.'
-                    : query
-                      ? 'Saisissez au moins deux caractères pour chercher dans tout le compte.'
-                      : remote
-                        ? 'Ce dossier Google Drive est vide.'
-                        : 'Ce dossier ne contient aucun élément.'}
+                    : sharedView
+                      ? query
+                        ? 'Le filtre porte uniquement sur les fichiers partagés. Effacez-le pour revoir la liste complète.'
+                        : 'Personne ne vous a partagé de fichier pour l’instant. Les éléments partagés par d’autres apparaîtront ici, sans que vous ayez à les ajouter à votre Drive.'
+                      : query
+                        ? 'Saisissez au moins deux caractères pour chercher dans tout le compte.'
+                        : remote
+                          ? 'Ce dossier Google Drive est vide.'
+                          : 'Ce dossier ne contient aucun élément.'}
                 </p>
                 {query ? (
                   <button
@@ -699,6 +804,16 @@ export function Files() {
                   >
                     <RotateCcw size={12} />
                     Effacer le filtre
+                  </button>
+                ) : sharedView ? (
+                  <button
+                    type="button"
+                    className="btn btn--sm"
+                    style={{ marginTop: 6 }}
+                    onClick={() => reloadRemote(account.id)}
+                  >
+                    <RefreshCw size={12} />
+                    Actualiser
                   </button>
                 ) : null}
               </div>

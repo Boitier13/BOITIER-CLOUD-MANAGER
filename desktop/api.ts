@@ -16,6 +16,7 @@ export const channels = {
   disconnect: 'google:disconnect',
   list: 'google:list',
   search: 'google:search',
+  shared: 'google:shared',
   download: 'google:download',
   pause: 'google:pause',
   resume: 'google:resume',
@@ -64,6 +65,7 @@ export function registerIpc(_win: BrowserWindow, service: GoogleService): void {
   handle(channels.search, (accountId: string, term: string) =>
     service.search(String(accountId), String(term)),
   );
+  handle(channels.shared, (accountId: string) => service.shared(String(accountId)));
   handle(
     channels.download,
     (request: {

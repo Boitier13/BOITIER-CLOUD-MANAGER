@@ -51,8 +51,17 @@ export interface Settings {
 export interface ExplorerState {
   accountId: string;
   path: string[];
-  history: { accountId: string; path: string[] }[];
+  /** `files` : dossiers du compte. `shared` : ce que d'autres ont partagé. */
+  view: ExplorerView;
+  history: { accountId: string; path: string[]; view: ExplorerView }[];
 }
+
+/**
+ * Sous-vue de l'explorateur. `files` = les dossiers du compte ; `shared` = les
+ * fichiers que d'autres personnes ont partagés avec lui. Ces derniers ne vivent
+ * dans aucun dossier de l'utilisateur : ils méritent leur propre vue.
+ */
+export type ExplorerView = 'files' | 'shared';
 
 export interface AppState {
   accounts: Account[];
@@ -104,6 +113,7 @@ export type Action =
   | { type: 'explorer/enter'; name: string }
   | { type: 'explorer/back' }
   | { type: 'explorer/root' }
+  | { type: 'explorer/view'; view: ExplorerView; accountId?: string }
   | { type: 'data/reset' };
 
 /* ----------------------------------------------------------------------------
@@ -129,7 +139,7 @@ export function createEmptyState(): AppState {
     downloads: [],
     settings: DEFAULT_SETTINGS,
     route: { name: 'home' },
-    explorer: { accountId: '', path: [], history: [] },
+    explorer: { accountId: '', path: [], view: 'files', history: [] },
     revision: 0,
   };
 }
@@ -171,6 +181,7 @@ function loadState(): AppState {
       explorer: {
         accountId: activeAccount?.id ?? accounts[0].id,
         path: [],
+        view: 'files',
         history: [],
       },
       revision: 0,
@@ -245,8 +256,8 @@ function reducer(state: AppState, action: Action): AppState {
       const explorer = stillThere
         ? state.explorer
         : accounts.length
-          ? { accountId: accounts[0].id, path: [], history: [] }
-          : { accountId: '', path: [], history: [] };
+          ? { accountId: accounts[0].id, path: [], view: 'files' as const, history: [] }
+          : { accountId: '', path: [], view: 'files' as const, history: [] };
       return { ...state, accounts, explorer };
     }
 
@@ -283,7 +294,7 @@ function reducer(state: AppState, action: Action): AppState {
         ),
         explorer:
           state.explorer.accountId === action.id
-            ? { accountId: remaining[0].id, path: [], history: [] }
+            ? { accountId: remaining[0].id, path: [], view: 'files' as const, history: [] }
             : state.explorer,
         revision: state.revision + 1,
       };
@@ -441,18 +452,32 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, settings: { ...state.settings, ...action.patch } };
 
     case 'explorer/open': {
-      const target = { accountId: action.accountId, path: action.path ?? [] };
+      const target = {
+        accountId: action.accountId,
+        path: action.path ?? [],
+        view: 'files' as const,
+      };
       const sameAccount = state.explorer.accountId === target.accountId;
       // On n'empile un point d'historique que pour un vrai déplacement
       // (changement de dossier ou de compte), jamais pour rouvrir la même vue.
       const moved =
         !sameAccount || !samePath(state.explorer.path, target.path);
       const history = !sameAccount
-        ? [{ accountId: state.explorer.accountId, path: state.explorer.path }]
+        ? [
+            {
+              accountId: state.explorer.accountId,
+              path: state.explorer.path,
+              view: state.explorer.view,
+            },
+          ]
         : moved
           ? [
               ...state.explorer.history,
-              { accountId: state.explorer.accountId, path: state.explorer.path },
+              {
+                accountId: state.explorer.accountId,
+                path: state.explorer.path,
+                view: state.explorer.view,
+              },
             ]
           : state.explorer.history;
       return { ...state, explorer: { ...target, history }, route: { name: 'files' } };
@@ -461,7 +486,7 @@ function reducer(state: AppState, action: Action): AppState {
     case 'explorer/chooseAccount':
       return {
         ...state,
-        explorer: { accountId: action.accountId, path: [], history: [] },
+        explorer: { accountId: action.accountId, path: [], view: 'files', history: [] },
         route: { name: 'files' },
       };
 
@@ -472,9 +497,17 @@ function reducer(state: AppState, action: Action): AppState {
           ...state.explorer,
           history: [
             ...state.explorer.history,
-            { accountId: state.explorer.accountId, path: state.explorer.path },
+            {
+              accountId: state.explorer.accountId,
+              path: state.explorer.path,
+              // Revenir en arrière réaffiche la vue d'où l'on vient.
+              view: state.explorer.view,
+            },
           ],
           path: [...state.explorer.path, action.name],
+          // Un dossier ouvert (y compris depuis « Partagés avec moi ») s'affiche
+          // comme un dossier ordinaire : le fil d'Ariane redevient un chemin.
+          view: 'files',
         },
       };
 
@@ -486,6 +519,7 @@ function reducer(state: AppState, action: Action): AppState {
         explorer: {
           accountId: previous.accountId,
           path: previous.path,
+          view: previous.view ?? 'files',
           history: state.explorer.history.slice(0, -1),
         },
       };
@@ -494,8 +528,29 @@ function reducer(state: AppState, action: Action): AppState {
     case 'explorer/root':
       return {
         ...state,
-        explorer: { ...state.explorer, history: [], path: [] },
+        explorer: { ...state.explorer, history: [], path: [], view: 'files' },
       };
+
+    case 'explorer/view': {
+      const accountId = action.accountId ?? state.explorer.accountId;
+      const changed =
+        accountId !== state.explorer.accountId || action.view !== state.explorer.view;
+      const history = changed
+        ? [
+            ...state.explorer.history,
+            {
+              accountId: state.explorer.accountId,
+              path: state.explorer.path,
+              view: state.explorer.view,
+            },
+          ]
+        : state.explorer.history;
+      return {
+        ...state,
+        explorer: { accountId, path: [], view: action.view, history },
+        route: { name: 'files' },
+      };
+    }
 
     case 'data/reset':
       return createEmptyState();
@@ -672,8 +727,13 @@ export function useCatalog(): Catalog {
 
     // Toutes les arborescences proviennent des dossiers déjà chargés depuis le
     // fournisseur (voir lib/remote.ts) : plus aucun catalogue fictif.
+    // La vue « partagés » n'est pas un dossier : ses fichiers n'ont pas de
+    // chemin. On les indexe à la racine du compte pour que la recherche, les
+    // favoris et les compteurs les voient comme n'importe quel fichier.
     for (const account of state.accounts) {
-      const tree = remoteTree(account.id);
+      const tree = remoteTree(account.id, {
+        includeShared: state.explorer.view === 'shared' && state.explorer.accountId === account.id,
+      });
       trees[account.id] = tree;
       const flat: TreeEntry[] = flattenTree(tree);
       for (const entry of flat) {
@@ -689,7 +749,7 @@ export function useCatalog(): Catalog {
     }
 
     return { trees, entries, byKey };
-  }, [state.accounts, remoteRevision]);
+  }, [state.accounts, remoteRevision, state.explorer.view, state.explorer.accountId]);
 }
 
 export function accountById(state: AppState, id: string): Account | undefined {
