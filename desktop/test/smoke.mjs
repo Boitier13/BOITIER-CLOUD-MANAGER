@@ -125,7 +125,13 @@ try {
 
   const account = await service.connect();
   check('compte connecté', account.email === 'boitier.test@gmail.com', account.email);
-  check('quota réel lu', account.quotaBytes === 16106127360 && account.usedBytes === 2684354560);
+  // 3 Gio au total, dont 2,5 Gio dans Drive : la carte du compte doit annoncer
+  // le total, sinon un compte à moitié plein s'affiche comme vide.
+  check(
+    'quota réel lu',
+    account.quotaBytes === 16106127360 && account.usedBytes === 3221225472,
+    `${account.usedBytes} / ${account.quotaBytes}`,
+  );
   check('identifiant local stable', account.accountId.startsWith('gdrive-'));
 
   const cipher = await readFile(join(userData, 'google-accounts.enc'));
@@ -200,9 +206,9 @@ try {
   // --- 5quater. Répartition du stockage -------------------------------------
   const storage = await service2.storage(account.accountId);
   check(
-    'stockage : quota exact repris de Google',
-    storage.quotaBytes === 16106127360 && storage.usedBytes === 2684354560,
-    `${storage.usedBytes} / ${storage.quotaBytes}`,
+    'stockage : le quota annoncé est l’espace total du compte, pas Drive seul',
+    storage.quotaBytes === 16106127360 && storage.usedBytes === 3221225472,
+    `${storage.usedBytes} / ${storage.quotaBytes} (Drive seul : 2684354560)`,
   );
   check(
     'stockage : Gmail/Photos déduit quand Google le distingue',
@@ -215,6 +221,23 @@ try {
     'stockage : sommes par catégorie cohérentes avec les fichiers du faux Drive',
     Boolean(documents) && totalMeasured > 0 && !storage.partial,
     `${totalMeasured} o mesurés`,
+  );
+  const archives = storage.categories.find((category) => category.id === 'archive');
+  check(
+    'stockage : les fichiers partagés par d’autres ne comptent pas dans le quota',
+    archives?.bytes === 0,
+    `${archives?.bytes ?? -1} o d’archives (13 Gio appartiennent à un tiers)`,
+  );
+  const videos = storage.categories.find((category) => category.id === 'video');
+  check(
+    'stockage : les fichiers en corbeille sont exclus de la mesure',
+    videos?.bytes === 0,
+    `${videos?.bytes ?? -1} o de vidéos (5 Gio en corbeille)`,
+  );
+  check(
+    'stockage : la répartition ne dépasse jamais le quota annoncé',
+    totalMeasured <= storage.usedBytes,
+    `${totalMeasured} o mesurés pour ${storage.usedBytes} o utilisés`,
   );
 
   // --- 5quinquies. Flux « récents » -----------------------------------------

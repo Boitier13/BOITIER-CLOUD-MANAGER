@@ -131,8 +131,9 @@ export function Storage({ onNavigate }: { onNavigate: (route: Route) => void }) 
           <div className="page-eyebrow">Espace disque</div>
           <h1 className="page-title">Stockage</h1>
           <p className="page-subtitle">
-            Le quota vient de Google. La répartition par type est mesurée sur vos
-            fichiers, pas estimée.
+            Le quota vient de Google. La répartition par type ne compte que les
+            fichiers dont vous êtes propriétaire : ceux qu’on partage avec vous
+            n’occupent pas votre espace.
           </p>
         </div>
         <div className="page-head__actions">
@@ -323,7 +324,7 @@ export function Storage({ onNavigate }: { onNavigate: (route: Route) => void }) 
           <p className="storage-note">
             {incomplete
               ? 'Compte volumineux : certaines sommes sont plafonnées. Le signe ≥ indique un minimum.'
-              : 'Les tailles proviennent des métadonnées Drive. Les documents Google natifs (Docs, Sheets, Slides) n’exposent pas de taille de fichier : ils apparaissent dans le reste du quota.'}
+              : 'Les tailles proviennent des métadonnées Drive, limitées à vos propres fichiers : un fichier partagé par quelqu’un d’autre ne consomme pas votre quota. Les documents Google natifs (Docs, Sheets, Slides) n’exposent pas de taille : ils apparaissent dans le reste du quota.'}
           </p>
         </>
       )}

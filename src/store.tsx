@@ -733,7 +733,11 @@ export function useCatalog(): Catalog {
     // chemin. On les indexe à la racine du compte pour que la recherche, les
     // favoris et les compteurs les voient comme n'importe quel fichier.
     for (const account of state.accounts) {
-      const tree = remoteTree(account.id, {
+      // Le catalogue distant est indexé par l'identifiant Google (voir
+      // lib/remote.ts) ; l'arborescence reste rangée sous l'identifiant de
+      // l'application, celui que manipulent les favoris et l'explorateur.
+      const remoteId = realAccountId(account);
+      const tree = remoteTree(remoteId ?? account.id, {
         includeShared: state.explorer.view === 'shared' && state.explorer.accountId === account.id,
       });
       trees[account.id] = tree;

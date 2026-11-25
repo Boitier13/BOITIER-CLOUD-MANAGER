@@ -46,16 +46,27 @@ export type StorageUsage = {
 };
 
 /**
+ * Filtre commun à toutes les mesures.
+ *
+ * `'me' in owners` n'est pas un détail : sans lui, les fichiers que d'autres
+ * personnes partagent avec l'utilisateur entrent dans la somme alors qu'ils
+ * n'occupent pas son quota. On obtenait des barres plus grosses que le compte
+ * entier — 13 Go d'archives pour un compte à 6 Mo — sous une phrase affirmant
+ * mesurer « vos fichiers ».
+ */
+const OWNED = "trashed = false and 'me' in owners";
+
+/**
  * Requêtes par catégorie. Le type est déduit du `mimeType` côté Drive, ce qui
  * évite de télécharger le nom de chaque fichier.
  */
 const QUERIES: { id: StorageCategoryId; query: string }[] = [
-  { id: 'document', query: "trashed = false and mimeType contains 'application/pdf'" },
-  { id: 'image', query: "trashed = false and mimeType contains 'image/'" },
-  { id: 'video', query: "trashed = false and mimeType contains 'video/'" },
-  { id: 'audio', query: "trashed = false and mimeType contains 'audio/'" },
-  { id: 'archive', query: "trashed = false and mimeType contains 'zip'" },
-  { id: 'other', query: "trashed = false and mimeType contains 'text/'" },
+  { id: 'document', query: `${OWNED} and mimeType contains 'application/pdf'` },
+  { id: 'image', query: `${OWNED} and mimeType contains 'image/'` },
+  { id: 'video', query: `${OWNED} and mimeType contains 'video/'` },
+  { id: 'audio', query: `${OWNED} and mimeType contains 'audio/'` },
+  { id: 'archive', query: `${OWNED} and mimeType contains 'zip'` },
+  { id: 'other', query: `${OWNED} and mimeType contains 'text/'` },
 ];
 
 /**
@@ -85,16 +96,17 @@ export async function readStorageUsage(
     }),
   );
 
-  const usage = quota.usageBytes ?? 0;
-  const inDrive = quota.usageInDriveBytes ?? quota.usedBytes ?? 0;
-  const other = usage > 0 && inDrive > 0 ? Math.max(usage - inDrive, 0) : null;
+  // `usedBytes` est déjà le total du compte (voir readQuota).
+  const total = quota.usageBytes ?? quota.usedBytes;
+  const inDrive = quota.usageInDriveBytes ?? 0;
+  const other = inDrive > 0 && total > inDrive ? total - inDrive : null;
 
   return {
-    usedBytes: quota.usedBytes,
+    usedBytes: total,
     quotaBytes: quota.quotaBytes,
     // Un écart nul signifie que Google ne distingue pas encore les services :
     // afficher « 0 o dans Gmail » serait faux.
-    emailBytes: other !== null && other > 0 ? other : null,
+    emailBytes: other,
     categories: results,
     partial: results.some((category) => category.partial),
   };

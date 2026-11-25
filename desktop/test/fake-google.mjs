@@ -62,6 +62,30 @@ const FILES = [
     ownedByMe: false,
   },
   {
+    // Archive appartenant à quelqu'un d'autre : elle n'occupe pas le quota de
+    // l'utilisateur et ne doit donc pas entrer dans la mesure du stockage.
+    // C'est exactement le cas qui affichait 13 Go d'archives sur un compte
+    // à quelques mégaoctets.
+    id: 'file-archive-etrangere',
+    name: 'Sauvegarde partagée.zip',
+    mimeType: 'application/zip',
+    size: '13958643712',
+    modifiedTime: '2026-11-19T07:00:00.000Z',
+    parents: ['shared-root'],
+    shared: false,
+    ownedByMe: false,
+  },
+  {
+    // Fichier en corbeille : `trashed = false` doit l'écarter de la mesure.
+    id: 'file-video-corbeille',
+    name: 'Ancienne capture.mp4',
+    mimeType: 'video/mp4',
+    size: '5368709120',
+    modifiedTime: '2026-11-18T07:00:00.000Z',
+    parents: ['shared-root'],
+    trashed: true,
+  },
+  {
     id: 'file-doc',
     name: 'Compte rendu',
     mimeType: 'application/vnd.google-apps.document',
@@ -161,6 +185,15 @@ const server = createServer(async (req, res) => {
     // Mesure du stockage : `mimeType contains 'video/'` & co.
     const mimeMatch = /mimeType contains '([^']+)'/.exec(q);
     if (mimeMatch) result = result.filter((file) => file.mimeType.includes(mimeMatch[1]));
+    // `'me' in owners` et `trashed = false` : sans ces deux filtres, le faux
+    // Drive serait plus complaisant que le vrai et les tests de stockage ne
+    // prouveraient rien.
+    if (/'me' in owners/.test(q)) {
+      result = result.filter((file) => file.ownedByMe !== false);
+    }
+    if (/trashed = false/.test(q)) {
+      result = result.filter((file) => file.trashed !== true);
+    }
     if (sharedOnly) result = result.filter((file) => file.shared === true);
     if (parentMatch) result = result.filter((file) => file.parents?.includes(parentMatch[1]));
     if (searchMatch) {

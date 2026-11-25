@@ -117,6 +117,26 @@ sont donc laissées intactes.
 > doublon : elle le constate quand Google renvoie deux adresses identiques. Une
 > détection approximative pourrait fusionner deux comptes réellement distincts.
 
+### Ce que les chiffres du stockage veulent dire
+
+Deux confusions rendaient l’écran Stockage trompeur ; les deux sont corrigées.
+
+**L’espace affiché est celui du compte entier.** Google distingue `usage`
+(Drive + Gmail + Photos) de `usageInDrive`. L’application prenait le second pour
+le total : un compte à 5 Go de Gmail s’affichait « 6 Mo utilisés, 0 % ». C’est
+maintenant le total qui s’affiche, et l’écart entre les deux qui alimente la
+ligne « Gmail et Photos ».
+
+**La répartition ne compte que vos propres fichiers.** Les requêtes de mesure
+filtrent désormais sur `'me' in owners` et `trashed = false`. Sans ce filtre, les
+fichiers que d’autres personnes partagent avec vous entraient dans les sommes
+alors qu’ils n’occupent pas votre quota : on pouvait lire 13 Go d’archives sous
+un compte à quelques mégaoctets.
+
+Trois contrôles protègent ces règles : la somme des catégories ne doit jamais
+dépasser le quota annoncé, un fichier partagé par un tiers doit compter pour
+zéro, un fichier en corbeille aussi.
+
 ### Beaucoup de comptes
 
 Le volet des comptes de l’explorateur reste utilisable au-delà de quelques
@@ -181,7 +201,7 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 47 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 50 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
@@ -286,7 +306,7 @@ Pour publier une version : mettre à jour `version` dans `package.json`, puis
 | **Téléchargements** | File unifiée : progression, débit, pause/reprise, annulation ; transferts Google Drive réellement écrits sur le disque, y compris **un dossier entier** (arborescence conservée) |
 | **Favoris** | Collection multi-comptes, recherche, répartition par type |
 | **Récents** | Flux transversal des derniers fichiers **modifiés** (7 / 30 / 90 jours), filtre par nom, téléchargement direct ; la limite de l’API — Google ne transmet pas la date d’ouverture — est écrite sur l’écran |
-| **Stockage** | Quota exact par compte et répartition mesurée par type de fichier ; ce qui n’est pas mesurable est annoncé comme tel, jamais estimé |
+| **Stockage** | Espace **total** du compte (Drive + Gmail + Photos) et répartition mesurée par type de fichier ; ce qui n’est pas mesurable est annoncé comme tel, jamais estimé |
 | **Paramètres** | Thème sombre/clair, densité, dossier cible, transferts simultanés, réinitialisation |
 
 Raccourcis : `Ctrl+1…6`, `Ctrl+,`, `Ctrl+A` (sélection), `Échap`, `?`.

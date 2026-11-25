@@ -73,6 +73,16 @@ export function Files() {
   const account = state.accounts.find((a) => a.id === state.explorer.accountId);
   const path = state.explorer.path;
   const remote = Boolean(account && isRealAccount(account));
+  /**
+   * Identifiant attendu par le pont Electron.
+   *
+   * Un compte porte deux identifiants : celui de l'application
+   * (`gdrive-real-…`, qui nomme le compte et ses favoris) et celui de Google
+   * (`gdrive-…`, qui interroge réellement l'API). Le catalogue distant est
+   * indexé par l'identifiant Google, seul connu du processus principal :
+   * lui envoyer l'autre produisait « Compte Google inconnu ».
+   */
+  const remoteId = account && isRealAccount(account) ? realAccountId(account) ?? null : null;
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({
     key: 'name',
@@ -107,14 +117,10 @@ export function Files() {
   }, [railQuery, state.accounts]);
 
   const sharedView = state.explorer.view === 'shared';
-  const remoteFolder = useRemoteFolder(
-    account?.id ?? null,
-    path,
-    remote && !sharedView,
-  );
+  const remoteFolder = useRemoteFolder(remoteId, path, remote && !sharedView);
   // Les fichiers partagés ne sont dans aucun dossier de l'utilisateur : ils
   // viennent d'une requête dédiée (sharedWithMe), pas du parcours de la racine.
-  const sharedState = useRemoteShared(account?.id ?? null, remote && sharedView);
+  const sharedState = useRemoteShared(remoteId, remote && sharedView);
   /** État distant de la vue affichée : dossier courant ou fichiers partagés. */
   const activeState = sharedView ? sharedState : remoteFolder;
 
@@ -126,7 +132,7 @@ export function Files() {
     dispatch({ type: 'explorer/chooseAccount', accountId: state.accounts[0].id });
   }, [account, state.accounts, dispatch]);
   const remoteQuery = query.trim().length >= 2 ? query : '';
-  const remoteSearchState = useRemoteSearch(account?.id ?? null, remoteQuery, remote);
+  const remoteSearchState = useRemoteSearch(remoteId, remoteQuery, remote);
   const reloadRemote = useReloadRemote();
 
   const children = useMemo(() => {
@@ -914,8 +920,8 @@ export function Files() {
                   type="button"
                   className="btn btn--sm"
                   onClick={() => {
-                    if (sharedView) reloadRemote(account.id);
-                    else reloadRemote(account.id, path);
+                    if (sharedView) reloadRemote(remoteId);
+                    else reloadRemote(remoteId, path);
                   }}
                 >
                   <RotateCcw size={12} />
@@ -972,7 +978,7 @@ export function Files() {
                     type="button"
                     className="btn btn--sm"
                     style={{ marginTop: 6 }}
-                    onClick={() => reloadRemote(account.id)}
+                    onClick={() => reloadRemote(remoteId)}
                   >
                     <RefreshCw size={12} />
                     Actualiser
