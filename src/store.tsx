@@ -21,6 +21,12 @@ import { interruptStaleDownloads, isLegacyDownloadFolder } from './lib/transfers
 import { flattenTree, type TreeEntry } from './lib/tree';
 import { remoteCatalog, remoteTree } from './lib/remote';
 import { getBridge } from './lib/bridge';
+import {
+  cancelTransfer,
+  pauseTransfer,
+  registerAccountProviders,
+  resumeTransfer,
+} from './lib/cloud';
 import { isRealAccount, probeAccounts, realAccountId, toAccount } from './lib/google';
 
 /* ----------------------------------------------------------------------------
@@ -188,7 +194,7 @@ function loadState(): AppState {
     const accounts = parsed.accounts.filter(
       (account): account is Account =>
         !!account &&
-        account.source === 'google' &&
+        (account.source === 'google' || account.source === 'mega') &&
         !!PROVIDERS[account.provider] &&
         typeof account.id === 'string',
     );
@@ -384,7 +390,7 @@ function reducer(state: AppState, action: Action): AppState {
 
     case 'downloads/pause': {
       const target = state.downloads.find((item) => item.id === action.id);
-      if (target?.remoteId) void getBridge()?.google.pause(action.id);
+      if (target?.remoteId) void pauseTransfer(target.provider ?? 'gdrive', action.id);
       return {
         ...state,
         downloads: state.downloads.map((item) =>
@@ -397,10 +403,10 @@ function reducer(state: AppState, action: Action): AppState {
 
     case 'downloads/resume': {
       const target = state.downloads.find((item) => item.id === action.id);
-      if (target?.remoteId && target.remoteAccount) {
-        void getBridge()
-          ?.google.resume(action.id, target.remoteAccount)
-          .catch(() => undefined);
+      if (target?.remoteId) {
+        void resumeTransfer(target.provider ?? 'gdrive', action.id, target.remoteAccount).catch(
+          () => undefined,
+        );
       }
       return {
         ...state,
@@ -415,7 +421,7 @@ function reducer(state: AppState, action: Action): AppState {
     case 'downloads/cancel': {
       const target = state.downloads.find((item) => item.id === action.id);
       if (target?.remoteId) {
-        void getBridge()?.google.cancel(action.id);
+        void cancelTransfer(target.provider ?? 'gdrive', action.id);
       }
       return {
         ...state,
@@ -459,9 +465,10 @@ function reducer(state: AppState, action: Action): AppState {
     }
 
     case 'downloads/pauseAll': {
-      const bridge = getBridge();
       for (const item of state.downloads) {
-        if (item.remoteId && item.status === 'active') void bridge?.google.pause(item.id);
+        if (item.remoteId && item.status === 'active') {
+          void pauseTransfer(item.provider ?? 'gdrive', item.id);
+        }
       }
       return {
         ...state,
@@ -474,13 +481,14 @@ function reducer(state: AppState, action: Action): AppState {
     }
 
     case 'downloads/resumeAll': {
-      const bridge = getBridge();
       return {
         ...state,
         downloads: state.downloads.map((item) => {
           if (item.status !== 'paused') return item;
-          if (item.remoteId && item.remoteAccount) {
-            void bridge?.google.resume(item.id, item.remoteAccount).catch(() => undefined);
+          if (item.remoteId) {
+            void resumeTransfer(item.provider ?? 'gdrive', item.id, item.remoteAccount).catch(
+              () => undefined,
+            );
             return { ...item, status: 'active' as const };
           }
           return { ...item, status: 'queued' as const };
@@ -626,6 +634,13 @@ const StoreContext = createContext<StoreValue | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, loadState);
+
+  // Les identifiants de comptes MEGA sont opaques : l'aiguillage des appels a
+  // besoin de savoir à quel fournisseur ils appartiennent. Simple mise à jour
+  // d'un registre en mémoire, déclenchée uniquement par un changement de
+  // comptes — aucun minuteur, aucune écriture d'état.
+  registerAccountProviders(state.accounts);
+
 
   // Référence à jour pour les effets qui n'ont pas besoin de se réabonner.
   const stateRef = useRef(state);

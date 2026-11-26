@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDownToLine, Download, FolderDown, Loader2, TriangleAlert } from 'lucide-react';
 import { Modal } from './Modal';
 import { getBridge, type GoogleFolderPlan } from '../lib/bridge';
+import { planFolder } from '../lib/cloud';
 import { formatBytes, plural } from '../lib/format';
 
 /**
@@ -46,15 +47,15 @@ export function FolderDownloadDialog({
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    const client = bridge;
-    if (!client?.google.plan) {
+    if (!bridge) {
       setError('Le parcours d’un dossier demande la version Windows de l’application.');
       return;
     }
     setWorking(true);
-    client.google
-      .plan(accountId, fileId)
-      .then((result) => setPlan(result))
+    // Le fournisseur est déduit du compte : Google et MEGA produisent le même
+    // plan, donc le même dialogue.
+    planFolder(accountId, fileId)
+      .then((result: GoogleFolderPlan) => setPlan(result))
       .catch((cause: Error) =>
         setError(cause?.message || 'Ce dossier n’a pas pu être parcouru.'),
       )

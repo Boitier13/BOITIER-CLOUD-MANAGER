@@ -9,8 +9,14 @@
  * Aucune connexion réseau ici : ce fichier ne décrit que des métadonnées.
  */
 
-/** Fournisseurs reconnus par l'application. Seul Google Drive est connecté. */
-export type ProviderId = 'gdrive';
+/**
+ * Fournisseurs reconnus par l'application.
+ *
+ * Deux aujourd'hui : Google Drive (OAuth) et MEGA (adresse + mot de passe).
+ * Ajouter un fournisseur se fait ici, puis dans `desktop/` : l'interface ne
+ * connaît que ces métadonnées et les formes de données communes.
+ */
+export type ProviderId = 'gdrive' | 'mega';
 
 export type AccountStatus = 'connected' | 'syncing' | 'expired';
 
@@ -49,14 +55,25 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
     domain: 'gmail.com',
     tagline: 'Documents et partages',
   },
+  mega: {
+    id: 'mega',
+    name: 'MEGA',
+    prefix: 'MEGA',
+    brand: '#d9272e',
+    // Un compte gratuit offre 20 Go ; le quota réel est relu à la connexion,
+    // cette valeur ne sert qu'avant la première mesure.
+    quota: 20 * GB,
+    domain: 'mega.nz',
+    tagline: 'Chiffré de bout en bout',
+  },
 };
 
-export const PROVIDER_IDS: ProviderId[] = ['gdrive'];
+export const PROVIDER_IDS: ProviderId[] = ['gdrive', 'mega'];
 
 export const PROVIDER_LIST: Provider[] = PROVIDER_IDS.map((id) => PROVIDERS[id]);
 
 /** Origine du compte : toujours un fournisseur réel désormais. */
-export type AccountSource = 'google';
+export type AccountSource = 'google' | 'mega';
 
 export interface Account {
   id: string;
@@ -74,6 +91,8 @@ export interface Account {
   source?: AccountSource;
   /** Identifiant du compte côté Google (jamais un jeton). */
   googleId?: string;
+  /** Identifiant du compte côté MEGA (handle utilisateur, jamais un secret). */
+  megaId?: string;
   /** Photo de profil fournie par Google. */
   avatarUrl?: string;
   /** Espace utilisé provenant des autres fournisseurs (offres professionnelles). */

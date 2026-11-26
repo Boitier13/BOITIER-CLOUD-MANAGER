@@ -49,6 +49,12 @@ export function Home({ onNavigate, onOpenEntry, onAddAccount }: HomeProps) {
     }
     return map;
   }, [state.accounts]);
+  /** Nombre de fournisseurs ayant au moins un compte. */
+  const activeProviders = useMemo(
+    () => [...byProvider.values()].filter((entry) => entry.accounts > 0).length,
+    [byProvider],
+  );
+
 
   const totalUsed = state.accounts.reduce((sum, a) => sum + a.usedBytes, 0);
   const totalQuota = state.accounts.reduce((sum, a) => sum + a.quotaBytes, 0);
@@ -217,8 +223,10 @@ export function Home({ onNavigate, onOpenEntry, onAddAccount }: HomeProps) {
               {state.accounts.length > 1 ? 'comptes' : 'compte'}
             </span>
             <span className="summary-stat">
-              <b>{formatNumber(byProvider.size)}</b>{' '}
-              {byProvider.size > 1 ? 'fournisseurs' : 'fournisseur'}
+              {/* Fournisseurs réellement utilisés : la liste des fournisseurs
+                  connus ne doit pas faire croire que tous sont connectés. */}
+              <b>{formatNumber(activeProviders)}</b>{' '}
+              {activeProviders > 1 ? 'fournisseurs' : 'fournisseur'}
             </span>
             <span className="summary-stat">
               <b>{formatBytes(totalUsed)}</b> utilisés sur {formatBytes(totalQuota)}

@@ -195,7 +195,9 @@ export function SearchPage() {
     const bridge = getBridge();
     const googleId = isRealAccount(row.account) ? realAccountId(row.account) : undefined;
     if (!bridge) return;
-    if (!googleId || !bridge.google.locate) {
+    // MEGA ne fournit pas le chemin d'un fichier : on ouvre alors son dossier
+    // d'affichage courant plutôt que de prétendre le localiser.
+    if (row.account.provider === 'mega' || !googleId || !bridge.google.locate) {
       dispatch({ type: 'explorer/open', accountId: row.account.id, path: row.path.slice(0, -1) });
       dispatch({ type: 'route', route: { name: 'files' } });
       return;

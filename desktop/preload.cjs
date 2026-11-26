@@ -74,4 +74,31 @@ contextBridge.exposeInMainWorld('boitier', {
       return () => ipcRenderer.removeListener('google:download-event', handler);
     },
   },
+  /**
+   * MEGA. Même forme de données que Google côté fichiers, mais une session
+   * distincte : MEGA n'a pas d'OAuth, l'ouverture se fait par adresse et mot de
+   * passe, et le mot de passe n'est jamais conservé.
+   */
+  mega: {
+    accounts: () => invoke('mega:accounts'),
+    connect: (email, password, secondFactor) =>
+      invoke('mega:connect', email, password, secondFactor),
+    disconnect: (accountId) => invoke('mega:disconnect', accountId),
+    list: (accountId, folderId) => invoke('mega:list', accountId, folderId),
+    search: (accountId, term) => invoke('mega:search', accountId, term),
+    recent: (accountId, limit) => invoke('mega:recent', accountId, limit),
+    usage: (accountId) => invoke('mega:usage', accountId),
+    plan: (accountId, folderId) => invoke('mega:plan', accountId, folderId),
+    download: (request) => invoke('mega:download', request),
+    pause: (id) => invoke('mega:pause', id),
+    resume: (id) => invoke('mega:resume', id),
+    cancel: (id) => invoke('mega:cancel', id),
+    /** Ouvre la boîte de dialogue du système, puis téléverse les fichiers choisis. */
+    upload: (accountId, folderId) => invoke('mega:upload', accountId, folderId),
+    onUpload: (listener) => {
+      const handler = (_event, event) => listener(event);
+      ipcRenderer.on('mega:upload-event', handler);
+      return () => ipcRenderer.removeListener('mega:upload-event', handler);
+    },
+  },
 });

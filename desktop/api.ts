@@ -9,6 +9,8 @@ import type { GoogleService } from './google/service.ts';
 import { isAllowedExternalUrl } from '../src/lib/driveLinks.ts';
 import type { DownloadEvent } from './google/downloads.ts';
 import type { UpdateState, Updater } from './updater.ts';
+import type { MegaService, UploadEvent } from './mega/service.ts';
+import type { MegaSession } from './mega/session.ts';
 import { log, logPath, sinceStart } from './log.ts';
 
 export const channels = {
@@ -51,6 +53,22 @@ export const channels = {
   timing: 'desktop:timing',
   /** Ouvre le journal de démarrage dans l'éditeur du système. */
   openLog: 'desktop:open-log',
+  /* MEGA : session séparée, mêmes formes de données que Drive. */
+  megaAccounts: 'mega:accounts',
+  megaConnect: 'mega:connect',
+  megaDisconnect: 'mega:disconnect',
+  megaList: 'mega:list',
+  megaSearch: 'mega:search',
+  megaRecent: 'mega:recent',
+  megaUsage: 'mega:usage',
+  megaPlan: 'mega:plan',
+  megaDownload: 'mega:download',
+  megaPause: 'mega:pause',
+  megaResume: 'mega:resume',
+  megaCancel: 'mega:cancel',
+  /** Ouvre la boîte de dialogue puis téléverse dans le dossier courant. */
+  megaUpload: 'mega:upload',
+  megaUploadEvent: 'mega:upload-event',
   /** Mises à jour : état, vérification, installation. */
   updateState: 'update:state',
   updateCheck: 'update:check',
@@ -62,7 +80,12 @@ export const channels = {
 
 let registered = false;
 
-export function registerIpc(_win: BrowserWindow, service: GoogleService, updater: Updater): void {
+export function registerIpc(
+  _win: BrowserWindow,
+  service: GoogleService,
+  updater: Updater,
+  mega?: { session: MegaSession; service: MegaService },
+): void {
   // Une seule instance : les gestionnaires ne sont enregistrés qu'une fois,
   // même si la fenêtre est recréée.
   if (registered) return;
@@ -123,6 +146,70 @@ export function registerIpc(_win: BrowserWindow, service: GoogleService, updater
   handle(channels.locate, (accountId: string, fileId: string) =>
     service.locate(accountId, fileId),
   );
+
+  /* ------------------------------------------------------------------------
+   * MEGA
+   * ---------------------------------------------------------------------- */
+
+  if (mega) {
+    handle(channels.megaAccounts, () => mega.session.accounts());
+    handle(
+      channels.megaConnect,
+      (email: string, password: string, secondFactor?: string) =>
+        mega.session.connect(String(email ?? ''), String(password ?? ''), secondFactor ? String(secondFactor) : undefined),
+    );
+    handle(channels.megaDisconnect, (accountId: string) =>
+      mega.session.disconnect(String(accountId)),
+    );
+    handle(channels.megaList, (accountId: string, folderId: string) =>
+      mega.service.list(String(accountId), String(folderId ?? '')),
+    );
+    handle(channels.megaSearch, (accountId: string, term: string) =>
+      mega.service.search(String(accountId), String(term ?? '')),
+    );
+    handle(channels.megaRecent, (accountId: string, limit?: number) =>
+      mega.service.recent(String(accountId), Number(limit) || 200),
+    );
+    handle(channels.megaUsage, (accountId: string) => mega.service.usage(String(accountId)));
+    handle(channels.megaPlan, (accountId: string, folderId: string) =>
+      mega.service.plan(String(accountId), String(folderId ?? '')),
+    );
+    handle(
+      channels.megaDownload,
+      (request: {
+        id: string;
+        accountId: string;
+        fileId: string;
+        name: string;
+        size: number;
+        dir?: string;
+        subPath?: string;
+      }) => mega.service.start({ ...request, dir: request.dir ?? '' }),
+    );
+    handle(channels.megaPause, (id: string) => mega.service.pause(String(id)));
+    handle(channels.megaResume, (id: string) => mega.service.resume(String(id)));
+    handle(channels.megaCancel, (id: string) => mega.service.cancel(String(id)));
+
+    /**
+     * Téléversement : le fichier est choisi par la boîte de dialogue du
+     * système, puis lu et envoyé par le processus principal. L'interface ne
+     * touche jamais au disque, et n'obtient aucun chemin au-delà du nom.
+     */
+    handle(channels.megaUpload, async (accountId: string, folderId: string) => {
+      const options = {
+        title: 'Fichier à envoyer sur MEGA',
+        properties: ['openFile', 'multiSelections'] as const,
+      };
+      const resultat = _win
+        ? await dialog.showOpenDialog(_win, { ...options, properties: [...options.properties] })
+        : await dialog.showOpenDialog({ ...options, properties: [...options.properties] });
+      if (resultat.canceled || !resultat.filePaths.length) return { sent: 0 };
+      for (const chemin of resultat.filePaths) {
+        await mega.service.upload(String(accountId), String(folderId ?? ''), chemin);
+      }
+      return { sent: resultat.filePaths.length };
+    });
+  }
 
   // Mises à jour. `state` est une lecture sans effet de bord ; `check` et
   // `install` sont les deux seules actions, et l'installation exige qu'une
@@ -212,6 +299,12 @@ export function registerIpc(_win: BrowserWindow, service: GoogleService, updater
 /** Diffuse un événement de transfert vers l'interface. */
 export function emitDownload(win: BrowserWindow, event: DownloadEvent): void {
   win.webContents.send(channels.event, { kind: 'download', event });
+}
+
+/** Diffuse la progression d'un téléversement MEGA vers la fenêtre. */
+export function emitUpload(win: BrowserWindow, event: UploadEvent): void {
+  if (win.isDestroyed()) return;
+  win.webContents.send(channels.megaUploadEvent, event);
 }
 
 /** Diffuse l'état des mises à jour vers la fenêtre. */

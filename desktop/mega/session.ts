@@ -1,0 +1,256 @@
+/**
+ * Session MEGA : ouverture, restauration, quota.
+ *
+ * Le mot de passe ne sert qu'à ouvrir une session ; il n'est jamais écrit. La
+ * session sérialisée (clé maître + identifiant de session) est conservée
+ * chiffrée par le système, ce qui permet de retrouver les comptes au lancement
+ * suivant sans rien redemander.
+ */
+
+import { Storage } from 'megajs';
+import { log } from '../log.ts';
+import { exigeDeuxEtapes, messageErreurMega, sessionExpiree } from './files.ts';
+import type { MegaStoredAccount, MegaVault } from './store.ts';
+
+export interface MegaAccountInfo {
+  /** Identifiant MEGA (handle utilisateur) : stable, jamais un jeton. */
+  accountId: string;
+  name: string;
+  email: string;
+  usedBytes: number;
+  quotaBytes: number;
+  status: 'connected' | 'expired';
+}
+
+/** Erreur portant le besoin d'un code de vérification en deux étapes. */
+export class DeuxEtapesRequises extends Error {
+  constructor() {
+    super('vérification en deux étapes requise');
+    this.name = 'DeuxEtapesRequises';
+  }
+}
+
+export class MegaSession {
+  private readonly vault: MegaVault;
+  /** Sessions ouvertes dans ce lancement. */
+  private readonly vivantes = new Map<string, Storage>();
+  /** Espace mesuré (mis en cache pour l'affichage). */
+  private readonly mesures = new Map<string, { usedBytes: number; quotaBytes: number }>();
+  /** Ouvertures en cours : deux demandes simultanées ne connectent qu'une fois. */
+  private readonly ouvertures = new Map<string, Promise<Storage>>();
+  /** Comptes dont MEGA a refusé la session pendant ce lancement. */
+  private readonly expirees = new Set<string>();
+
+  constructor(vault: MegaVault) {
+    this.vault = vault;
+  }
+
+  /** Comptes connus — sans requête réseau : les mesures sont celles du dernier passage. */
+  async accounts(): Promise<MegaAccountInfo[]> {
+    const stockes = await this.vault.read();
+    return stockes.map((compte) => this.enInfo(compte));
+  }
+
+  private enInfo(compte: MegaStoredAccount): MegaAccountInfo {
+    const mesure = this.mesures.get(compte.id);
+    return {
+      accountId: compte.id,
+      name: compte.name || compte.email,
+      email: compte.email,
+      usedBytes: mesure?.usedBytes ?? compte.usedBytes ?? 0,
+      quotaBytes: mesure?.quotaBytes ?? compte.quotaBytes ?? 0,
+      status: this.expirees.has(compte.id) ? 'expired' : 'connected',
+    };
+  }
+
+  /**
+   * Ouvre une session avec les identifiants fournis.
+   *
+   * `secondFactor` n'est demandé qu'une fois : si MEGA réclame un code et qu'il
+   * n'a pas été fourni, l'erreur remonte sous une forme que l'interface sait
+   * reconnaître, pour afficher le champ au lieu d'un « -26 » incompréhensible.
+   */
+  async connect(
+    email: string,
+    password: string,
+    secondFactor?: string,
+  ): Promise<MegaAccountInfo> {
+    const adresse = email.trim().toLowerCase();
+    if (!adresse || !password) throw new Error('adresse et mot de passe requis');
+
+    let storage: Storage;
+    try {
+      storage = new Storage({
+        email: adresse,
+        password,
+        ...(secondFactor ? { secondFactorCode: secondFactor.trim() } : {}),
+        autoload: true,
+        autologin: true,
+        keepalive: true,
+      });
+      await storage.ready;
+    } catch (cause) {
+      if (exigeDeuxEtapes(cause)) throw new DeuxEtapesRequises();
+      throw new Error(messageErreurMega(cause));
+    }
+
+    const id = storage.user || adresse;
+    const nom = storage.name || adresse;
+    this.vivantes.set(id, storage);
+    this.expirees.delete(id);
+
+    const mesure = await this.mesurer(id, storage);
+    const json = storage.toJSON();
+    // On ne conserve que de quoi rouvrir la session : `options` contient les
+    // identifiants de connexion et n'a rien à faire sur le disque.
+    const session = { key: json.key, sid: json.sid, name: nom, user: id };
+
+    const anciens = await this.vault.read();
+    const suivant: MegaStoredAccount[] = [
+      ...anciens.filter((compte) => compte.id !== id),
+      {
+        id,
+        email: adresse,
+        name: nom,
+        session,
+        addedAt: new Date().toISOString(),
+        usedBytes: mesure.usedBytes,
+        quotaBytes: mesure.quotaBytes,
+      },
+    ];
+    await this.vault.write(suivant);
+    log(`MEGA : compte ${adresse} connecté (${mesure.usedBytes}/${mesure.quotaBytes} o)`);
+
+    return {
+      accountId: id,
+      name: nom,
+      email: adresse,
+      usedBytes: mesure.usedBytes,
+      quotaBytes: mesure.quotaBytes,
+      status: 'connected',
+    };
+  }
+
+  /** Ferme toutes les sessions ouvertes (fermeture de l'application). */
+  async closeAll(): Promise<void> {
+    const ouvertes = [...this.vivantes.values()];
+    this.vivantes.clear();
+    for (const storage of ouvertes) {
+      try {
+        await storage.close();
+      } catch {
+        /* déjà fermée côté MEGA */
+      }
+    }
+  }
+
+  /** Ferme la session et efface le compte du disque. */
+  async disconnect(accountId: string): Promise<void> {
+    const storage = this.vivantes.get(accountId);
+    this.vivantes.delete(accountId);
+    this.ouvertures.delete(accountId);
+    this.mesures.delete(accountId);
+    this.expirees.delete(accountId);
+    if (storage) {
+      try {
+        await storage.close();
+      } catch {
+        /* la session est peut-être déjà fermée côté MEGA */
+      }
+    }
+    const restants = (await this.vault.read()).filter((compte) => compte.id !== accountId);
+    await this.vault.write(restants);
+    log(`MEGA : compte ${accountId} déconnecté`);
+  }
+
+  /**
+   * Session utilisable pour ce compte, restaurée depuis le disque au besoin.
+   *
+   * Une session refusée par MEGA n'est pas effacée : elle est marquée expirée,
+   * l'interface propose de reconnecter, et l'utilisateur ne perd pas la fiche du
+   * compte (nom, adresse, dernier quota connu).
+   */
+  async storage(accountId: string): Promise<Storage> {
+    const vivante = this.vivantes.get(accountId);
+    if (vivante) return vivante;
+    const enCours = this.ouvertures.get(accountId);
+    if (enCours) return enCours;
+
+    const ouverture = this.restaurer(accountId).finally(() => {
+      this.ouvertures.delete(accountId);
+    });
+    this.ouvertures.set(accountId, ouverture);
+    return ouverture;
+  }
+
+  private async restaurer(accountId: string): Promise<Storage> {
+    const compte = (await this.vault.read()).find((item) => item.id === accountId);
+    if (!compte) throw new Error('compte MEGA inconnu : reconnectez-le');
+
+    const storage = Storage.fromJSON({
+      key: compte.session.key,
+      sid: compte.session.sid,
+      name: compte.session.name,
+      user: compte.session.user,
+      // Les identifiants ne sont pas conservés : `megajs` exige une forme
+      // d'options pour construire l'objet, et n'en a pas besoin pour une
+      // session restaurée (`autologin: false`).
+      options: {
+        email: compte.email,
+        password: '',
+        autoload: true,
+        autologin: false,
+        keepalive: true,
+      },
+    });
+
+    try {
+      await storage.ready;
+      // Une session restaurée n'est « prête » qu'une fois son arborescence
+      // relue ; sans ce drapeau, `mkdir`/`upload` refusent d'agir.
+      (storage as unknown as { status: string }).status = 'ready';
+      await storage.reload(true);
+    } catch (cause) {
+      if (sessionExpiree(cause)) {
+        this.expirees.add(accountId);
+        throw new Error('session MEGA expirée : reconnectez ce compte');
+      }
+      throw new Error(messageErreurMega(cause));
+    }
+
+    this.vivantes.set(accountId, storage);
+    log(`MEGA : session restaurée pour ${compte.email}`);
+    return storage;
+  }
+
+  /** Espace utilisé et total, mis en cache. */
+  async mesurer(accountId: string, storageConnu?: Storage): Promise<{ usedBytes: number; quotaBytes: number }> {
+    const storage = storageConnu ?? (await this.storage(accountId));
+    try {
+      const infos = await storage.getAccountInfo();
+      const mesure = {
+        usedBytes: Math.max(0, Number(infos.spaceUsed) || 0),
+        quotaBytes: Math.max(0, Number(infos.spaceTotal) || 0),
+      };
+      this.mesures.set(accountId, mesure);
+      const comptes = await this.vault.read();
+      const cible = comptes.find((compte) => compte.id === accountId);
+      if (cible) {
+        await this.vault.write(
+          comptes.map((compte) =>
+            compte.id === accountId
+              ? { ...compte, usedBytes: mesure.usedBytes, quotaBytes: mesure.quotaBytes }
+              : compte,
+          ),
+        );
+      }
+      return mesure;
+    } catch (cause) {
+      if (sessionExpiree(cause)) {
+        this.expirees.add(accountId);
+        throw new Error('session MEGA expirée : reconnectez ce compte');
+      }
+      throw new Error(messageErreurMega(cause));
+    }
+  }
+}

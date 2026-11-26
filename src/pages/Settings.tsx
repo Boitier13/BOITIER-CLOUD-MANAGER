@@ -527,7 +527,7 @@ export function Settings() {
           </div>
           <div className="about-block">
             <div style={{ fontSize: 11, color: 'var(--text-4)', lineHeight: 1.6 }}>
-              Application locale de gestion de vos fichiers Google Drive. Aucun serveur
+              Application locale de gestion de vos fichiers Google Drive et MEGA. Aucun serveur
               intermédiaire : les échanges ont lieu directement entre cette fenêtre et
               Google. Vos préférences et la liste de vos comptes sont conservées sur cet
               ordinateur ; les autorisations Google sont chiffrées par Windows.

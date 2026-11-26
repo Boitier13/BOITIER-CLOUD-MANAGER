@@ -220,6 +220,47 @@ décide de la destination. Le bouton **Choisir…** ouvre la boîte de dialogue 
 Windows ; **Système** ramène au dossier par défaut. Un clic sur le chemin
 l'ouvre dans l'explorateur.
 
+## MEGA
+
+MEGA est connecté comme un fournisseur à part entière : il apparaît dans la
+barre latérale, l'explorateur le parcourt comme Google Drive, et ses transferts
+partagent la même file, la même progression et les mêmes reprises.
+
+**Connexion.** MEGA n'a pas d'OAuth : il faut l'adresse et le mot de passe du
+compte (un compte gratuit suffit). La vérification en deux étapes est demandée
+seulement si MEGA la réclame, au lieu d'échouer sur un code d'erreur.
+
+**Ce qui est conservé.** Le **mot de passe n'est jamais enregistré**. Ce qui est
+écrit sur le disque est la *session* obtenue — clé maître et identifiant de
+session — chiffrée par Windows (DPAPI) dans
+`%APPDATA%\BOITIER CLOUD MANAGER\mega-sessions.enc`. Conséquence assumée : si
+vous changez votre mot de passe MEGA ou fermez la session ailleurs, la session
+locale devient invalide et l'application redemande le mot de passe. Elle ne
+reconnecte jamais silencieusement un compte que MEGA a révoqué.
+
+**Lecture et téléversement.** Dossiers, recherche, ouverture de fichier et
+téléchargement fonctionnent comme chez Google, avec la même garantie : un
+fichier n'apparaît qu'entier (écriture en `.part`, puis renommage), et une pause
+conserve le partiel. L'envoi se fait par le bouton **Envoyer sur MEGA**, présent
+sur les dossiers MEGA : le choix du fichier passe par la boîte de dialogue du
+système, la progression s'affiche, et le dossier est relu à la fin.
+
+**Dossier entier.** Un dossier MEGA se télécharge aussi d'un bloc, avec le même
+dialogue que chez Google : le plan (nombre de fichiers, sous-dossiers, taille)
+est calculé avant tout transfert, puis chaque fichier arrive à sa place dans
+l'arborescence.
+
+**Ce que MEGA ne permet pas ici.** Ni suppression ni déplacement ni renommage :
+l'application ne fait que lire, télécharger et envoyer. Les dossiers partagés
+d'un autre compte ne sont pas listés — MEGA n'a pas d'équivalent au « partagé
+avec moi » de Drive.
+
+**Limites des comptes gratuits.** MEGA applique un **quota de transfert**
+distinct du stockage : au-delà, les téléchargements et les envois sont refusés.
+L'erreur est traduite en clair (« quota de transfert MEGA épuisé pour
+aujourd'hui ») au lieu d'afficher un code négatif, et le partiel déjà reçu reste
+sur le disque pour la reprise du lendemain.
+
 ### Téléverser : ce que l'application ne fait pas
 
 L'application demande une seule autorisation, `drive.readonly` : elle ne peut
@@ -324,7 +365,7 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 137 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 145 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
@@ -336,7 +377,8 @@ npm run desktop:test      # 137 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # automatique, trace avant chargement, verrou
                           # patient, défilement, traces de mise à jour,
                           # notification de fin de transfert, repères de
-                          # démarrage) —
+                          # démarrage, MEGA : session chiffrée et
+                          # conversions de fichiers) —
                           # sans réseau, faux Google
 npm run verify:interface  # les écrans sans compte, avec un compte simulé,
                           # avec neuf comptes, et la recherche à deux portées
@@ -655,9 +697,9 @@ Pour publier une version : mettre à jour `version` dans `package.json`, puis
 | Écran | Contenu |
 | --- | --- |
 | **Accueil** | Sans compte : présentation et invitation à connecter. Avec : occupation, transferts en cours, derniers fichiers, favoris |
-| **Clouds** | Comptes Google connectés : quota réel, état, renommage, déconnexion ; connexion d’un nouveau compte |
-| **Tous les fichiers** | Explorateur navigable : fil d’Ariane, retour, recherche, tri, filtres par type, sélection multiple ; dossiers Google Drive chargés à la demande ; sous-vue **Partagés avec moi** (ce que d’autres ont partagé avec le compte, indépendamment de vos dossiers) |
-| **Téléchargements** | File unifiée : progression, débit, pause/reprise, annulation ; transferts Google Drive réellement écrits sur le disque, y compris **un dossier entier** (arborescence conservée) |
+| **Clouds** | Comptes connectés — Google et MEGA : quota réel, état, renommage, déconnexion ; connexion d’un nouveau compte |
+| **Tous les fichiers** | Explorateur navigable, quel que soit le fournisseur : fil d’Ariane, retour, recherche, tri, filtres par type, sélection multiple ; dossiers Google Drive chargés à la demande ; sous-vue **Partagés avec moi** (ce que d’autres ont partagé avec le compte, indépendamment de vos dossiers) |
+| **Téléchargements** | File unifiée : progression, débit, pause/reprise, annulation ; transferts Google Drive et MEGA réellement écrits sur le disque, y compris **un dossier entier** (arborescence conservée) |
 | **Favoris** | Collection multi-comptes, recherche, répartition par type |
 | **Récents** | Flux transversal des derniers fichiers **modifiés** (7 / 30 / 90 jours), filtre par nom, téléchargement direct ; la limite de l’API — Google ne transmet pas la date d’ouverture — est écrite sur l’écran |
 | **Stockage** | Espace **total** du compte (Drive + Gmail + Photos) et répartition mesurée par type de fichier ; ce qui n’est pas mesurable est annoncé comme tel, jamais estimé |
@@ -745,9 +787,17 @@ conteneur (fenêtre + coffre chiffré + écriture disque).
 
 ### Ajouter un fournisseur plus tard
 
-L’architecture multi-fournisseurs est conservée : `PROVIDERS` dans
-`src/data/catalog.ts`, la barre latérale et les fiches fournisseur fonctionnent
-par identifiant. Ajouter MEGA revient à déclarer son entrée, à fournir un module
-de lecture (comme `desktop/google/drive.ts`) et à brancher les actions du
-reducer (`account/sync`, `downloads/add`, `favorite/toggle`). Aucun composant
-d’interface n’est à réécrire.
+L’architecture multi-fournisseurs est désormais éprouvée par deux cas réels :
+Google Drive (OAuth, lecture seule) et MEGA (adresse + mot de passe, envoi
+compris). Ajouter un troisième fournisseur revient à :
+
+1. déclarer son entrée dans `PROVIDERS` (`src/data/catalog.ts`) ;
+2. écrire un module dans `desktop/<fournisseur>/` qui produit les mêmes formes
+   que `RemoteFile` et `DownloadEvent` (voir `desktop/mega/files.ts`) ;
+3. brancher les canaux dans `desktop/api.ts`, `desktop/preload.cjs` et
+   `src/lib/bridge.ts` ;
+4. ajouter son cas dans `src/lib/cloud.ts`, le seul endroit qui aiguille un
+   appel vers un fournisseur.
+
+Aucun écran n’est à réécrire : l’explorateur, la file de transferts, les
+favoris, la recherche et le stockage ne connaissent que ces formes communes.

@@ -18,7 +18,10 @@ import {
   shell,
 } from 'electron';
 import { join } from 'node:path';
-import { registerIpc, emitDownload, emitUpdate, channels } from './api.ts';
+import { registerIpc, emitDownload, emitUpdate, emitUpload, channels } from './api.ts';
+import { MegaVault } from './mega/store.ts';
+import { MegaSession } from './mega/session.ts';
+import { MegaService } from './mega/service.ts';
 import { traceMiseAJour, Updater } from './updater.ts';
 import { loadEnvFile, readGoogleConfig } from './config.ts';
 import { initLog, log, logPath as currentLogPath, sinceStart } from './log.ts';
@@ -47,6 +50,8 @@ try {
 const windows: BrowserWindow[] = [];
 let service: GoogleService | null = null;
 let updater: Updater | null = null;
+/** Service MEGA du lancement en cours : fermé proprement à la sortie. */
+let megaService: MegaService | null = null;
 let current: BrowserWindow | null = null;
 /** Chemin du journal de démarrage, affiché dans les messages d'erreur. */
 let logPath: string | null = null;
@@ -427,7 +432,36 @@ function boot(): void {
     dernierStatut = state.status;
     for (const target of windows) if (!target.isDestroyed()) emitUpdate(target, state);
   });
-  registerIpc(win, service, updater);
+  // MEGA : coffre séparé (l'application ne mélange pas les fournisseurs) et
+  // service propre. Les événements de transfert empruntent les mêmes canaux
+  // que Drive : l'interface n'a qu'une seule file à afficher.
+  const mega = new MegaService({
+    session: new MegaSession(
+      new MegaVault(dataDir ?? resolveDataDir(app.getPath('appData')), protect, unprotect),
+    ),
+    emitDownload: (event) => {
+      for (const target of windows) if (!target.isDestroyed()) emitDownload(target, event);
+      if (event.status === 'done' || event.status === 'error') notifierTransfert(event);
+    },
+    emitUpload: (event) => {
+      for (const target of windows) if (!target.isDestroyed()) emitUpload(target, event);
+      if (event.status === 'done' || event.status === 'error') {
+        notifierTransfert({
+          id: event.id,
+          name: event.name,
+          status: event.status,
+          received: event.received,
+          size: event.size,
+          speed: 0,
+          ...(event.message ? { message: event.message } : {}),
+        });
+      }
+    },
+    fallbackDir: async () => app.getPath('downloads'),
+  });
+
+  megaService = mega;
+  registerIpc(win, service, updater, { session: mega.session, service: mega });
   // La vérification démarre douze secondes après : l'interface passe d'abord.
   updater.start();
   log(`fenêtre créée · +${sinceStart()} ms`);
@@ -486,6 +520,12 @@ async function start(): Promise<void> {
   });
 
   app.whenReady().then(boot);
+
+  app.on('before-quit', () => {
+    // Les sessions MEGA gardent des connexions ouvertes : on les ferme pour que
+    // le processus se termine réellement, sans attendre l'expiration des délais.
+    void megaService?.session.closeAll();
+  });
 
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {

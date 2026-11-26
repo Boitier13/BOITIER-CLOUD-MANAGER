@@ -1248,6 +1248,152 @@ try {
   );
 }
 
+/* --- 29. MEGA : session, lecture, transferts ----------------------------- */
+//
+// MEGA n'a pas d'OAuth : sans précaution, la seule façon de retrouver un compte
+// au lancement serait d'écrire le mot de passe sur le disque. On vérifie ici
+// trois choses : le mot de passe n'est jamais conservé, la session chiffrée
+// survit à un aller-retour, et les nœuds MEGA arrivent dans l'interface sous la
+// même forme que ceux de Drive — sinon l'explorateur ne saurait rien afficher.
+{
+  const { MegaVault } = await import('../mega/store.ts');
+  const fichiers = await import('../mega/files.ts');
+
+  // Coffre : chiffrement factice (aller-retour) pour vérifier l'écriture.
+  const dossier = await mkdtemp(join(tmpdir(), 'boitier-mega-'));
+  const vault = new MegaVault(
+    dossier,
+    (clair) => Buffer.from(`scelle:${clair}`, 'utf8'),
+    (chiffre) => {
+      const texte = chiffre.toString('utf8');
+      return texte.startsWith('scelle:') ? texte.slice('scelle:'.length) : null;
+    },
+  );
+  await vault.write([
+    {
+      id: 'u1',
+      email: 'compte@exemple.com',
+      name: 'Compte',
+      session: { key: 'cle', sid: 'session', name: 'Compte', user: 'u1' },
+      addedAt: new Date().toISOString(),
+    },
+  ]);
+  const surDisque = await readFile(join(dossier, 'mega-sessions.enc'), 'utf8');
+  const relus = await vault.read();
+  check(
+    'MEGA : la session survit à un aller-retour sur le disque',
+    relus.length === 1 && relus[0].session.sid === 'session' && relus[0].email === 'compte@exemple.com',
+    `${relus.length} compte(s) relu(s)`,
+  );
+  check(
+    'MEGA : le fichier de sessions est chiffré, pas lisible en clair',
+    !surDisque.includes('compte@exemple.com') || surDisque.startsWith('scelle:'),
+    'adresse en clair sur le disque',
+  );
+
+  // Le mot de passe ne doit apparaître nulle part dans le code de session :
+  // seule la session sérialisée est écrite.
+  const { fileURLToPath } = await import('node:url');
+  const session = await readFile(fileURLToPath(new URL('../mega/session.ts', import.meta.url)), 'utf8');
+  check(
+    'MEGA : le mot de passe n’est jamais enregistré',
+    // Ce qui part dans le coffre est explicitement reconstruit : clé, session,
+    // nom et identifiant. Tout le reste — dont les identifiants de connexion —
+    // est écarté.
+    /const session = \{ key: json\.key, sid: json\.sid, name: nom, user: id \};/.test(session) &&
+      !/session:\s*\{[^}]*password/i.test(session) &&
+      !/password[^\n]*vault\.write/.test(session),
+    'identifiants écrits dans la session',
+  );
+
+  // Conversion d'un nœud MEGA vers la forme commune aux deux fournisseurs.
+  const nœud = fichiers.toRemoteFile({
+    nodeId: 'n1',
+    name: 'Film.mkv',
+    size: 1024,
+    directory: false,
+    timestamp: 1_760_000_000,
+  });
+  check(
+    'MEGA : un fichier arrive dans la même forme que chez Drive',
+    nœud.kind === 'file' &&
+      nœud.id === 'n1' &&
+      nœud.mimeType === 'video/x-matroska' &&
+      nœud.size === 1024 &&
+      nœud.modified.startsWith('20'),
+    `${nœud.kind} ${nœud.mimeType}`,
+  );
+  const tri = fichiers.sortRemoteFiles([
+    fichiers.toRemoteFile({ nodeId: 'b', name: 'zèbre.txt', directory: false }),
+    fichiers.toRemoteFile({ nodeId: 'a', name: 'Dossier', directory: true }),
+  ]);
+  check('MEGA : les dossiers passent devant, accents ignorés', tri[0].id === 'a', tri.map((f) => f.name).join(', '));
+
+  // Erreurs : l'utilisateur doit lire une phrase, jamais un code négatif.
+  check(
+    'MEGA : les quotas de transfert sont expliqués',
+    /quota de transfert/.test(fichiers.messageErreurMega({ code: -17 })) &&
+      /deux étapes/.test(fichiers.messageErreurMega({ code: -26 })) &&
+      /expirée/.test(fichiers.messageErreurMega({ code: -15 })),
+    fichiers.messageErreurMega({ code: -17 }),
+  );
+  check(
+    'MEGA : la vérification en deux étapes est reconnue',
+    fichiers.exigeDeuxEtapes({ code: -26 }) &&
+      !fichiers.exigeDeuxEtapes({ code: -17 }) &&
+      fichiers.sessionExpiree({ code: -15 }),
+    'code -26 non reconnu',
+  );
+
+  await rm(dossier, { recursive: true, force: true }).catch(() => undefined);
+}
+
+/* --- 30. Le paquet se charge sans dépendance absente --------------------- */
+//
+// `megajs` (protocole MEGA) est empaqueté dans `main.cjs`, et `node_modules`
+// est exclu de l'archive : si l'empaquetage oubliait une dépendance, le défaut
+// n'apparaîtrait qu'au lancement, chez l'utilisateur, par une fenêtre qui ne
+// s'ouvre pas. On charge donc le fichier livré dans Node, avec un `electron`
+// factice, et l'on vérifie que le seul obstacle est Electron lui-même.
+{
+  const { writeFile: ecrire } = await import('node:fs/promises');
+  const script = join(await mkdtemp(join(tmpdir(), 'boitier-charge-')), 'charge.mjs');
+  const { fileURLToPath } = await import('node:url');
+  const bundle = fileURLToPath(new URL('../dist/main.cjs', import.meta.url));
+  await ecrire(
+    script,
+    `import Module from 'node:module';
+const original = Module._load;
+const factice = new Proxy(function () {}, { get: () => factice, apply: () => factice });
+Module._load = function (demande, parent, principal) {
+  if (demande === 'electron') return factice;
+  return original.call(this, demande, parent, principal);
+};
+try {
+  await import(${JSON.stringify(`file://${bundle}`)});
+} catch (erreur) {
+  console.log('ERREUR ' + erreur.message);
+}
+process.exit(0);
+`,
+    'utf8',
+  );
+  const { spawn } = await import('node:child_process');
+  const sortie = await new Promise((resolve) => {
+    const enfant = spawn(process.execPath, [script], { cwd: tmpdir() });
+    let texte = '';
+    enfant.stdout.on('data', (morceau) => (texte += morceau.toString('utf8')));
+    enfant.stderr.on('data', (morceau) => (texte += morceau.toString('utf8')));
+    enfant.on('close', () => resolve(texte));
+    setTimeout(() => enfant.kill(), 20_000);
+  });
+  check(
+    'paquet : aucune dépendance absente au chargement',
+    !/Cannot find module|MODULE_NOT_FOUND|ERR_MODULE_NOT_FOUND/.test(sortie),
+    sortie.split('\n')[0] || 'sortie vide',
+  );
+}
+
 const passed = results.filter((result) => result.ok).length;
 console.log(`\n${passed}/${results.length} vérifications réussies.`);
 if (failures) {
