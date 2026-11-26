@@ -792,6 +792,60 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   );
 }
 
+/* --- 11quater. Reconnexion d'un compte sans le retirer -------------------- */
+{
+  let connexions = 0;
+  const reconnexion = await parcours({
+    label: 'reconnexion',
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      google: {
+        status: async () => ({ configured: true, source: 'env' }),
+        accounts: async () => [
+          {
+            accountId: 'g-1',
+            name: 'Boitier',
+            email: 'boitierecup@gmail.com',
+            usedBytes: 1,
+            quotaBytes: 100,
+            status: 'connected',
+          },
+        ],
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+        // Le consentement reste en attente : c'est l'état réel pendant que le
+        // navigateur est ouvert.
+        connect: () => {
+          connexions += 1;
+          return new Promise(() => {});
+        },
+      },
+    },
+  });
+
+  const toClouds = [...reconnexion.doc.querySelectorAll('.nav-item, .cloud-item')].find((button) =>
+    (button.textContent ?? '').includes('Google Drive'),
+  );
+  if (toClouds) await reconnexion.click(toClouds);
+
+  const bouton = reconnexion.doc.querySelector('[aria-label="Reconnecter Boitier"]');
+  check('reconnexion : un bouton existe pour un compte déjà connecté', Boolean(bouton));
+  if (bouton) {
+    await reconnexion.click(bouton);
+    const texte = reconnexion.doc.body.textContent ?? '';
+    check(
+      'reconnexion : le dialogue annonce une mise à jour, pas un doublon',
+      /ré-autoriser/i.test(texte) && /mis à jour, pas dupliqué/i.test(texte),
+      texte.slice(0, 90).replace(/\s+/g, ' ').trim(),
+    );
+    check('reconnexion : le consentement Google est demandé', connexions === 1, String(connexions));
+  }
+}
+
 console.log(
   failures === 0
     ? '\nInterface vérifiée : état vide maîtrisé, compte réel affiché, aucun décor.'

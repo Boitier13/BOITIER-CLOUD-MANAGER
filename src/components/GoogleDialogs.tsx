@@ -142,9 +142,17 @@ export function GoogleSetupDialog({
 export function GoogleConnectDialog({
   onClose,
   onConnected,
+  reconnecting = false,
 }: {
   onClose: () => void;
   onConnected: (account: GoogleAccountInfo) => void;
+  /**
+   * Renouvellement de l'autorisation d'un compte déjà présent.
+   *
+   * Google renvoie l'adresse principale : le compte est mis à jour au lieu
+   * d'être dupliqué. Le texte le dit, sinon on hésite à cliquer.
+   */
+  reconnecting?: boolean;
 }) {
   const [phase, setPhase] = useState<'idle' | 'waiting' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -172,7 +180,11 @@ export function GoogleConnectDialog({
   return (
     <Modal
       title="Connexion à Google Drive"
-      description="Votre navigateur va s’ouvrir pour autoriser l’accès en lecture seule."
+      description={
+        reconnecting
+          ? 'Votre navigateur va s’ouvrir. Choisissez le compte à ré-autoriser : il sera mis à jour, pas dupliqué.'
+          : 'Votre navigateur va s’ouvrir pour autoriser l’accès en lecture seule.'
+      }
       icon={<RefreshCw size={15} className={phase === 'waiting' ? 'spin' : ''} />}
       onClose={phase === 'waiting' ? () => undefined : onClose}
       footer={
