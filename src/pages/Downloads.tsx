@@ -19,6 +19,7 @@ import { formatEta, statusLabels, type DownloadStatus } from '../lib/downloads';
 import { Meter, ProviderMark, TypeIcon } from '../components/visuals';
 import { getBridge } from '../lib/bridge';
 import { parentDir } from '../lib/transfers';
+import { joinFolder } from '../lib/organize';
 import { useToast } from '../components/toast';
 
 const STATUS_BADGE: Record<DownloadStatus, string> = {
@@ -64,10 +65,11 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
   }, []);
 
   /** Dossier où ce transfert est (ou sera) écrit. */
-  const targetFolder = (item: { savedPath?: string }): string =>
+  const targetFolder = (item: { savedPath?: string; subPath?: string }): string =>
     (item.savedPath ? parentDir(item.savedPath) : '') ||
-    state.settings.downloadFolder ||
-    systemFolder;
+    // Le rangement par cloud et par nature fait partie du chemin annoncé :
+    // sinon la ligne désignerait un dossier qui n'existe pas.
+    joinFolder(state.settings.downloadFolder || systemFolder, item.subPath);
 
   const counts = useMemo(() => {
     const map: Record<string, number> = { all: state.downloads.length };

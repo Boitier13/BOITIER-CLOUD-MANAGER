@@ -19,7 +19,7 @@ import { useGoogleAccountSync, useGoogleClientStatus } from '../hooks/useGoogle'
 import { getBridge, isDesktop } from '../lib/bridge';
 import { isRealAccount, realAccountId } from '../lib/google';
 import { looksLikeGmailVariant } from '../lib/accounts';
-import { formatBytes, formatDate, formatDecimal, normalize, percent } from '../lib/format';
+import { formatBytes, formatDecimal, normalize, percent } from '../lib/format';
 import { Meter, ProviderMark } from '../components/visuals';
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/toast';
@@ -77,17 +77,6 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
   // comptes séparés.
   const gmailAliasAccounts = realAccounts.filter((account) =>
     looksLikeGmailVariant(account.email),
-  );
-
-  /**
-   * Comptes dont l'autorisation précède cette version.
-   *
-   * Leur jeton a été émis pendant la période de test de l'application Google :
-   * il expirera au bout de sept jours. Les autres portent une date de
-   * consentement, donc un jeton durable. Cette liste doit tomber à zéro.
-   */
-  const staleAuthorizations = realAccounts.filter(
-    (account) => account.status === 'connected' && !account.authorizedAt,
   );
 
   const filtered = useMemo(() => {
@@ -254,19 +243,6 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
         </div>
       </div>
 
-      {staleAuthorizations.length > 0 ? (
-        <div className="callout" style={{ marginBottom: 12 }}>
-          <TriangleAlert size={13} style={{ flex: 'none', marginTop: 1 }} />
-          <span>
-            {formatDecimal(staleAuthorizations.length)}{' '}
-            {staleAuthorizations.length > 1 ? 'comptes portent' : 'compte porte'} une
-            autorisation antérieure à cette version : elle expirera au bout de sept jours.
-            Cliquez sur ↻ sur la ligne du compte pour la renouveler — une fois, et elle
-            devient durable.
-          </span>
-        </div>
-      ) : null}
-
       <div className="panel">
         {filtered.length === 0 ? (
           <div className="empty">
@@ -343,18 +319,6 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                     </span>
                   </span>
                   <span className="account-row__email">{account.email}</span>
-                  {isRealAccount(account) && account.status === 'connected' ? (
-                    account.authorizedAt ? (
-                      <span className="account-row__auth">
-                        Autorisation du {formatDate(account.authorizedAt)}
-                      </span>
-                    ) : (
-                      <span className="account-row__auth account-row__auth--todo">
-                        <TriangleAlert size={10} />
-                        Autorisation à renouveler
-                      </span>
-                    )
-                  ) : null}
                 </div>
                 <div className="account-row__status">
                   <span className={`badge ${meta.className}`}>

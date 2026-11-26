@@ -56,6 +56,12 @@ export interface Settings {
   downloadFolder: string;
   concurrent: number;
   confirmDelete: boolean;
+  /**
+   * Ranger chaque transfert dans `<base>\<cloud>\<nature>` — par exemple
+   * `…\Downloads\Google Drive\Vidéos` — au lieu de tout mettre dans un
+   * dossier unique où tout se mélange.
+   */
+  organizeDownloads: boolean;
 }
 
 export interface ExplorerState {
@@ -144,6 +150,7 @@ const DEFAULT_SETTINGS: Settings = {
   downloadFolder: '',
   concurrent: 3,
   confirmDelete: true,
+  organizeDownloads: true,
 };
 
 export function createEmptyState(): AppState {

@@ -492,6 +492,33 @@ try {
   );
 }
 
+/* --- 11bis-quater. Rangement des téléchargements -------------------------- */
+{
+  const { downloadSubPath, categoryFolder, joinFolder, cloudFolder } = await import(
+    '../../src/lib/organize.ts'
+  );
+  check(
+    'rangement : une vidéo va dans « Google Drive\\Vidéos »',
+    downloadSubPath('gdrive', 'video') === 'Google Drive/Vidéos' &&
+      categoryFolder('document') === 'Documents' &&
+      categoryFolder('archive') === 'Archives' &&
+      cloudFolder('gdrive') === 'Google Drive',
+    downloadSubPath('gdrive', 'video'),
+  );
+  check(
+    'rangement : désactivé, aucun sous-dossier n’est créé',
+    downloadSubPath('gdrive', 'video', false) === undefined,
+  );
+  check(
+    'rangement : le chemin suit le séparateur du dossier de base',
+    joinFolder('C:\\Users\\BOITIER_FIRST\\Downloads', 'Google Drive/Vidéos') ===
+      'C:\\Users\\BOITIER_FIRST\\Downloads\\Google Drive\\Vidéos' &&
+      joinFolder('/home/saturnin/Downloads/', 'Google Drive/Audio') ===
+        '/home/saturnin/Downloads/Google Drive/Audio',
+    joinFolder('C:\\Users\\BOITIER_FIRST\\Downloads', 'Google Drive/Vidéos'),
+  );
+}
+
 /* --- 11bis-bis. Thème clair : plus de tons chauds ------------------------- */
 try {
   const { readFile: lire } = await import('node:fs/promises');

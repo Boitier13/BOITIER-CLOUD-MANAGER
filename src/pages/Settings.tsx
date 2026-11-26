@@ -279,6 +279,25 @@ export function Settings() {
           </div>
           <div className="settings-row">
             <div className="settings-row__text">
+              <div className="settings-row__label">Ranger par cloud et par type</div>
+              <div className="settings-row__desc">
+                Classe chaque fichier dans « Google Drive » puis dans un dossier
+                par nature : Vidéos, Audio, Images, Documents, Archives.
+              </div>
+            </div>
+            <div className="settings-row__control">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={settings.organizeDownloads}
+                className={`switch${settings.organizeDownloads ? ' is-on' : ''}`}
+                onClick={() => patch({ organizeDownloads: !settings.organizeDownloads })}
+                aria-label="Ranger par cloud et par type"
+              />
+            </div>
+          </div>
+          <div className="settings-row">
+            <div className="settings-row__text">
               <div className="settings-row__label">Téléchargements simultanés</div>
               <div className="settings-row__desc">
                 Nombre de transferts actifs autorisés dans la file (1 à 6).
