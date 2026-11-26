@@ -16,7 +16,27 @@
  */
 
 import { app } from 'electron';
-import { autoUpdater } from 'electron-updater';
+import { log } from './log.ts';
+
+/**
+ * La bibliothèque de mise à jour est chargée **tardivement**, et son échec ne
+ * peut pas empêcher l'application de démarrer.
+ *
+ * Une dépendance qui lève à l'import arrêtait tout le processus avant même la
+ * première ligne de journal : la fenêtre ne s'ouvrait jamais, sans explication.
+ * Ici, un échec devient un état lisible dans les paramètres, pas un écran vide.
+ */
+type AutoUpdater = typeof import('electron-updater').autoUpdater;
+
+async function loadAutoUpdater(): Promise<AutoUpdater | null> {
+  try {
+    const module = await import('electron-updater');
+    return module.autoUpdater ?? null;
+  } catch (cause) {
+    log(`mise à jour indisponible : ${(cause as Error).message}`);
+    return null;
+  }
+}
 
 export type UpdateStatus =
   | 'unsupported'
@@ -50,6 +70,7 @@ export class Updater {
   private state: UpdateState;
   private timer: NodeJS.Timeout | null = null;
   private wired = false;
+  private updater: AutoUpdater | null = null;
   private readonly notify: (state: UpdateState) => void;
 
   constructor(notify: (state: UpdateState) => void) {
@@ -76,6 +97,19 @@ export class Updater {
   start(): void {
     if (!app.isPackaged || this.wired) return;
     this.wired = true;
+    void this.wire();
+  }
+
+  private async wire(): Promise<void> {
+    const autoUpdater = await loadAutoUpdater();
+    if (!autoUpdater) {
+      this.update({
+        status: 'unsupported',
+        message: 'Mécanisme de mise à jour indisponible dans cette copie.',
+      });
+      return;
+    }
+    this.updater = autoUpdater;
 
     // L'installation attend un clic : fermer l'application ne doit jamais
     // changer de version à l'insu de l'utilisateur.
@@ -133,6 +167,15 @@ export class Updater {
     if (this.state.status === 'downloading' || this.state.status === 'ready') {
       return this.snapshot();
     }
+    const autoUpdater = this.updater ?? (await loadAutoUpdater());
+    this.updater = autoUpdater;
+    if (!autoUpdater) {
+      this.update({
+        status: 'unsupported',
+        message: 'Mécanisme de mise à jour indisponible dans cette copie.',
+      });
+      return this.snapshot();
+    }
     this.update({ status: 'checking', message: undefined });
     try {
       await autoUpdater.checkForUpdates();
@@ -151,7 +194,8 @@ export class Updater {
    * habituelle.
    */
   install(): boolean {
-    if (this.state.status !== 'ready') return false;
+    const autoUpdater = this.updater;
+    if (this.state.status !== 'ready' || !autoUpdater) return false;
     setImmediate(() => autoUpdater.quitAndInstall(false, true));
     return true;
   }

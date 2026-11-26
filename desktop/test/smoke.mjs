@@ -656,15 +656,21 @@ try {
   const { readFile: lire } = await import('node:fs/promises');
   const main = await lire(new URL('../main.ts', import.meta.url), 'utf8');
 
-  const iLog = main.indexOf('startLog();');
+  const startBody = main.slice(main.indexOf('async function start()'));
   const iLock = main.indexOf('requestSingleInstanceLock');
   check(
     'démarrage : le journal est ouvert avant le contrôle d’instance unique',
-    iLog !== -1 && iLock !== -1 && iLog < iLock,
+    (() => {
+      const startBody = main.slice(main.indexOf('async function start()'));
+      const open = startBody.indexOf('startLog();');
+      const lock = startBody.indexOf('await acquireInstanceLock()');
+      return open !== -1 && lock !== -1 && open < lock;
+    })(),
+    'ordre journal / verrou',
   );
   check(
     'démarrage : un lancement refusé laisse une ligne dans le journal',
-    /if \(!app\.requestSingleInstanceLock\(\)\) \{\s*log\(/.test(main),
+    /if \(!\(await acquireInstanceLock\(\)\)\) \{\s*\n\s*log\(/.test(main),
   );
 
   const iSecond = main.indexOf("app.on('second-instance'");
@@ -837,7 +843,7 @@ try {
   check(
     'mise à jour : l’installation passe par un clic, jamais par une vérification',
     (updater.match(/quitAndInstall\(/g) ?? []).length === 1 &&
-      /if \(this\.state\.status !== 'ready'\) return false;/.test(updater),
+      /if \(this\.state\.status !== 'ready' \|\| !autoUpdater\) return false;/.test(updater),
   );
   check(
     'mise à jour : rien ne s’exécute hors d’une installation réelle',
@@ -870,6 +876,60 @@ try {
   check(
     'mise à jour : le paquet ne dépend d’aucun module au démarrage',
     (pkg.build?.files ?? []).includes('!node_modules/**/*'),
+  );
+}
+
+/* --- 22. Démarrage : trace avant tout, verrou patient, fenêtre garantie --- */
+//
+// Trois défauts observés en usage réel, qui donnaient tous le même symptôme —
+// « l'application ne s'ouvre pas » — sans laisser aucune trace :
+//   • un échec au chargement d'un module arrêtait le processus avant la
+//     première ligne de journal ;
+//   • l'installeur relance l'application alors que l'ancien processus meurt
+//     encore : le verrou d'instance refusait, et le nouveau sortait sans rien
+//     afficher ;
+//   • une page qui ne peint jamais laissait une fenêtre invisible, et le
+//     dialogue d'erreur était attaché à cette fenêtre invisible.
+{
+  const { readFile: lire } = await import('node:fs/promises');
+  const boot = await lire(new URL('../boot.ts', import.meta.url), 'utf8');
+  const build = await lire(new URL('../build.mjs', import.meta.url), 'utf8');
+  const main = await lire(new URL('../main.ts', import.meta.url), 'utf8');
+  const updater = await lire(new URL('../updater.ts', import.meta.url), 'utf8');
+
+  check(
+    'démarrage : le point d’entrée ouvre le journal avant le code applicatif',
+    /entryPoints: \['desktop\/boot\.ts'\]/.test(build) &&
+      boot.indexOf('initLog(') !== -1 &&
+      boot.lastIndexOf('initLog(') < boot.lastIndexOf("require('./main.ts')"),
+    'ordre journal / chargement',
+  );
+  check(
+    'démarrage : une exception au chargement est écrite dans le journal et montrée',
+    /process\.on\('uncaughtException'/.test(boot) &&
+      /dialog\.showErrorBox\(/.test(boot) &&
+      /échec \(\$\{origin\}\)/.test(boot),
+  );
+  check(
+    'démarrage : le verrou d’instance est retenté avant d’abandonner',
+    /LOCK_RETRY_DELAYS_MS/.test(main) &&
+      /acquireInstanceLock/.test(main) &&
+      (main.match(/requestSingleInstanceLock\(\)/g) ?? []).length === 1 &&
+      /for \(let attempt = 0; attempt <= LOCK_RETRY_DELAYS_MS\.length/.test(main),
+  );
+  check(
+    'démarrage : la fenêtre s’affiche même si la page ne peint pas',
+    /délai d’affichage atteint/.test(main) && /setTimeout\(\(\) => show\(/.test(main),
+  );
+  check(
+    'démarrage : les messages d’erreur ne sont pas attachés à une fenêtre invisible',
+    /dialog\.showMessageBoxSync\(options\)/.test(main) &&
+      !/showMessageBoxSync\(win, options\)/.test(main),
+  );
+  check(
+    'mise à jour : la bibliothèque est chargée tardivement, sans bloquer le démarrage',
+    /await import\('electron-updater'\)/.test(updater) &&
+      !/^import .*from 'electron-updater'/m.test(updater),
   );
 }
 

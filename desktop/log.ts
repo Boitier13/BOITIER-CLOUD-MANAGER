@@ -38,6 +38,11 @@ export function initLog(dataDir: string): string | null {
   }
 }
 
+/** Chemin du journal, ou `null` s'il n'a pas pu être ouvert. */
+export function logPath(): string | null {
+  return filePath;
+}
+
 /** Ajoute une ligne horodatée. Ne lève jamais : un journal ne doit rien casser. */
 export function log(message: string): void {
   if (!filePath) return;
