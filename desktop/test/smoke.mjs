@@ -843,7 +843,24 @@ try {
   check(
     'mise à jour : l’installation passe par un clic, jamais par une vérification',
     (updater.match(/quitAndInstall\(/g) ?? []).length === 1 &&
-      /if \(this\.state\.status !== 'ready' \|\| !autoUpdater\) return false;/.test(updater),
+      /if \(this\.state\.status !== 'ready' \|\| !autoUpdater\) \{/.test(updater),
+  );
+  check(
+    'mise à jour : le clic d’installation laisse une trace',
+    /log\(`mise à jour : installation demandée/.test(updater) &&
+      updater.indexOf('installation demandée') < updater.indexOf('quitAndInstall('),
+    'aucune trace du clic',
+  );
+  check(
+    'mise à jour : un installeur qui refuse de partir est signalé',
+    /catch \(cause\) \{\s*log\(`mise à jour : installeur impossible/.test(updater) &&
+      /message: 'L’installeur n’a pas pu être lancé/.test(updater),
+    'échec silencieux',
+  );
+  check(
+    'mise à jour : le planning des vérifications est journalisé',
+    /log\(`mise à jour : première vérification dans/.test(updater),
+    'planning absent du journal',
   );
   check(
     'mise à jour : rien ne s’exécute hors d’une installation réelle',

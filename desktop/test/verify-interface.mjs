@@ -1433,6 +1433,101 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   );
 }
 
+/* --- 13. Accords : « 1 transfert », pas « 1 transferts » ------------------- */
+//
+// Vu sur une capture : « 0 favoris · 1 transferts ». Le reste de l'application
+// accorde (compte/comptes, résultat/résultats) ; cette ligne ne le faisait pas.
+{
+  const accords = await parcours({
+    label: 'pluriels',
+    storage: {
+      key: 'boitier-cloud-manager:v1',
+      value: {
+        version: 1,
+        accounts: [
+          {
+            id: 'g-1',
+            googleId: 'g-1',
+            source: 'google',
+            provider: 'gdrive',
+            name: 'Boitier',
+            email: 'boitierecup@gmail.com',
+            address: 'boitierecup@gmail.com',
+            usedBytes: 1,
+            quotaBytes: 100,
+            favorite: false,
+            connectedAt: '2026-11-01T10:00:00.000Z',
+          },
+        ],
+        favorites: [],
+        downloads: [
+          {
+            id: 'fini',
+            name: 'Conference.mp4',
+            type: 'video',
+            size: 93 * 1024 ** 2,
+            received: 0,
+            speed: 0,
+            baseSpeed: 0,
+            status: 'active',
+            provider: 'gdrive',
+            accountId: 'g-1',
+            accountName: 'Boitier',
+            path: [],
+            addedAt: '2026-11-25T00:00:00.000Z',
+            remoteId: 'v1',
+            remoteAccount: 'g-1',
+          },
+        ],
+        settings: { downloadFolder: 'D:\\Médias\\Téléchargements' },
+        explorer: { accountId: 'g-1', path: [] },
+      },
+    },
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      google: {
+        status: async () => ({ configured: true, source: 'env' }),
+        accounts: async () => [
+          {
+            accountId: 'g-1',
+            name: 'Boitier',
+            email: 'boitierecup@gmail.com',
+            usedBytes: 1,
+            quotaBytes: 100,
+            status: 'connected',
+          },
+        ],
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+      },
+    },
+  });
+
+  const { doc } = accords;
+  const versParametres = [...doc.querySelectorAll('.nav-item')].find((button) =>
+    (button.textContent ?? '').includes('Paramètres'),
+  );
+  if (versParametres) await accords.click(versParametres);
+  const corps = doc.body.textContent ?? '';
+
+  // Pas de `\b` ici : le libellé est suivi immédiatement du bouton
+  // (« 1 transfertRéinitialiser »), donc sans frontière de mot.
+  check(
+    'accords : « 1 transfert » au singulier',
+    /1 transfert(?!s)/.test(corps) && !/1 transferts/.test(corps),
+    corps.match(/[0-9] transferts?/)?.[0] ?? 'mention absente',
+  );
+  check(
+    'accords : « 0 favori » au singulier, comme partout ailleurs',
+    /0 favori(?!s)/.test(corps) && !/0 favoris/.test(corps),
+    corps.match(/[0-9] favoris?/)?.[0] ?? 'mention absente',
+  );
+}
+
 console.log(
   failures === 0
     ? '\nInterface vérifiée : état vide maîtrisé, compte réel affiché, aucun décor.'

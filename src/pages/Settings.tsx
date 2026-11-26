@@ -363,8 +363,10 @@ export function Settings() {
               <div className="settings-row__desc">
                 {formatNumber(state.accounts.length)} compte
                 {state.accounts.length > 1 ? 's' : ''} · {formatBytes(totalUsed)} indexés ·{' '}
-                {formatDecimal(state.favorites.length)} favoris ·{' '}
-                {formatDecimal(state.downloads.length)} transferts
+                {formatDecimal(state.favorites.length)} favori
+                {state.favorites.length > 1 ? 's' : ''} ·{' '}
+                {formatDecimal(state.downloads.length)} transfert
+                {state.downloads.length > 1 ? 's' : ''}
               </div>
             </div>
             <div className="settings-row__control">

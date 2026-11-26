@@ -155,6 +155,7 @@ export class Updater {
   }
 
   private schedule(): void {
+    log(`mise à jour : première vérification dans ${Math.round(FIRST_CHECK_DELAY_MS / 1000)} s`);
     setTimeout(() => void this.check(), FIRST_CHECK_DELAY_MS);
     this.timer = setInterval(() => void this.check(), PERIOD_MS);
     // Un minuteur ne doit pas retenir l'application ouverte.
@@ -176,6 +177,7 @@ export class Updater {
       });
       return this.snapshot();
     }
+    log('mise à jour : vérification demandée');
     this.update({ status: 'checking', message: undefined });
     try {
       await autoUpdater.checkForUpdates();
@@ -195,8 +197,26 @@ export class Updater {
    */
   install(): boolean {
     const autoUpdater = this.updater;
-    if (this.state.status !== 'ready' || !autoUpdater) return false;
-    setImmediate(() => autoUpdater.quitAndInstall(false, true));
+    if (this.state.status !== 'ready' || !autoUpdater) {
+      log(`mise à jour : installation refusée (${this.state.status})`);
+      return false;
+    }
+    // Cette ligne est la seule preuve que l'installation a été *demandée* :
+    // les états (vérifiée, téléchargée, prête) se lisent déjà dans le journal,
+    // mais pas le clic. En cas d'échec silencieux, c'est elle qui tranche.
+    log(`mise à jour : installation demandée ${this.state.version ?? ''}`.trim());
+    setImmediate(() => {
+      try {
+        autoUpdater.quitAndInstall(false, true);
+        log('mise à jour : installeur lancé, fermeture de l’application');
+      } catch (cause) {
+        log(`mise à jour : installeur impossible — ${(cause as Error).message}`);
+        this.update({
+          status: 'error',
+          message: 'L’installeur n’a pas pu être lancé. La version téléchargée reste disponible.',
+        });
+      }
+    });
     return true;
   }
 
