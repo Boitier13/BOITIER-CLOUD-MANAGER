@@ -56,6 +56,46 @@ export async function probeAccountsStrict(): Promise<GoogleAccountInfo[] | null>
   }
 }
 
+/** Écrit une ligne dans le journal de démarrage, si le pont le permet. */
+export function noteJournal(message: string): void {
+  try {
+    getBridge()?.note?.(message);
+  } catch {
+    /* journal indisponible : ce n'est jamais une raison d'échouer */
+  }
+}
+
+/** Compte existant correspondant à une entrée du coffre. */
+function existingFor(accounts: Account[], info: GoogleAccountInfo): Account | undefined {
+  return (
+    accounts.find((account) => isRealAccount(account) && account.googleId === info.accountId) ??
+    accounts.find(
+      (account) => account.provider === 'gdrive' && account.email === info.email,
+    )
+  );
+}
+
+/**
+ * Lit le coffre et applique la liste à l'état de l'application.
+ *
+ * Lève si l'appel échoue, au lieu de renvoyer une liste vide : c'est à
+ * l'appelant de décider quoi faire d'un échec, et de réessayer. Une lecture
+ * impossible ne doit jamais passer pour « aucun compte ».
+ */
+export async function syncGoogleAccounts(
+  accounts: Account[],
+  dispatch: (action: { type: 'account/sync'; accounts: Account[] }) => void,
+): Promise<{ received: number }> {
+  const bridge = getBridge();
+  if (!bridge) throw new Error('pont indisponible');
+  const infos = await bridge.google.accounts();
+  dispatch({
+    type: 'account/sync',
+    accounts: infos.map((info) => toAccount(info, existingFor(accounts, info))),
+  });
+  return { received: infos.length };
+}
+
 /**
  * Convertit un compte Google en compte d'application.
  * `usedBytes`/`quotaBytes` proviennent du quota réel ; un quota illimité

@@ -22,6 +22,7 @@ import { BrandMark } from '../components/BrandMark';
 import { useToast } from '../components/toast';
 import { getBridge, isDesktop, type GoogleVaultReport } from '../lib/bridge';
 import { useGoogleClientStatus } from '../hooks/useGoogle';
+import { syncGoogleAccounts } from '../lib/google';
 import { describeUpdate, useUpdater } from '../hooks/useUpdater';
 
 // Plus de liste inventée : le dossier par défaut est celui du système, et le
@@ -41,6 +42,7 @@ export function Settings() {
    */
   const [coffre, setCoffre] = useState<GoogleVaultReport | null>(null);
   const [coffreErreur, setCoffreErreur] = useState('');
+  const [reaffiche, setReaffiche] = useState('');
   const updater = useUpdater();
   /** Chemin réel du dossier système : sans lui, ce réglage reste abstrait. */
   const [systemFolder, setSystemFolder] = useState('');
@@ -440,8 +442,35 @@ export function Settings() {
                   ) : null}
                 </div>
               ) : null}
+              {reaffiche ? (
+                <div className="settings-row__desc" style={{ marginTop: 6 }}>
+                  {reaffiche}
+                </div>
+              ) : null}
             </div>
             <div className="settings-row__control">
+              <button
+                type="button"
+                className="btn btn--sm"
+                title="Relire le coffre et rétablir les comptes à l’écran"
+                onClick={() => {
+                  void (async () => {
+                    try {
+                      const { received } = await syncGoogleAccounts(
+                        state.accounts,
+                        (action) => dispatch(action),
+                      );
+                      setReaffiche(`${received} compte(s) relu(s) — liste mise à jour`);
+                    } catch (cause) {
+                      setReaffiche(
+                        `Lecture impossible : ${cause instanceof Error ? cause.message : String(cause)}`,
+                      );
+                    }
+                  })();
+                }}
+              >
+                Réafficher
+              </button>
               <button
                 type="button"
                 className="btn btn--sm"

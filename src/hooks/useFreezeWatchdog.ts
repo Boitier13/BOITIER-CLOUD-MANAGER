@@ -52,9 +52,12 @@ export function useFreezeWatchdog(ecran: string): void {
     const visible = () => document.visibilityState === 'visible';
 
     // 1a. Blocages longs : le minuteur reprend en retard, l'écart est le temps perdu.
-    let attendu = Date.now() + PERIODE_MS;
+    // Horloge monotone : `Date.now()` saute quand Windows resynchronise l'heure
+    // ou sort de veille, et produisait des « figements » de 59,5 s sans aucun
+    // blocage réel.
+    let attendu = performance.now() + PERIODE_MS;
     const minuteur = window.setInterval(() => {
-      const maintenant = Date.now();
+      const maintenant = performance.now();
       const retard = maintenant - attendu;
       if (retard > SEUIL_MINUTEUR_MS && visible()) {
         signaler(retard, contexte('interface'));
@@ -67,7 +70,7 @@ export function useFreezeWatchdog(ecran: string): void {
     // Au retour, on repart d'une mesure propre : le temps d'arrière-plan a déjà
     // été écarté ci-dessus, et le minuteur peut avoir été étranglé.
     const onVisibility = () => {
-      attendu = Date.now() + PERIODE_MS;
+      attendu = performance.now() + PERIODE_MS;
     };
     document.addEventListener('visibilitychange', onVisibility);
 

@@ -29,9 +29,9 @@ import {
 } from './lib/cloud';
 import {
   isRealAccount,
-  probeAccountsStrict,
+  noteJournal,
   realAccountId,
-  toAccount,
+  syncGoogleAccounts,
 } from './lib/google';
 import { mergeSyncedAccounts } from './lib/accountSync';
 
@@ -106,6 +106,8 @@ export type Action =
   | { type: 'route'; route: Route }
   | { type: 'account/upsert'; account: Account }
   | { type: 'account/sync'; accounts: Account[] }
+  /** Plusieurs comptes en une seule action (MEGA : onze comptes au démarrage). */
+  | { type: 'account/addMany'; accounts: Account[] }
   | {
       type: 'account/patch';
       id: string;
@@ -275,6 +277,28 @@ function reducer(state: AppState, action: Action): AppState {
             )
           : [...state.accounts, action.account],
       };
+    }
+
+    case 'account/addMany': {
+      // Une action, un rendu. Onze dispatches successifs pour onze comptes MEGA
+      // provoquaient onze passages de rendu au montage de l'écran.
+      let accounts = state.accounts;
+      let modifie = false;
+      for (const account of action.accounts) {
+        const index = accounts.findIndex((item) => item.id === account.id);
+        if (index < 0) {
+          if (accounts === state.accounts) accounts = [...state.accounts];
+          accounts.push(account);
+          modifie = true;
+          continue;
+        }
+        const fusionne = mergeAccount(accounts[index], account);
+        if (fusionne === accounts[index]) continue;
+        if (accounts === state.accounts) accounts = [...state.accounts];
+        accounts[index] = fusionne;
+        modifie = true;
+      }
+      return modifie ? { ...state, accounts } : state;
     }
 
     case 'account/sync': {
@@ -679,36 +703,71 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!bridge) return;
     let cancelled = false;
 
-    const sync = async () => {
-      // `null` = l'appel a échoué (pas « aucun compte »). Dans ce cas on ne
-      // touche à rien : une liste vide effacerait tous les comptes de l'écran,
-      // alors que le coffre, lui, est intact.
-      const infos = await probeAccountsStrict();
-      if (cancelled) return;
-      if (!infos) return;
-      dispatch({
-        type: 'account/sync',
-        accounts: infos.map((info) =>
-          toAccount(
-            info,
-            stateRef.current.accounts.find(
-              (account) =>
-                isRealAccount(account) && account.googleId === info.accountId,
-            ) ?? stateRef.current.accounts.find(
-              (account) =>
-                account.provider === 'gdrive' && account.email === info.email,
-            ),
-          ),
-        ),
-      });
+    /**
+     * Synchronisation du coffre vers l'écran, avec réessais.
+     *
+     * Un appel qui échoue au démarrage — processus principal encore occupé,
+     * canal pas encore prêt — laissait l'écran en l'état : les comptes du
+     * coffre n'apparaissaient pas, et rien ne le signalait. On réessaie donc
+     * quelques fois, on note le résultat, et on retente au retour de la fenêtre.
+     */
+    const tenter = async (essai: number): Promise<boolean> => {
+      try {
+        const { received } = await syncGoogleAccounts(
+          stateRef.current.accounts,
+          (action) => dispatch(action),
+        );
+        if (!cancelled && essai > 0) {
+          noteJournal(`comptes : coffre relu au ${essai + 1}ᵉ essai · ${received} reçu(s)`);
+        }
+        return true;
+      } catch (cause) {
+        if (!cancelled) {
+          const message = cause instanceof Error ? cause.message : String(cause);
+          noteJournal(`comptes : lecture du coffre échouée (${message}) · essai ${essai + 1}`);
+        }
+        return false;
+      }
     };
 
-    void sync();
+    const delais = [0, 400, 1200, 2500, 5000];
+    void (async () => {
+      for (let essai = 0; essai < delais.length; essai += 1) {
+        if (cancelled) return;
+        if (delais[essai]) await new Promise((resolve) => setTimeout(resolve, delais[essai]));
+        if (cancelled) return;
+        if (await tenter(essai)) return;
+      }
+    })();
+
+    // Retour de la fenêtre : une seule lecture, pas de réveil périodique.
+    const auRetour = () => {
+      if (document.visibilityState === 'visible' && !cancelled) void tenter(0);
+    };
+    document.addEventListener('visibilitychange', auRetour);
+
     return () => {
       cancelled = true;
+      document.removeEventListener('visibilitychange', auRetour);
     };
     // Ne dépend d'aucun état : la synchronisation est déclenchée explicitement.
   }, []);
+
+  /**
+   * Nombre de comptes Google réellement à l'écran, noté dès qu'il change.
+   *
+   * C'est la ligne qui manquait : « 9 relus dans le coffre, 2 affichés » se lit
+   * désormais au lieu de se deviner.
+   */
+  const googleAffiches = state.accounts.filter(
+    (account) => account.provider === 'gdrive' && isRealAccount(account),
+  ).length;
+  const googleNote = useRef(-1);
+  useEffect(() => {
+    if (googleNote.current === googleAffiches) return;
+    googleNote.current = googleAffiches;
+    noteJournal(`comptes : ${googleAffiches} compte(s) Google à l'écran`);
+  }, [googleAffiches]);
 
   // Progression réelle des transferts pilotés par le processus principal.
   useEffect(() => {
