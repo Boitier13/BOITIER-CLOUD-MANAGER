@@ -11,9 +11,10 @@
  * la lecture échoue proprement et l'application redemande le mot de passe.
  */
 
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Protect, Unprotect } from '../google/vault.ts';
+import { log } from '../log.ts';
 
 /** Session sérialisée par `megajs` — sans les identifiants de connexion. */
 export interface MegaSessionJson {
@@ -68,6 +69,12 @@ export class MegaVault {
   private readonly protect: Protect;
   private readonly unprotect: Unprotect;
   private writing: Promise<void> = Promise.resolve();
+  /**
+   * Le fichier existe mais n'a pas pu être déchiffré : on refuse alors toute
+   * écriture, sinon la première connexion écraserait les sessions des autres
+   * comptes (ils faudrait tous les reconnecter).
+   */
+  private illisible = false;
 
   constructor(dir: string, protect: Protect, unprotect: Unprotect) {
     this.dir = dir;
@@ -80,19 +87,34 @@ export class MegaVault {
   }
 
   async read(): Promise<MegaStoredAccount[]> {
+    let existe = true;
+    try {
+      await stat(this.file);
+    } catch {
+      existe = false;
+    }
+    if (!existe) return [];
+
     try {
       const chiffre = await readFile(this.file);
       const clair = this.unprotect(chiffre);
-      if (!clair) return [];
+      if (!clair) throw new Error('déchiffrement impossible');
       return sanitize(JSON.parse(clair)).accounts;
-    } catch {
-      // Fichier absent ou illisible : aucun compte MEGA, jamais une erreur
-      // bloquante au démarrage.
+    } catch (cause) {
+      this.illisible = true;
+      log(
+        `coffre MEGA : fichier illisible (${(cause as Error).message}) — écritures bloquées`,
+      );
       return [];
     }
   }
 
   async write(accounts: MegaStoredAccount[]): Promise<void> {
+    if (this.illisible) {
+      throw new Error(
+        'Coffre MEGA illisible : écritures bloquées pour ne pas effacer les comptes.',
+      );
+    }
     const contenu = JSON.stringify({ version: 1, accounts } satisfies MegaVaultData);
     const chiffre = this.protect(contenu);
     if (!chiffre) throw new Error('le chiffrement du système est indisponible');
@@ -101,6 +123,8 @@ export class MegaVault {
       const temporaire = `${this.file}.tmp`;
       await writeFile(temporaire, chiffre, { mode: 0o600 });
       await rename(temporaire, this.file);
+      // Copie de secours tenue à jour : une session cassée reste récupérable.
+      await copyFile(this.file, `${this.file}.bak`).catch(() => undefined);
     });
     await this.writing;
   }

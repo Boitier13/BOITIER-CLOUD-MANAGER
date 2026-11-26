@@ -1348,6 +1348,180 @@ try {
   await rm(dossier, { recursive: true, force: true }).catch(() => undefined);
 }
 
+/* --- 31. Les comptes ne doivent jamais disparaître ----------------------- */
+//
+// Incident réel : après la connexion de 11 comptes MEGA, la liste des comptes
+// Google est tombée de 9 à 2. Trois défauts pouvaient produire ce genre de
+// perte ; les trois sont désormais interdits et vérifiés ici.
+{
+  const fichier = await mkdtemp(join(tmpdir(), 'boitier-comptes-'));
+
+  // 1. La synchronisation Google ne touche qu'aux comptes Google.
+  const { build } = await import('esbuild');
+  const { fileURLToPath, pathToFileURL } = await import('node:url');
+  const sortie = join(fichier, 'accountSync.mjs');
+  await build({
+    entryPoints: [fileURLToPath(new URL('../../src/lib/accountSync.ts', import.meta.url))],
+    outfile: sortie,
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    logLevel: 'silent',
+  });
+  const { mergeSyncedAccounts } = await import(pathToFileURL(sortie).href);
+
+  const google = (id, email) => ({
+    id: `gdrive-real-${id}`,
+    provider: 'gdrive',
+    name: email.split('@')[0],
+    email,
+    status: 'connected',
+    usedBytes: 1,
+    quotaBytes: 2,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    seed: 7,
+    source: 'google',
+    googleId: id,
+    localTree: false,
+  });
+  const mega = (id) => ({
+    id: `mega-real-${id}`,
+    provider: 'mega',
+    name: `mega-${id}`,
+    email: `${id}@exemple.com`,
+    status: 'connected',
+    usedBytes: 1,
+    quotaBytes: 2,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    seed: 11,
+    source: 'mega',
+    megaId: id,
+    localTree: false,
+  });
+
+  const avant = [google('g1', 'un@gmail.com'), google('g2', 'deux@gmail.com'), mega('m1'), mega('m2')];
+  const apres = mergeSyncedAccounts(avant, [google('g1', 'un@gmail.com')]);
+  check(
+    'comptes : une synchronisation Google ne retire pas les comptes MEGA',
+    apres.filter((compte) => compte.provider === 'mega').length === 2 &&
+      apres.some((compte) => compte.id === 'gdrive-real-g1'),
+    `${apres.filter((c) => c.provider === 'mega').length} MEGA survivant(s)`,
+  );
+  check(
+    'comptes : un compte Google absent du coffre est bien retiré',
+    !apres.some((compte) => compte.id === 'gdrive-real-g2'),
+    'compte fantôme conservé',
+  );
+  check(
+    'comptes : une liste vide retire les comptes Google mais garde les autres',
+    mergeSyncedAccounts(avant, []).every((compte) => compte.provider !== 'gdrive'),
+    'liste vide mal appliquée',
+  );
+
+  // 2. Le coffre Google refuse d'écrire ce qu'il n'a pas su relire.
+  const { Vault } = await import('../google/vault.ts');
+  const sceller = (clair) => Buffer.from(`k:${clair}`, 'utf8');
+  const desceller = (chiffre) => {
+    const texte = chiffre.toString('utf8');
+    return texte.startsWith('k:') ? texte.slice(2) : null;
+  };
+
+  const dossierCoffre = join(fichier, 'coffre');
+  const { mkdir: creerDossier } = await import('node:fs/promises');
+  await creerDossier(dossierCoffre, { recursive: true });
+
+  const compte = (id) => ({
+    id,
+    name: id,
+    email: `${id}@gmail.com`,
+    usedBytes: 0,
+    quotaBytes: 0,
+    status: 'connected',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    tokens: { accessToken: `jeton-${id}`, expiresAt: Date.now() + 3600_000 },
+  });
+
+  const coffre = new Vault(dossierCoffre, sceller, desceller);
+  await coffre.update((brouillon) => {
+    brouillon.accounts.push(compte('a1'));
+  });
+  check(
+    'coffre : un compte ajouté est relu au lancement suivant',
+    (await new Vault(dossierCoffre, sceller, desceller).read()).accounts.length === 1,
+    'compte non relu',
+  );
+
+  // Deux enregistrements simultanés ne doivent pas se recouvrir.
+  const coffre2 = new Vault(dossierCoffre, sceller, desceller);
+  await Promise.all([
+    coffre2.update((brouillon) => brouillon.accounts.push(compte('b1'))),
+    coffre2.update((brouillon) => brouillon.accounts.push(compte('b2'))),
+  ]);
+  const relus = (await new Vault(dossierCoffre, sceller, desceller).read()).accounts;
+  check(
+    'coffre : deux enregistrements simultanés sont tous les deux conservés',
+    relus.some((c) => c.id === 'b1') && relus.some((c) => c.id === 'b2'),
+    `${relus.length} compte(s) : ${relus.map((c) => c.id).join(', ')}`,
+  );
+
+  // Fichier illisible sans sauvegarde : aucune écriture ne doit l'écraser.
+  const dossierCasse = join(fichier, 'coffre-casse');
+  await creerDossier(dossierCasse, { recursive: true });
+  const { writeFile: ecrire } = await import('node:fs/promises');
+  await ecrire(join(dossierCasse, 'google-accounts.enc'), 'pas du tout un coffre');
+  const coffreCasse = new Vault(dossierCasse, sceller, desceller);
+  let refus = false;
+  try {
+    await coffreCasse.update((brouillon) => brouillon.accounts.push(compte('x1')));
+  } catch {
+    refus = true;
+  }
+  const contenuApres = await readFile(join(dossierCasse, 'google-accounts.enc'), 'utf8');
+  check(
+    'coffre : un fichier illisible est protégé, jamais écrasé',
+    refus && contenuApres === 'pas du tout un coffre',
+    refus ? 'fichier modifié malgré le refus' : 'écriture acceptée sur un coffre illisible',
+  );
+
+  // Sauvegarde de secours : le coffre déchiffrable précédent est restauré.
+  const dossierSauve = join(fichier, 'coffre-sauve');
+  await creerDossier(dossierSauve, { recursive: true });
+  const coffreSain = new Vault(dossierSauve, sceller, desceller);
+  await coffreSain.update((brouillon) => brouillon.accounts.push(compte('s1')));
+  await coffreSain.update((brouillon) => brouillon.accounts.push(compte('s2')));
+  // Sauvegarde présente (créée au premier écrasement), fichier principal cassé.
+  await ecrire(join(dossierSauve, 'google-accounts.enc'), 'corrompu');
+  const restaure = new Vault(dossierSauve, sceller, desceller);
+  const contenuRestaure = await restaure.read();
+  check(
+    'coffre : une sauvegarde lisible est restaurée quand le fichier principal est cassé',
+    contenuRestaure.accounts.length >= 1,
+    `${contenuRestaure.accounts.length} compte(s) restauré(s)`,
+  );
+
+  // 3. Le coffre MEGA se protège de la même façon.
+  const { MegaVault } = await import('../mega/store.ts');
+  const dossierMega = join(fichier, 'mega-casse');
+  await creerDossier(dossierMega, { recursive: true });
+  await ecrire(join(dossierMega, 'mega-sessions.enc'), 'illisible');
+  const megaCoffre = new MegaVault(dossierMega, sceller, desceller);
+  check('MEGA : un coffre illisible ne renvoie aucun compte', (await megaCoffre.read()).length === 0);
+  let megaRefus = false;
+  try {
+    await megaCoffre.write([]);
+  } catch {
+    megaRefus = true;
+  }
+  check(
+    'MEGA : un coffre illisible refuse toute écriture',
+    megaRefus &&
+      (await readFile(join(dossierMega, 'mega-sessions.enc'), 'utf8')) === 'illisible',
+    'sessions MEGA écrasées',
+  );
+
+  await rm(fichier, { recursive: true, force: true }).catch(() => undefined);
+}
+
 /* --- 30. Le paquet se charge sans dépendance absente --------------------- */
 //
 // `megajs` (protocole MEGA) est empaqueté dans `main.cjs`, et `node_modules`

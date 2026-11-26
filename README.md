@@ -269,6 +269,34 @@ Le bouton **Ouvrir dans Drive** comble le manque sans changer cette promesse :
 il ouvre le dossier consulté dans Google Drive, où le glisser-déposer est prévu
 pour cela. Aucune reconnexion de compte n'est nécessaire.
 
+### Les comptes ne doivent jamais disparaître
+
+Un incident réel : après la connexion de 11 comptes MEGA, la liste est tombée de
+9 à 2 comptes Google. Trois défauts pouvaient produire ce genre de perte ; les
+trois sont désormais interdits.
+
+| Défaut possible | Correction |
+| --- | --- |
+| La synchronisation Google retirait **tout compte « réel » absent du coffre** — depuis que MEGA est un fournisseur réel, cela effaçait les comptes MEGA à chaque démarrage | la règle ne concerne plus que les comptes Google, et vit dans `src/lib/accountSync.ts`, vérifiée par un test |
+| Un **échec** d'appel au processus principal était confondu avec « aucun compte » : la liste vide effaçait alors tous les comptes de l'écran | `probeAccountsStrict()` distingue les deux ; sur un échec, la synchronisation **s'abstient** |
+| Un coffre **illisible** (profil Windows, antivirus, fichier verrouillé) repartait d'un coffre vide, et la première écriture écrasait les jetons | un coffre illisible **refuse toute écriture**, une copie de secours `.bak` est tenue à jour et restaurée au lancement, et les écritures sont sérialisées |
+
+Le journal de démarrage dit désormais, à chaque lancement :
+
+```
+coffre : 9 compte(s) Google relu(s)
+```
+
+et signale toute écriture qui ferait **baisser** ce nombre :
+
+```
+coffre : 2 compte(s) écrit(s), contre 9 avant
+```
+
+C'est la trace qui manquait pour comprendre une disparition. Un jeton Google ne
+se reconstitue pas : si le coffre a réellement perdu des comptes, il faut les
+reconnecter — mais l'application ne peut plus le faire en silence.
+
 ### Ce que les chiffres du stockage veulent dire
 
 Deux confusions rendaient l’écran Stockage trompeur ; les deux sont corrigées.
@@ -365,7 +393,7 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 145 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 154 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
@@ -378,7 +406,8 @@ npm run desktop:test      # 145 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # patient, défilement, traces de mise à jour,
                           # notification de fin de transfert, repères de
                           # démarrage, MEGA : session chiffrée et
-                          # conversions de fichiers) —
+                          # conversions de fichiers, coffre protégé contre
+                          # la perte de comptes) —
                           # sans réseau, faux Google
 npm run verify:interface  # les écrans sans compte, avec un compte simulé,
                           # avec neuf comptes, et la recherche à deux portées
