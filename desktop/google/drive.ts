@@ -302,17 +302,32 @@ export async function readFileMeta(
 }
 
 /** Ouvre le flux binaire d'un fichier (téléchargement réel). */
+/**
+ * Ouvre le flux binaire d'un fichier Drive, éventuellement **à partir d'un
+ * octet donné**.
+ *
+ * `from > 0` envoie `Range: bytes=<from>-`. Google répond alors `206` avec
+ * l'intervalle réellement servi ; s'il répond `200`, il ignore la plage et
+ * renvoie tout le fichier — auquel cas `resumed` vaut `false` et l'appelant
+ * doit repartir de zéro plutôt que d'ajouter le fichier à la suite du partiel,
+ * ce qui produirait un fichier corrompu de taille double.
+ */
 export async function openMedia(
   endpoints: Endpoints,
   token: string,
   fileId: string,
   signal?: AbortSignal,
-): Promise<{ body: ReadableStream<Uint8Array>; size?: number }> {
+  from = 0,
+): Promise<{ body: ReadableStream<Uint8Array>; size?: number; start: number; resumed: boolean }> {
   const url = new URL(`${endpoints.drive}/files/${encodeURIComponent(fileId)}`);
   url.searchParams.set('alt', 'media');
   url.searchParams.set('supportsAllDrives', 'true');
 
-  const response = await fetch(url.toString(), { headers: bearer(token), signal });
+  const debut = Number.isFinite(from) && from > 0 ? Math.floor(from) : 0;
+  const response = await fetch(url.toString(), {
+    headers: debut > 0 ? { ...bearer(token), range: `bytes=${debut}-` } : bearer(token),
+    signal,
+  });
   if (!response.ok || !response.body) {
     const error = new Error(`Téléchargement refusé par Drive (${response.status}).`) as Error & {
       status?: number;
@@ -320,9 +335,24 @@ export async function openMedia(
     error.status = response.status;
     throw error;
   }
+
+  const partiel = response.status === 206;
+  const intervalle = /bytes\s+(\d+)-(\d+)\/(\d+|\*)/i.exec(
+    response.headers.get('content-range') ?? '',
+  );
+  const total = intervalle ? Number(intervalle[3]) : 0;
   const length = Number(response.headers.get('content-length') ?? 0);
+
+  // Taille complète : celle annoncée dans `content-range` (reprise), sinon
+  // celle du corps (téléchargement entier).
+  const size = Number.isFinite(total) && total > 0 ? total : Number.isFinite(length) && length > 0
+    ? length + (partiel ? debut : 0)
+    : 0;
+
   return {
     body: response.body,
-    ...(Number.isFinite(length) && length > 0 ? { size: length } : {}),
+    ...(size > 0 ? { size } : {}),
+    start: partiel ? Number(intervalle?.[1] ?? debut) : 0,
+    resumed: partiel,
   };
 }
