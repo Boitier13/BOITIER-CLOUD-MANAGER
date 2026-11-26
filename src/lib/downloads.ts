@@ -82,17 +82,33 @@ export function createDownload(args: CreateArgs): DownloadItem {
  * - Les transferts terminés sont marqués « done ».
  * - Les transferts en attente démarrent tant que la limite est respectée.
  */
+/**
+ * Avance la file simulée d'un cran.
+ *
+ * **Retourne le tableau reçu à l'identique quand rien ne change.** Ce n'est pas
+ * une coquetterie : l'application appelle cette fonction toutes les 900 ms, et
+ * un tableau neuf — même rempli d'objets identiques — suffisait à produire un
+ * nouvel état global, donc à repeindre toute l'interface et à réécrire le
+ * stockage local, indéfiniment, pour une file vide de travail. C'est ce qui
+ * rendait l'application pâteuse dès qu'un seul transfert (même terminé)
+ * figurait dans la liste.
+ */
 export function advanceDownloads(
   items: DownloadItem[],
   concurrent: number,
   elapsedMs: number,
 ): DownloadItem[] {
+  if (!items.length) return items;
+
   const dt = Math.min(elapsedMs, 2000) / 1000;
   const limit = Math.max(1, Math.min(6, concurrent));
 
+  // `simule` : au moins un transfert simulé a réellement bougé.
+  let simule = false;
   const advanced = items.map((item) => {
     // Les transferts réels (pilotés par Electron) ont leurs propres mesures.
     if (item.status !== 'active' || item.remoteId) return item;
+    simule = true;
     const speed = Math.round(item.baseSpeed * (0.78 + Math.random() * 0.44));
     const received = Math.min(item.size, item.received + speed * dt);
     if (received >= item.size) {
@@ -120,6 +136,12 @@ export function advanceDownloads(
     }
     return next;
   }
+
+  const aDemarrer =
+    activeCount < limit && advanced.some((item) => item.status === 'queued');
+
+  // Rien à avancer, rien à démarrer : même référence, donc aucun rendu.
+  if (!simule && !aDemarrer) return items;
 
   if (activeCount >= limit) return advanced;
 

@@ -1007,6 +1007,114 @@ try {
   );
 }
 
+/* --- 24. File de téléchargements : un tick sans travail ne réveille rien ---- */
+//
+// Défaut signalé : « l'application se fige beaucoup, elle est devenue
+// instable ». Cause trouvée en lisant l'état : `advanceDownloads` construisait
+// un tableau neuf à chaque appel, toutes les 900 ms, même quand rien n'avançait.
+// Un nouvel état global → toute l'interface repeinte et le stockage réécrit,
+// indéfiniment, dès qu'un seul transfert (même terminé) restait dans la liste.
+{
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { pathToFileURL } = await import('node:url');
+  const { build } = await import('esbuild');
+
+  const sortie = join(tmpdir(), `boitier-downloads-${process.pid}.mjs`);
+  await build({
+    entryPoints: [new URL('../../src/lib/downloads.ts', import.meta.url).pathname],
+    bundle: true,
+    format: 'esm',
+    platform: 'node',
+    outfile: sortie,
+    logLevel: 'silent',
+  });
+  const { advanceDownloads } = await import(pathToFileURL(sortie).href);
+
+  const transfert = (extra = {}) => ({
+    id: 't1',
+    name: 'Conference.mp4',
+    type: 'video',
+    size: 1000,
+    received: 1000,
+    speed: 0,
+    baseSpeed: 0,
+    status: 'done',
+    provider: 'gdrive',
+    accountId: 'g-1',
+    accountName: 'Boitier',
+    path: [],
+    addedAt: '2026-11-01T00:00:00.000Z',
+    ...extra,
+  });
+
+  const termine = [transfert()];
+  check(
+    'file : un tick sans travail rend le même tableau',
+    advanceDownloads(termine, 3, 900) === termine,
+  );
+
+  const reel = [transfert({ status: 'active', remoteId: 'r1', received: 10 })];
+  check(
+    'file : un transfert réel en cours ne provoque aucun nouvel état',
+    advanceDownloads(reel, 3, 900) === reel,
+  );
+
+  const simule = [transfert({ status: 'active', received: 0, baseSpeed: 1000 })];
+  const avance = advanceDownloads(simule, 3, 900);
+  check(
+    'file : un transfert simulé avance réellement',
+    avance !== simule && avance[0].received > 0,
+    `${avance[0]?.received ?? '?'} o`,
+  );
+
+  const attente = [transfert({ status: 'queued', received: 0 })];
+  const demarre = advanceDownloads(attente, 3, 900);
+  check(
+    'file : un transfert en attente démarre',
+    demarre !== attente && demarre[0].status === 'active',
+    demarre[0]?.status ?? '?',
+  );
+}
+
+/* --- 25. Le figement laisse une trace, et rien ne le provoque -------------- */
+{
+  const { readFile: lire } = await import('node:fs/promises');
+  const store = await lire(new URL('../../src/store.tsx', import.meta.url), 'utf8');
+  const app = await lire(new URL('../../src/App.tsx', import.meta.url), 'utf8');
+  const api = await lire(new URL('../api.ts', import.meta.url), 'utf8');
+  const preload = await lire(new URL('../preload.cjs', import.meta.url), 'utf8');
+  const principal = await lire(new URL('../main.ts', import.meta.url), 'utf8');
+
+  check(
+    'figement : le minuteur de file ne tourne que s’il y a du travail',
+    /if \(!fileAnimee\) return;/.test(store) &&
+      /item\.status === 'queued' \|\| \(item\.status === 'active' && !item\.remoteId\)/.test(
+        store,
+      ),
+    'minuteur permanent',
+  );
+  check(
+    'figement : la progression n’écrit pas le stockage à chaque point',
+    /const fileStructure = state\.downloads\.map/.test(store) &&
+      /\n    fileStructure,/.test(store),
+    'écriture à chaque point de progression',
+  );
+  check(
+    'figement : un blocage de l’interface est journalisé',
+    /useFreezeWatchdog\(\)/.test(app) &&
+      /freeze: 'desktop:freeze'/.test(api) &&
+      /interface figée \$\{\(perdu \/ 1000\)\.toFixed\(1\)\} s/.test(api) &&
+      /reportFreeze: \(retard\) => ipcRenderer\.send\('desktop:freeze'/.test(preload),
+    'aucune trace du blocage',
+  );
+  check(
+    'figement : les événements de mise à jour sont limités pour l’interface',
+    /maintenant - dernierEnvoi < 250/.test(principal),
+    'un événement par paquet',
+  );
+}
+
 const passed = results.filter((result) => result.ok).length;
 console.log(`\n${passed}/${results.length} vérifications réussies.`);
 if (failures) {

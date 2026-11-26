@@ -26,10 +26,13 @@ import {
   PROVIDER_LIST,
   type ProviderId,
 } from './data/catalog';
+import { useFreezeWatchdog } from './hooks/useFreezeWatchdog';
 import { useCatalog, useStore, type CatalogEntry, type Route } from './store';
 import { formatDecimal, formatSpeed } from './lib/format';
 
 export default function App() {
+  // Mesure des figements : une ligne dans le journal à chaque blocage > 1,2 s.
+  useFreezeWatchdog();
   const { state, dispatch } = useStore();
   const catalog = useCatalog();
   const toast = useToast();

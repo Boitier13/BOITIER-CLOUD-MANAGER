@@ -611,13 +611,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  // Simulation de la file de téléchargements.
+  // File de téléchargements : le minuteur ne tourne que s'il reste quelque
+  // chose à faire avancer. Un intervalle permanent réveillait l'application
+  // toutes les 900 ms même sans le moindre transfert en cours — et un seul
+  // transfert terminé suffisait à le maintenir indéfiniment.
+  const fileAnimee = state.downloads.some(
+    (item) => item.status === 'queued' || (item.status === 'active' && !item.remoteId),
+  );
   useEffect(() => {
+    if (!fileAnimee) return;
     const timer = window.setInterval(() => {
       dispatch({ type: 'downloads/tick', elapsed: 900 });
     }, 900);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [fileAnimee]);
 
   /**
    * Comptes Google réels : la source de vérité est le coffre chiffré du
@@ -697,8 +704,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     document.documentElement.style.zoom = String(scale);
   }, [state.settings.textScale]);
 
-  // Sauvegarde locale différée (aucun serveur) : la simulation met à jour la
-  // file en continu, on évite donc d'écrire dans le stockage à chaque tick.
+  /**
+   * Signature *structurelle* de la file : identifiant et état, sans
+   * l'avancement. La progression d'un transfert change plusieurs fois par
+   * seconde et n'a aucune raison d'être écrite sur le disque — au redémarrage,
+   * un transfert interrompu est de toute façon marqué comme tel et repart de
+   * zéro. Dépendre de `state.downloads` réécrivait donc tout l'état local à
+   * chaque point de progression, sur le fil de l'interface.
+   */
+  const fileStructure = state.downloads.map((item) => `${item.id}:${item.status}`).join('|');
+
+  // Sauvegarde locale différée (aucun serveur).
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const payload = {
@@ -719,7 +735,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [
     state.accounts,
     state.favorites,
-    state.downloads,
+    fileStructure,
     state.settings,
     state.explorer.accountId,
     state.explorer.path,

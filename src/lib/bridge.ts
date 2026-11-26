@@ -119,6 +119,12 @@ export interface BoitierBridge {
   ready?: () => Promise<unknown>;
   /** Applique le facteur de zoom de la fenêtre (taille du texte). */
   setZoom?: (factor: number) => Promise<unknown>;
+  /**
+   * Signale un figement de l'interface (millisecondes perdues). Écrit une
+   * ligne dans le journal de démarrage : c'est le seul moyen de savoir *quand*
+   * l'application s'est bloquée, et pendant combien de temps.
+   */
+  reportFreeze?: (retard: number) => void;
   /** Mises à jour automatiques (absent dans un navigateur). */
   updater?: {
     state(): Promise<UpdateState>;
