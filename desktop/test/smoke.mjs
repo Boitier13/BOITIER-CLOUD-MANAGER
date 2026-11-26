@@ -1160,6 +1160,51 @@ try {
   );
 }
 
+/* --- 28. Démarrage : la fenêtre montre l'écran de démarrage tout de suite - */
+//
+// Constat : `fenêtre créée +378 ms`, `affichée +3483 ms`, `document chargé
+// +4460 ms`. La fenêtre restait donc invisible plus de trois secondes alors que
+// l'écran de démarrage est du HTML avec ses styles en ligne, peint sans
+// attendre le moindre fichier. On ne l'attend plus : on montre la fenêtre dès
+// que le document est prêt, et chaque étape laisse un repère daté.
+{
+  const { readFile: lire } = await import('node:fs/promises');
+  const principal = await lire(new URL('../main.ts', import.meta.url), 'utf8');
+  const page = await lire(new URL('../../index.html', import.meta.url), 'utf8');
+  const preload = await lire(new URL('../preload.cjs', import.meta.url), 'utf8');
+  const api = await lire(new URL('../api.ts', import.meta.url), 'utf8');
+  const interface_ = await lire(new URL('../../src/main.tsx', import.meta.url), 'utf8');
+
+  check(
+    'démarrage : la fenêtre s’affiche dès le document prêt',
+    /on\('dom-ready'/.test(principal) &&
+      /show\('écran de démarrage'\)/.test(principal),
+    'affichage après le rendu complet de l’interface',
+  );
+  check(
+    'démarrage : l’écran de démarrage ne dépend d’aucun fichier',
+    /<style>[\s\S]*?<\/style>/.test(page.slice(0, page.indexOf('</head>'))) &&
+      /id="boot"/.test(page),
+    'écran de démarrage stylé par une feuille externe',
+  );
+  check(
+    'démarrage : chaque étape laisse un repère daté',
+    /document prêt · \+\$\{sinceStart\(\)\} ms/.test(principal) &&
+      /chargement demandé · \+/.test(principal) &&
+      /interface : \$\{texte\} · \+\$\{sinceStart\(\)\} ms/.test(api) &&
+      /reportTiming: \(libelle\) => ipcRenderer\.send\('desktop:timing'/.test(preload),
+    'étapes du démarrage invisibles',
+  );
+  check(
+    'démarrage : l’interface mesure ce qu’elle voit',
+    /bundle exécuté/.test(interface_) &&
+      /premier rendu/.test(interface_) &&
+      /polices prêtes/.test(interface_) &&
+      /first-paint/.test(interface_),
+    'aucune mesure côté interface',
+  );
+}
+
 /* --- 27. Fin de transfert : une notification, jamais une bulle parasite -- */
 {
   const { readFile: lire } = await import('node:fs/promises');
@@ -1180,10 +1225,21 @@ try {
       /notifierTransfert\(event\)/.test(corps),
     'bulle à chaque point de progression',
   );
+  // Défaut réellement constaté : deux téléchargements terminés, aucune bulle.
+  // La cause était la condition « seulement si la fenêtre n'a pas le focus » —
+  // un transfert de plusieurs minutes se termine rarement sous les yeux de
+  // l'utilisateur, et l'écran des téléchargements reste ouvert pendant ce temps.
   check(
-    'notification : silence quand la fenêtre est au premier plan',
-    /premiere\.isFocused\(\)\) return;/.test(principal),
-    'bulle alors que l’utilisateur regarde l’écran',
+    'notification : aucun silence lié au premier plan',
+    !/isFocused\(\)\)\s*return;/.test(principal) &&
+      /bulles\.add\(bulle\)/.test(principal),
+    'bulle supprimée quand la fenêtre est au premier plan',
+  );
+  check(
+    'notification : Windows sait à quelle application la rattacher',
+    /app\.setAppUserModelId\('com\.boitier\.cloudmanager'\)/.test(principal) &&
+      /"appId": "com\.boitier\.cloudmanager"/.test(await lire(new URL('../../package.json', import.meta.url), 'utf8')),
+    'identifiant d’application absent : bulle ignorée sans erreur',
   );
   check(
     'notification : le clic ramène l’application',

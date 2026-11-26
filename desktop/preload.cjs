@@ -37,6 +37,8 @@ contextBridge.exposeInMainWorld('boitier', {
    * diagnostique : le processus principal l'écrit dans le journal de démarrage.
    */
   reportFreeze: (retard, contexte) => ipcRenderer.send('desktop:freeze', retard, contexte),
+  /** Repère de temps (démarrage) : écrit dans le journal par le processus principal. */
+  reportTiming: (libelle) => ipcRenderer.send('desktop:timing', libelle),
   /** Aller-retour minimal : l'interface mesure la réactivité du processus principal. */
   ping: () => invoke('desktop:ping'),
   /** Ouvre le journal de démarrage : plus besoin de retrouver le chemin à la main. */

@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { StoreProvider } from './store';
 import { ToastProvider } from './components/toast';
-import { signalReady } from './lib/bridge';
+import { reportTiming, signalReady } from './lib/bridge';
 // Poids variables uniquement, sous-ensembles latin (application hors ligne) :
 // DM Sans pour l'interface, Manrope pour les titres et les chiffres.
 import '@fontsource-variable/dm-sans/wght.css';
@@ -56,6 +56,24 @@ function reportFatal(error: unknown): void {
  */
 function ReadySignal(): null {
   useEffect(() => {
+    // Repères de démarrage, écrits dans le journal par le processus principal.
+    // Uniquement des mesures ponctuelles : aucun minuteur, aucun réveil.
+    const debut = performance.now();
+    reportTiming(`premier rendu (${Math.round(debut)} ms)`);
+    // `PerformanceObserver` et `performance.getEntriesByType` n'existent pas
+    // partout (rendu hors application, tests) : leur absence ne doit pas
+    // interrompre le montage de l'interface.
+    try {
+      const releves = performance.getEntriesByType?.('paint') ?? [];
+      const peinture = releves.find((entree) => entree.name === 'first-paint');
+      if (peinture) reportTiming(`peinture (${Math.round(peinture.startTime)} ms)`);
+    } catch {
+      /* mesure indisponible : on continue */
+    }
+    void document.fonts?.ready.then(() => {
+      const total = Math.round(performance.now());
+      reportTiming(`polices prêtes (${total} ms)`);
+    });
     signalReady();
     // L'interface a pris la main : l'écran de démarrage (peint en HTML, avant
     // tout chargement) n'a plus de raison d'occuper la fenêtre.
@@ -63,6 +81,11 @@ function ReadySignal(): null {
   }, []);
   return null;
 }
+
+// Premier repère : le bundle a fini de s'exécuter. L'écart avec l'heure du
+// chargement demandé mesure le temps passé dans le disque et l'analyse du
+// fichier — c'est là que se cachent les secondes du démarrage.
+reportTiming(`bundle exécuté (${Math.round(performance.now())} ms)`);
 
 const root = document.getElementById('root');
 

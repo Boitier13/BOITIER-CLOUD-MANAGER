@@ -9,7 +9,7 @@ import type { GoogleService } from './google/service.ts';
 import { isAllowedExternalUrl } from '../src/lib/driveLinks.ts';
 import type { DownloadEvent } from './google/downloads.ts';
 import type { UpdateState, Updater } from './updater.ts';
-import { log, logPath } from './log.ts';
+import { log, logPath, sinceStart } from './log.ts';
 
 export const channels = {
   status: 'google:status',
@@ -47,6 +47,8 @@ export const channels = {
   freeze: 'desktop:freeze',
   /** Aller-retour minimal : mesure la réactivité du processus principal. */
   ping: 'desktop:ping',
+  /** Repère de temps du démarrage, vu depuis l'interface. */
+  timing: 'desktop:timing',
   /** Ouvre le journal de démarrage dans l'éditeur du système. */
   openLog: 'desktop:open-log',
   /** Mises à jour : état, vérification, installation. */
@@ -133,6 +135,15 @@ export function registerIpc(_win: BrowserWindow, service: GoogleService, updater
     if (perdu < 400) return;
     const ou = typeof contexte === 'string' && contexte.trim() ? ` — ${contexte}` : '';
     log(`figement ${(perdu / 1000).toFixed(1)} s${ou}`);
+  });
+
+  // Repères de démarrage vus depuis l'interface : bundle exécuté, premier
+  // rendu, polices prêtes, peinture. Sans eux, « c'est lent au démarrage » ne
+  // se découpe en rien et on corrige à l'aveugle.
+  ipcMain.on(channels.timing, (_event, libelle: unknown) => {
+    const texte = String(libelle ?? '').slice(0, 80).trim();
+    if (!texte) return;
+    log(`interface : ${texte} · +${sinceStart()} ms`);
   });
 
   // Réactivité du processus principal : l'interface mesure l'aller-retour.
