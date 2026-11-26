@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('boitier', {
     status: () => invoke('google:status'),
     setClient: (clientId, clientSecret) => invoke('google:set-client', clientId, clientSecret),
     accounts: () => invoke('google:accounts'),
+    report: () => invoke('google:report'),
     connect: () => invoke('google:connect'),
     disconnect: (accountId) => invoke('google:disconnect', accountId),
     list: (accountId, folderId) => invoke('google:list', accountId, folderId),

@@ -124,7 +124,7 @@ export function messageErreurMega(cause: unknown): string {
     9: 'adresse ou mot de passe MEGA incorrect',
     11: 'accès refusé par MEGA sur cet élément',
     15: 'session MEGA expirée : reconnectez ce compte',
-    16: 'compte MEGA bloqué',
+    16: 'MEGA bloque temporairement ce compte (trop de connexions) : patientez quelques minutes',
     17: 'quota de transfert MEGA épuisé pour aujourd’hui',
     18: 'MEGA est temporairement indisponible, réessayez plus tard',
     19: 'trop de connexions simultanées vers MEGA',

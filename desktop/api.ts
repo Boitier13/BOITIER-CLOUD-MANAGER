@@ -17,6 +17,7 @@ export const channels = {
   status: 'google:status',
   setClient: 'google:set-client',
   accounts: 'google:accounts',
+  report: 'google:report',
   connect: 'google:connect',
   disconnect: 'google:disconnect',
   list: 'google:list',
@@ -108,6 +109,7 @@ export function registerIpc(
     }),
   );
   handle(channels.accounts, () => service.accounts());
+  handle(channels.report, () => service.report());
   handle(channels.connect, () => service.connect());
   handle(channels.disconnect, (accountId: string) => service.disconnect(String(accountId)));
   handle(channels.list, (accountId: string, folderId: string) =>

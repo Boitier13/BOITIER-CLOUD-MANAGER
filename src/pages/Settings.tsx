@@ -20,7 +20,7 @@ import { formatBytes, formatDecimal, formatNumber } from '../lib/format';
 import { Modal } from '../components/Modal';
 import { BrandMark } from '../components/BrandMark';
 import { useToast } from '../components/toast';
-import { getBridge, isDesktop } from '../lib/bridge';
+import { getBridge, isDesktop, type GoogleVaultReport } from '../lib/bridge';
 import { useGoogleClientStatus } from '../hooks/useGoogle';
 import { describeUpdate, useUpdater } from '../hooks/useUpdater';
 
@@ -32,6 +32,15 @@ export function Settings() {
   const { state, dispatch } = useStore();
   const toast = useToast();
   const [resetOpen, setResetOpen] = useState(false);
+  /**
+   * Contenu réel du coffre chiffré.
+   *
+   * Sans cette lecture, une disparition de comptes à l'écran ne peut pas être
+   * distinguée d'une disparition sur le disque : l'une se répare en rechargeant
+   * l'affichage, l'autre seulement en reconnectant les comptes.
+   */
+  const [coffre, setCoffre] = useState<GoogleVaultReport | null>(null);
+  const [coffreErreur, setCoffreErreur] = useState('');
   const updater = useUpdater();
   /** Chemin réel du dossier système : sans lui, ce réglage reste abstrait. */
   const [systemFolder, setSystemFolder] = useState('');
@@ -393,6 +402,70 @@ export function Settings() {
               >
                 <RotateCcw size={12} />
                 Réinitialiser
+              </button>
+            </div>
+          </div>
+          <div className="settings-row">
+            <div className="settings-row__text">
+              <div className="settings-row__label">Comptes Google dans le coffre</div>
+              <div className="settings-row__desc">
+                {coffreErreur
+                  ? coffreErreur
+                  : coffre
+                    ? `${formatNumber(coffre.comptes.length)} compte${coffre.comptes.length > 1 ? 's' : ''} enregistré${coffre.comptes.length > 1 ? 's' : ''} · ${coffre.existe ? 'fichier présent' : 'fichier absent'}${coffre.illisible ? ' · fichier illisible' : ''}`
+                    : 'Vérifie ce que contient réellement le fichier chiffré, et non seulement ce que l’écran affiche.'}
+              </div>
+              {coffre ? (
+                <div className="settings-row__desc" style={{ marginTop: 6, lineHeight: 1.6 }}>
+                  {coffre.comptes.length === 0 ? (
+                    <div>Aucun compte enregistré : chaque compte doit être reconnecté.</div>
+                  ) : (
+                    coffre.comptes.map((compte) => (
+                      <div key={compte.email}>
+                        {compte.email} · {compte.statut}
+                        {compte.rafraichissement ? '' : ' · sans jeton de rafraîchissement'}
+                        {compte.expireLe
+                          ? ` · jeton valable jusqu’au ${new Date(compte.expireLe).toLocaleString('fr-FR')}`
+                          : ''}
+                      </div>
+                    ))
+                  )}
+                  {coffre.voisins.length ? (
+                    <div>
+                      Sauvegardes :{' '}
+                      {coffre.voisins
+                        .map((voisin) => `${voisin.nom} (${formatBytes(voisin.octets)})`)
+                        .join(', ')}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+            <div className="settings-row__control">
+              <button
+                type="button"
+                className="btn btn--sm"
+                onClick={() => {
+                  void (async () => {
+                    const pont = getBridge();
+                    if (!pont?.google?.report) {
+                      setCoffreErreur('Disponible dans l’application Windows uniquement.');
+                      return;
+                    }
+                    try {
+                      const rapport = await pont.google.report();
+                      setCoffreErreur('');
+                      setCoffre(rapport);
+                    } catch (cause) {
+                      setCoffre(null);
+                      setCoffreErreur(
+                        `Lecture impossible : ${cause instanceof Error ? cause.message : String(cause)}`,
+                      );
+                    }
+                  })();
+                }}
+              >
+                Vérifier
               </button>
             </div>
           </div>

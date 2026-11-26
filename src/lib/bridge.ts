@@ -6,6 +6,29 @@
  * Aucun jeton ne transite par ce pont : il ne transporte que des métadonnées.
  */
 
+/**
+ * État du coffre chiffré des autorisations Google.
+ *
+ * Sert à répondre à une question qu'aucune capture d'écran ne peut trancher :
+ * les comptes sont-ils réellement absents du disque, ou seulement de
+ * l'affichage ? Aucun jeton n'y figure.
+ */
+export type GoogleVaultReport = {
+  file: string;
+  existe: boolean;
+  octets: number;
+  modifie: string | null;
+  illisible: boolean;
+  voisins: { nom: string; octets: number; modifie: string | null }[];
+  comptes: {
+    email: string;
+    statut: string;
+    expireLe: string | null;
+    rafraichissement: boolean;
+    autoriseLe: string | null;
+  }[];
+};
+
 export type GoogleAccountInfo = {
   accountId: string;
   name: string;
@@ -165,6 +188,8 @@ export interface BoitierBridge {
     status(): Promise<GoogleClientStatus>;
     setClient(clientId: string, clientSecret: string): Promise<GoogleClientStatus>;
     accounts(): Promise<GoogleAccountInfo[]>;
+    /** État du coffre chiffré : comptes réellement enregistrés (sans jetons). */
+    report(): Promise<GoogleVaultReport>;
     connect(): Promise<GoogleAccountInfo>;
     disconnect(accountId: string): Promise<void>;
     list(accountId: string, folderId: string): Promise<GoogleFile[]>;

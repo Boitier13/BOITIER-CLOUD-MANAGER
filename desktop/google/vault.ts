@@ -6,8 +6,8 @@
  * n'est jamais écrite sur le disque. Ce fichier ne fait que l'entrée/sortie.
  */
 
-import { copyFile, mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { copyFile, mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 import { log } from '../log.ts';
 
 export type Protect = (plain: string) => Buffer | null;
@@ -77,6 +77,30 @@ function sanitize(value: unknown): VaultData {
         }
       : undefined;
   return { version: 1, ...(client ? { client } : {}), accounts };
+}
+
+/**
+ * Photographie lisible du coffre, pour le diagnostic.
+ *
+ * Aucun jeton n'y figure : seulement de quoi répondre à « combien de comptes
+ * sont réellement enregistrés, et lesquels ? ». Sans cela, une disparition à
+ * l'écran ne peut pas être distinguée d'une disparition sur le disque.
+ */
+export interface VaultReport {
+  file: string;
+  existe: boolean;
+  octets: number;
+  modifie: string | null;
+  illisible: boolean;
+  /** Fichiers voisins (`.bak`, `.tmp`) : une copie récupérable s'y trouve parfois. */
+  voisins: { nom: string; octets: number; modifie: string | null }[];
+  comptes: {
+    email: string;
+    statut: string;
+    expireLe: string | null;
+    rafraichissement: boolean;
+    autoriseLe: string | null;
+  }[];
 }
 
 export class Vault {
@@ -195,6 +219,45 @@ export class Vault {
       log(`coffre : ${nombre} compte(s) écrit(s), contre ${this.derniereTaille} avant`);
     }
     this.derniereTaille = nombre;
+  }
+
+  /** État du coffre et liste des comptes qu'il contient réellement. */
+  async describe(): Promise<VaultReport> {
+    await this.ready;
+    const info = await stat(this.file).catch(() => null);
+    const voisins: VaultReport['voisins'] = [];
+    try {
+      const entrees = await readdir(dirname(this.file), { withFileTypes: true });
+      for (const entree of entrees) {
+        if (!entree.isFile() || !entree.name.startsWith(basename(this.file))) continue;
+        if (entree.name === basename(this.file)) continue;
+        const details = await stat(join(dirname(this.file), entree.name)).catch(() => null);
+        voisins.push({
+          nom: entree.name,
+          octets: details?.size ?? 0,
+          modifie: details?.mtime.toISOString() ?? null,
+        });
+      }
+    } catch {
+      /* dossier illisible : la liste reste vide, l'essentiel est ailleurs */
+    }
+    return {
+      file: this.file,
+      existe: !!info,
+      octets: info?.size ?? 0,
+      modifie: info?.mtime.toISOString() ?? null,
+      illisible: this.illisible,
+      voisins,
+      comptes: this.data.accounts.map((compte) => ({
+        email: compte.email,
+        statut: compte.status ?? 'inconnu',
+        expireLe: compte.tokens?.expiresAt
+          ? new Date(compte.tokens.expiresAt).toISOString()
+          : null,
+        rafraichissement: !!compte.tokens?.refreshToken,
+        autoriseLe: compte.authorizedAt ?? null,
+      })),
+    };
   }
 
   async read(): Promise<VaultData> {

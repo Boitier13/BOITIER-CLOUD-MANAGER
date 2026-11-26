@@ -1032,6 +1032,7 @@ try {
   // « /C:/… », qu'aucun outil ne sait ouvrir. C'est ce qui a fait échouer la
   // publication de la 0.22.6 alors que tout passait sous Linux.
   const { fileURLToPath, pathToFileURL } = await import('node:url');
+  const racine = fileURLToPath(new URL('../..', import.meta.url));
   const { build } = await import('esbuild');
 
   const sortie = join(tmpdir(), `boitier-downloads-${process.pid}.mjs`);
@@ -1408,14 +1409,23 @@ try {
     `${apres.filter((c) => c.provider === 'mega').length} MEGA survivant(s)`,
   );
   check(
-    'comptes : un compte Google absent du coffre est bien retiré',
-    !apres.some((compte) => compte.id === 'gdrive-real-g2'),
-    'compte fantôme conservé',
+    'comptes : une synchronisation ne retire jamais un compte absent du coffre',
+    apres.some((compte) => compte.id === 'gdrive-real-g2'),
+    'compte retiré par la synchronisation',
   );
   check(
-    'comptes : une liste vide retire les comptes Google mais garde les autres',
-    mergeSyncedAccounts(avant, []).every((compte) => compte.provider !== 'gdrive'),
-    'liste vide mal appliquée',
+    'comptes : une liste vide ne retire rien du tout',
+    mergeSyncedAccounts(avant, []).length === avant.length,
+    'liste vide appliquée comme une suppression',
+  );
+  check(
+    'comptes : un compte nouveau est ajouté, un compte connu est mis à jour',
+    (() => {
+      const nouveau = google('g9', 'neuf@gmail.com');
+      const fusion = mergeSyncedAccounts([google('g1', 'un@gmail.com')], [nouveau]);
+      return fusion.length === 2 && fusion.some((compte) => compte.id === 'gdrive-real-g9');
+    })(),
+    'ajout ou mise à jour raté',
   );
 
   // 2. Le coffre Google refuse d'écrire ce qu'il n'a pas su relire.
@@ -1517,6 +1527,84 @@ try {
     megaRefus &&
       (await readFile(join(dossierMega, 'mega-sessions.enc'), 'utf8')) === 'illisible',
     'sessions MEGA écrasées',
+  );
+
+  // 4. Diagnostic du coffre : ce que le disque contient réellement.
+  const coffreDiag = new Vault(dossierSauve, sceller, desceller);
+  await coffreDiag.read();
+  const rapport = await coffreDiag.describe();
+  check(
+    'coffre : le diagnostic annonce les comptes réellement enregistrés',
+    rapport.comptes.length >= 1 && rapport.existe && rapport.octets > 0,
+    `${rapport.comptes.length} compte(s), fichier ${rapport.existe ? 'présent' : 'absent'}`,
+  );
+  check(
+    'coffre : le diagnostic ne divulgue aucun jeton',
+    rapport.comptes.every(
+      (compte) => !('tokens' in compte) && !('accessToken' in compte) && !('refreshToken' in compte),
+    ) &&
+      !JSON.stringify(rapport).includes('jeton-'),
+    'un jeton figure dans le rapport',
+  );
+  check(
+    'coffre : le diagnostic signale la copie de secours',
+    rapport.voisins.some((voisin) => voisin.nom.endsWith('.bak')),
+    'sauvegarde non signalée',
+  );
+
+  // 5. MEGA : plus de canal permanent, une session à la fois, message clair.
+  const racine = fileURLToPath(new URL('../..', import.meta.url));
+  const sourceSession = await readFile(join(racine, 'desktop/mega/session.ts'), 'utf8');
+  check(
+    'MEGA : aucune connexion permanente (source de blocages -16 et de veilles)',
+    !/keepalive:\s*true/.test(sourceSession) && /keepalive:\s*false/.test(sourceSession),
+    'keepalive encore actif',
+  );
+  check(
+    'MEGA : les sessions sont rouvertes une par une',
+    /this\.file\s*\.\s*catch/.test(sourceSession) && /une session à la fois/.test(sourceSession),
+    'aucune file d’attente',
+  );
+  check(
+    'MEGA : un blocage temporaire impose une garde avant nouvel essai',
+    /bloques\.set\(accountId, Date\.now\(\) \+ 3 \* 60_000\)/.test(sourceSession),
+    'aucune garde après un -16',
+  );
+
+  const { messageErreurMega } = await import('../mega/files.ts');
+  const message = messageErreurMega(Object.assign(new Error('EBLOCKED'), { code: -16 }));
+  check(
+    'MEGA : le blocage temporaire est expliqué, pas résumé à un code',
+    /bloque/i.test(message) && /patientez/i.test(message),
+    message,
+  );
+
+  // 6. La sentinelle ne compte pas le temps passé en arrière-plan.
+  const sourceSentinelle = await readFile(join(racine, 'src/hooks/useFreezeWatchdog.ts'), 'utf8');
+  check(
+    'figements : une fenêtre masquée n’est plus signalée comme figée',
+    /visibilityState === 'visible'/.test(sourceSentinelle) &&
+      /document\.addEventListener\('visibilitychange'/.test(sourceSentinelle),
+    'mesure encore active en arrière-plan',
+  );
+
+  // 6bis. Le retrait d'un compte ne révoque plus depuis le reducer.
+  const sourceStore = await readFile(join(racine, 'src/store.tsx'), 'utf8');
+  const blocRemove = sourceStore
+    .slice(sourceStore.indexOf("case 'account/remove':"))
+    .slice(0, 700);
+  check(
+    'comptes : le reducer ne révoque plus rien (il doit rester pur)',
+    !/google\.disconnect|getBridge/.test(blocRemove),
+    'effet de bord encore présent dans le reducer',
+  );
+
+  // 7. Supprimer un compte Google le retire aussi du coffre.
+  const sourceClouds = await readFile(join(racine, 'src/pages/Clouds.tsx'), 'utf8');
+  check(
+    'comptes : la suppression d’un compte Google révoque aussi le coffre',
+    /google\.disconnect\(reel\)/.test(sourceClouds),
+    'coffre non révoqué à la suppression',
   );
 
   await rm(fichier, { recursive: true, force: true }).catch(() => undefined);

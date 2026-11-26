@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowUpRight,
   Cable,
@@ -41,9 +41,37 @@ const STATUS_META: Record<
   expired: { label: 'Session expirée', className: 'badge--danger', dot: 'dot--danger' },
 };
 
+/**
+ * Déconnecte un compte : le disque **et** la liste, au même moment.
+ *
+ * Pour Google, l'appel révoque le jeton et retire l'entrée du coffre — sans lui,
+ * le compte reviendrait à la synchronisation suivante. Pour MEGA, il ferme la
+ * session et efface la session chiffrée.
+ *
+ * C'est le seul chemin de suppression : la synchronisation, elle, n'enlève
+ * jamais rien (voir `lib/accountSync.ts`).
+ */
+function useDisconnect(): (account: Account) => void {
+  const { dispatch } = useStore();
+  return useCallback(
+    (account: Account) => {
+      const pont = getBridge();
+      if (account.provider === 'mega') {
+        void pont?.mega?.disconnect(account.megaId ?? '').catch(() => undefined);
+      } else if (account.provider === 'gdrive') {
+        const reel = realAccountId(account);
+        if (reel) void pont?.google.disconnect(reel).catch(() => undefined);
+      }
+      dispatch({ type: 'account/remove', id: account.id });
+    },
+    [dispatch],
+  );
+}
+
 export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
   const { state, dispatch } = useStore();
   const toast = useToast();
+  const deconnecter = useDisconnect();
 
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | AccountStatus>('all');
@@ -444,7 +472,7 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                           });
                         }
                       }
-                      dispatch({ type: 'account/remove', id: account.id });
+                      deconnecter(account);
                       toast.push(`Accès Google révoqué pour ${account.name}`, 'warn');
                     }}
                   >
@@ -566,15 +594,7 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
           onClose={() => setDialog(null)}
           onConfirm={(reassign) => {
             if (reassign) dispatch({ type: 'explorer/chooseAccount', accountId: reassign });
-            // Une session MEGA doit aussi être fermée côté processus principal :
-            // sinon le compte reste connecté sur le disque après sa suppression.
-            if (dialog.account.provider === 'mega') {
-              const cible = dialog.account;
-              void getBridge()
-                ?.mega?.disconnect(cible.megaId ?? '')
-                .catch(() => undefined);
-            }
-            dispatch({ type: 'account/remove', id: dialog.account.id });
+            deconnecter(dialog.account);
             setDialog(null);
             toast.push(`Compte ${dialog.account.name} supprimé`, 'warn');
           }}

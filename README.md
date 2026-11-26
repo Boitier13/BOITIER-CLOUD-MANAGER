@@ -281,6 +281,29 @@ trois sont désormais interdits.
 | Un **échec** d'appel au processus principal était confondu avec « aucun compte » : la liste vide effaçait alors tous les comptes de l'écran | `probeAccountsStrict()` distingue les deux ; sur un échec, la synchronisation **s'abstient** |
 | Un coffre **illisible** (profil Windows, antivirus, fichier verrouillé) repartait d'un coffre vide, et la première écriture écrasait les jetons | un coffre illisible **refuse toute écriture**, une copie de secours `.bak` est tenue à jour et restaurée au lancement, et les écritures sont sérialisées |
 
+### Vérifier ce que le coffre contient vraiment
+
+L'écran ne dit pas tout : un compte peut manquer **à l'affichage** alors que ses
+jetons sont sur le disque, ou l'inverse. `Paramètres → Données locales → Comptes
+Google dans le coffre → Vérifier` lit le fichier chiffré et affiche :
+
+- le nombre de comptes réellement enregistrés, et leur adresse ;
+- pour chacun, son état, la présence d'un jeton de rafraîchissement et la date
+  d'expiration du jeton d'accès ;
+- le chemin du fichier, s'il existe, sa taille, et les copies de secours
+  voisines (`.bak`, `.tmp`) qui permettraient une récupération.
+
+Aucun jeton n'y figure. C'est le seul moyen de trancher entre « l'affichage a
+perdu les comptes » (ils reviennent au lancement suivant) et « le disque les a
+perdus » (il faut les reconnecter).
+
+### Un compte ne disparaît que si on le déconnecte
+
+La liste des comptes n'est plus recalculée par soustraction : la synchronisation
+**ajoute et met à jour**, elle ne retire jamais rien. La seule suppression
+légitime est le bouton de déconnexion, qui révoque le jeton côté Google, efface
+l'entrée du coffre et retire la ligne — au même moment.
+
 Le journal de démarrage dit désormais, à chaque lancement :
 
 ```
@@ -393,7 +416,7 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 154 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 165 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
