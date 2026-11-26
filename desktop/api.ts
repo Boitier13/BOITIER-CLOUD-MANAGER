@@ -27,6 +27,8 @@ export const channels = {
   cancel: 'google:cancel',
   refresh: 'google:refresh',
   folder: 'google:folder',
+  /** Chemin d'un élément (recherche multi-comptes → dossier d'origine). */
+  locate: 'google:locate',
   chooseFolder: 'desktop:choose-folder',
   event: 'google:download-event',
   openExternal: 'desktop:open-external',
@@ -100,6 +102,9 @@ export function registerIpc(_win: BrowserWindow, service: GoogleService): void {
   handle(channels.cancel, (id: string) => service.cancel(String(id)));
   handle(channels.refresh, (accountId: string) => service.refresh(String(accountId)));
   handle(channels.folder, () => service.downloadsFolder());
+  handle(channels.locate, (accountId: string, fileId: string) =>
+    service.locate(accountId, fileId),
+  );
 
   /**
    * Choix du dossier de destination par la boîte de dialogue du système.

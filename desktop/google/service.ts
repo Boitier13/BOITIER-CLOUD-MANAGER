@@ -26,6 +26,7 @@ import {
   listChildren,
   listRecent,
   listShared,
+  readItem,
   readQuota,
   searchFiles,
   type DriveItem,
@@ -252,6 +253,32 @@ export class GoogleService {
     const query = term.trim();
     if (query.length < 2) return [];
     return searchFiles(this.endpoints, await this.token(accountId), query);
+  }
+
+  /**
+   * Chemin d'un élément, de la racine du compte jusqu'à son dossier parent.
+   *
+   * Sert à ouvrir l'explorateur **là où se trouve** un fichier trouvé par la
+   * recherche multi-comptes : sans cela, un résultat ne mènerait nulle part.
+   * Une requête par niveau (un fichier est rarement profond), la racine du
+   * compte étant exclue du chemin — elle n'est pas un dossier de l'utilisateur.
+   */
+  async locate(accountId: string, fileId: string): Promise<{ id: string; name: string }[]> {
+    const token = await this.token(accountId);
+    const root = await readItem(this.endpoints, token, 'root');
+    const trail: { id: string; name: string }[] = [];
+    const seen = new Set<string>([fileId, root.id]);
+    let parentId = (await readItem(this.endpoints, token, fileId)).parentId;
+    // 20 niveaux : bien au-delà d'une arborescence réelle, et un garde-fou
+    // contre une boucle de parents (racine partagée mal formée).
+    for (let depth = 0; parentId && depth < 20; depth += 1) {
+      if (seen.has(parentId)) break;
+      seen.add(parentId);
+      const folder = await readItem(this.endpoints, token, parentId);
+      trail.unshift({ id: folder.id, name: folder.name });
+      parentId = folder.parentId;
+    }
+    return trail;
   }
 
   async download(request: {

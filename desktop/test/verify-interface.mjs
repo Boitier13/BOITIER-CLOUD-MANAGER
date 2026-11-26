@@ -624,16 +624,16 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
     // elle-même, pas la page entière.
     const ligne = echec.doc.querySelector('.download-row')?.textContent ?? '';
     const dest = echec.doc.querySelector('.download-row__dest')?.textContent ?? '';
-    // Une vidéo doit être rangée dans « Google Drive\Vidéos » : le chemin
+    // Une vidéo doit être rangée dans « Google Drive\Videos » : le chemin
     // affiché doit donc être celui-là, pas le simple dossier de base.
     check(
       'destination : le chemin réel du dossier apparaît devant la barre',
-      dest.trim() === 'C:\\Users\\Saturnin\\Downloads\\Google Drive\\Vidéos',
+      dest.trim() === 'C:\\Users\\Saturnin\\Downloads\\Google Drive\\Videos',
       dest.trim() || 'aucun chemin',
     );
     check(
       'destination : le rangement par cloud et par type est demandé au pont',
-      requetes[0]?.subPath === 'Google Drive/Vidéos',
+      requetes[0]?.subPath === 'Google Drive/Videos',
       String(requetes[0]?.subPath),
     );
     check(
@@ -1098,6 +1098,161 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
     libelles.includes('Boitier First3') && libelles.includes('Boitier First2'),
     libelles.join(' | '),
   );
+}
+
+/* --- 9. Recherche : tous les comptes, puis un seul ----------------------- */
+//
+// Demande explicite : chercher dans **tous** les comptes *et* dans un seul.
+// Le faux pont répond une liste différente par compte ; le test vérifie que les
+// deux portées fonctionnent et que chaque résultat dit de quel compte il vient.
+{
+  const recherches = [];
+  const fichiers = {
+    'g-1': [{ id: 'f-1', name: 'Facture EDF.pdf', kind: 'file', mimeType: 'application/pdf', size: 48211, modified: '2026-11-23T16:10:00.000Z' }],
+    'g-2': [
+      { id: 'f-2', name: 'Facture Orange.pdf', kind: 'file', mimeType: 'application/pdf', size: 30211, modified: '2026-11-22T10:00:00.000Z' },
+      { id: 'f-3', name: 'Factures 2025', kind: 'folder', mimeType: 'application/vnd.google-apps.folder', size: 0, modified: '2026-11-21T10:00:00.000Z' },
+    ],
+    'g-3': [],
+  };
+  let localisations = 0;
+
+  const recherche = await parcours({
+    label: 'recherche',
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      google: {
+        status: async () => ({ configured: true, source: 'env' }),
+        accounts: async () =>
+          [
+            ['g-1', 'Boitier First Recup', 'boitierecup@gmail.com'],
+            ['g-2', 'Boitier First7', 'boitierfirst7@gmail.com'],
+            ['g-3', 'Boitier First8', 'boitierfirst8@gmail.com'],
+          ].map(([accountId, name, email]) => ({
+            accountId,
+            name,
+            email,
+            usedBytes: 1000000000,
+            quotaBytes: 16106127360,
+            status: 'connected',
+            authorizedAt: '2026-11-26T09:00:00.000Z',
+          })),
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async (accountId, term) => {
+          recherches.push(`${accountId}:${term}`);
+          return fichiers[accountId] ?? [];
+        },
+        locate: async () => {
+          localisations += 1;
+          return [{ id: 'folder-projets', name: 'Projets' }];
+        },
+        shared: async () => [],
+        recent: async () => [],
+        storage: async () => ({
+          usedBytes: 1,
+          quotaBytes: 16106127360,
+          emailBytes: null,
+          partial: false,
+          categories: [],
+        }),
+        folder: async () => 'C:\\Users\\BOITIER_FIRST\\Downloads',
+      },
+    },
+  });
+
+  const { doc, window } = recherche;
+  const versRecherche = [...doc.querySelectorAll('.nav-item')].find((button) =>
+    (button.textContent ?? '').includes('Recherche'),
+  );
+  check('recherche : l’entrée de menu existe', Boolean(versRecherche));
+  if (versRecherche) await recherche.click(versRecherche);
+  check(
+    'recherche : l’écran porte son titre',
+    (doc.querySelector('.page-title')?.textContent ?? '').trim() === 'Chercher partout',
+    doc.querySelector('.page-title')?.textContent ?? 'absent',
+  );
+
+  // Les deux portées sont visibles avant même de taper.
+  const portees = [...doc.querySelectorAll('.segmented__item')].map((item) =>
+    (item.textContent ?? '').trim(),
+  );
+  check('recherche : la portée « Tous les comptes » est proposée', portees.includes('Tous les comptes'), portees.join(' | '));
+  check(
+    'recherche : chaque compte est aussi une portée',
+    portees.includes('Boitier First7') && portees.includes('Boitier First8'),
+    portees.join(' | '),
+  );
+
+  /** Saisie réelle dans un champ contrôlé par React. */
+  const saisir = async (input, valeur, attente = 700) => {
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      'value',
+    ).set;
+    setter.call(input, valeur);
+    input.dispatchEvent(new window.Event('input', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, attente));
+  };
+
+  const champ = doc.querySelector('.search .input');
+  check('recherche : un champ de saisie est présent', Boolean(champ));
+  if (champ) {
+    await saisir(champ, 'facture');
+    check(
+      'recherche : les comptes sont interrogés à la frappe',
+      recherches.some((appel) => appel.endsWith(':facture')),
+      recherches.join(' | ') || 'aucun appel',
+    );
+    const groupes = [...doc.querySelectorAll('.filetable__group-name')].map((node) =>
+      node.textContent.trim(),
+    );
+    check(
+      'recherche : les résultats sont regroupés par compte',
+      groupes.length === 2 && groupes.includes('Boitier First Recup') && groupes.includes('Boitier First7'),
+      groupes.join(' | ') || 'aucun groupe',
+    );
+    const lignes = [...doc.querySelectorAll('.filetable tbody tr:not(.filetable__group)')];
+    check('recherche : chaque fichier trouvé a sa ligne', lignes.length === 3, String(lignes.length));
+    check(
+      'recherche : un compte sans résultat n’est pas affiché',
+      !groupes.includes('Boitier First8'),
+    );
+
+    // Portée « un seul compte ».
+    const onglet = [...doc.querySelectorAll('.segmented__item')].find(
+      (item) => (item.textContent ?? '').trim() === 'Boitier First7',
+    );
+    if (onglet) await recherche.click(onglet);
+    const lignesIsolees = [...doc.querySelectorAll('.filetable tbody tr')];
+    check(
+      'recherche : la portée « un compte » ne garde que ce compte',
+      lignesIsolees.length === 2 &&
+        lignesIsolees.every((ligne) => /Facture/.test(ligne.textContent ?? '')),
+      `${lignesIsolees.length} ligne(s)`,
+    );
+
+    // Ouverture de l'emplacement : le chemin est demandé au pont, puis
+    // l'explorateur s'ouvre sur ce dossier.
+    const retour = [...doc.querySelectorAll('.segmented__item')].find(
+      (item) => (item.textContent ?? '').trim() === 'Tous les comptes',
+    );
+    if (retour) await recherche.click(retour);
+    const premiere = doc.querySelector('.filetable tbody tr:not(.filetable__group)');
+    if (premiere) await recherche.click(premiere);
+    check(
+      'recherche : « ouvrir » demande le chemin réel au pont',
+      localisations > 0,
+      String(localisations),
+    );
+    const apresClic = (doc.querySelector('.page-title')?.textContent ?? '').trim();
+    check(
+      'recherche : l’emplacement trouvé ouvre l’explorateur',
+      apresClic === 'Tous les fichiers',
+      apresClic || 'titre absent',
+    );
+  }
 }
 
 console.log(

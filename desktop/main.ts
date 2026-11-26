@@ -31,9 +31,6 @@ let current: BrowserWindow | null = null;
 let logPath: string | null = null;
 /** Dossier de données (coffre chiffré, journal), résolu avant `ready`. */
 let dataDir: string | null = null;
-/** Fenêtre d'attente affichée pendant que l'interface se prépare. */
-let splash: BrowserWindow | null = null;
-let splashShownAt = 0;
 /** Un second clic a eu lieu avant que la première fenêtre existe. */
 let revealPending = false;
 
@@ -66,85 +63,6 @@ function startLog(): void {
     `démarrage ${app.getVersion()} · ${app.isPackaged ? 'installée' : 'développement'} · ` +
       `Electron ${process.versions.electron} · ${process.platform}`,
   );
-}
-
-/**
- * Écran d'attente.
- *
- * Sur un premier lancement après installation, Windows analyse longuement le
- * nouvel exécutable : la fenêtre principale peut mettre plusieurs secondes à
- * paraître. Sans repère visuel, l'application semble ne pas s'ouvrir et l'on
- * reclique — ce qui ne fait qu'ajouter une instance refusée. Ce panneau
- * s'affiche en quelques dizaines de millisecondes et disparaît dès que
- * l'interface est interactive.
- *
- * Rendu autonome (aucune ressource externe) : il ne dépend ni du disque, ni du
- * réseau, ni du dossier de l'interface.
- */
-const SPLASH_HTML = `<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>BOITIER CLOUD MANAGER</title><style>
-html,body{margin:0;height:100%;overflow:hidden}
-body{background:#f5f7fb;color:#101828;font-family:'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif;
-display:flex;flex-direction:column;align-items:center;justify-content:center;gap:13px;
--webkit-app-region:drag;user-select:none;cursor:default}
-.mark{width:44px;height:44px;border-radius:13px;background:#2f6bff;color:#fff;font-weight:700;font-size:17px;
-letter-spacing:.06em;display:flex;align-items:center;justify-content:center}
-h1{margin:0;font-size:13px;font-weight:700;letter-spacing:.18em}
-p{margin:0;font-size:12.5px;color:#5a6473}
-.bar{width:148px;height:3px;border-radius:2px;background:#e3e8f2;overflow:hidden;margin-top:3px}
-.bar span{display:block;width:38%;height:100%;border-radius:2px;background:#2f6bff;
-animation:run 1.15s ease-in-out infinite}
-@keyframes run{0%{transform:translateX(-110%)}100%{transform:translateX(330%)}}
-@media (prefers-reduced-motion:reduce){.bar span{animation:none;width:100%}}
-</style></head><body>
-<div class="mark">BC</div>
-<h1>BOITIER CLOUD MANAGER</h1>
-<p>Préparation de vos comptes…</p>
-<div class="bar"><span></span></div>
-</body></html>`;
-
-function openSplash(): void {
-  try {
-    const win = new BrowserWindow({
-      width: 420,
-      height: 236,
-      frame: false,
-      resizable: false,
-      minimizable: false,
-      maximizable: false,
-      fullscreenable: false,
-      skipTaskbar: true,
-      center: true,
-      show: false,
-      backgroundColor: '#f5f7fb',
-      webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
-    });
-    win.once('ready-to-show', () => {
-      if (!win.isDestroyed()) win.show();
-    });
-    // Filet : si le rendu du panneau tardait, il s'affiche quand même.
-    setTimeout(() => {
-      if (!win.isDestroyed() && !win.isVisible()) win.show();
-    }, 400);
-    win.on('closed', () => {
-      if (splash === win) splash = null;
-    });
-    splash = win;
-    splashShownAt = Date.now();
-    void win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(SPLASH_HTML)}`);
-  } catch {
-    splash = null;
-  }
-}
-
-/** Referme l'écran d'attente, sans clignotement quand il vient d'apparaître. */
-function closeSplash(): void {
-  const win = splash;
-  if (!win) return;
-  splash = null;
-  const remaining = Math.max(0, 650 - (Date.now() - splashShownAt));
-  setTimeout(() => {
-    if (!win.isDestroyed()) win.destroy();
-  }, remaining);
 }
 
 /** Ramène la fenêtre existante au premier plan (clic sur l'icône déjà ouverte). */
@@ -181,11 +99,7 @@ function createWindow(): BrowserWindow {
     },
   });
 
-  win.once('ready-to-show', () => {
-    win.show();
-    // La fenêtre est peinte : l'écran d'attente n'a plus de raison d'être.
-    closeSplash();
-  });
+  win.once('ready-to-show', () => win.show());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
   /**
@@ -263,7 +177,6 @@ function createWindow(): BrowserWindow {
       signalled = true;
       if (watchdog) clearTimeout(watchdog);
       log('interface prête');
-      closeSplash();
     }
     return true;
   });
@@ -275,14 +188,12 @@ function createWindow(): BrowserWindow {
 
   win.webContents.on('did-fail-load', (_event, code, description, url) => {
     log(`échec de chargement (${code} ${description}) : ${url}`);
-    closeSplash();
     if (watchdog) clearTimeout(watchdog);
     showLoadFailure(win, `${code} ${description}`);
   });
 
   win.webContents.on('render-process-gone', (_event, details) => {
     log(`processus d’affichage interrompu : ${details.reason}`);
-    closeSplash();
     showLoadFailure(win, details.reason);
   });
 
@@ -343,11 +254,6 @@ function unprotect(cipher: Buffer): string | null {
 }
 
 function boot(): void {
-  // D'abord un repère visuel : tout le reste peut prendre du temps sur un
-  // premier lancement analysé par l'antivirus.
-  openSplash();
-  log('écran d’attente affiché');
-
   // En développement, les identifiants peuvent venir de .env.local.
   loadEnvFile();
   const config = readGoogleConfig();

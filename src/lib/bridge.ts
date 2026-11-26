@@ -126,6 +126,8 @@ export interface BoitierBridge {
     refresh(accountId: string): Promise<GoogleAccountInfo | null>;
     /** Dossier du système utilisé par défaut (peut manquer côté aperçu). */
     folder?(): Promise<string>;
+    /** Chemin d'un élément, de la racine du compte à son dossier parent. */
+    locate?(accountId: string, fileId: string): Promise<{ id: string; name: string }[]>;
     /** Boîte de dialogue du système : dossier de destination choisi. */
     chooseFolder?(): Promise<string | null>;
     onDownload(listener: (event: GoogleDownloadEvent) => void): () => void;

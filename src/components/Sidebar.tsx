@@ -5,6 +5,7 @@ import {
   HardDrive,
   House,
   PieChart,
+  Search as SearchIcon,
   Settings,
   Star,
 } from 'lucide-react';
@@ -20,6 +21,7 @@ interface SidebarProps {
 const NAV = [
   { id: 'home', label: 'Accueil', icon: House },
   { id: 'files', label: 'Tous les fichiers', icon: FolderTree },
+  { id: 'search', label: 'Recherche', icon: SearchIcon },
   { id: 'recent', label: 'Récents', icon: Clock },
   { id: 'downloads', label: 'Téléchargements', icon: Download },
   { id: 'favorites', label: 'Favoris', icon: Star },

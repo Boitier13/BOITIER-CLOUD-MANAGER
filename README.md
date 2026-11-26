@@ -167,14 +167,36 @@ les rangées se lisent comme une seule liste.
 Chaque fichier est rangé par cloud puis par nature, sous le dossier de base :
 
 ```
-C:\Users\…\Downloads\Google Drive\Vidéos
+C:\Users\…\Downloads\Google Drive\Videos
 C:\Users\…\Downloads\Google Drive\Documents
 ```
 
-Vidéos, Audio, Images, Documents, Archives, Sous-titres, Autres. Un dossier
+Videos, Audio, Images, Documents, Archives, Sous-titres, Autres. **Aucun accent
+dans les noms de dossiers** : un `é` traverse mal un ZIP, un partage réseau ou un
+enchaînement de commandes. Un dossier
 téléchargé en entier conserve son arborescence, sous le nom du cloud. Le
 réglage **Ranger par cloud et par type** (Paramètres, actif par défaut) permet
 de revenir à un dossier unique.
+
+### Recherche : tous les comptes, ou un seul
+
+Un écran **Recherche** (menu de gauche, ou `Ctrl + 7`) interroge **tous** les
+comptes d'un coup, ou **un seul** — les deux portées coexistent, il suffit de
+choisir un onglet.
+
+- la frappe est laissée tranquille **400 ms** avant d'interroger : neuf comptes
+  fois chaque lettre serait un gaspillage ;
+- les résultats sont **regroupés par compte**, avec la date, la taille et la
+  nature de chaque fichier ;
+- **Ouvrir le dossier** mène à l'emplacement réel du fichier : Drive ne renvoie
+  jamais un chemin, seulement l'identifiant du dossier parent, que l'application
+  remonte jusqu'à la racine du compte (`google:locate`) ;
+- **Télécharger** range le fichier comme n'importe quel autre transfert ;
+- un compte qui refuse (autorisation expirée, quota) est **annoncé** sous les
+  résultats, jamais passé sous silence.
+
+Le champ de l'explorateur reste ce qu'il était : la recherche dans un compte,
+sur la vue courante.
 
 ### Où va le fichier
 
@@ -295,14 +317,16 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 75 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 90 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
                           # flux des récents, pause, révocation à la
                           # déconnexion, démarrage (journal, instance unique,
-                          # écran d'attente) — sans réseau, faux Google local
-npm run verify:interface  # six écrans sans compte puis avec un compte simulé
+                          # écran de démarrage, chemin d'un résultat,
+                          # recherche à deux portées) — sans réseau, faux Google
+npm run verify:interface  # les écrans sans compte, avec un compte simulé,
+                          # avec neuf comptes, et la recherche à deux portées
 npm run desktop:paths     # la fenêtre charge dist/ en file://, et possède ses
                           # garde-fous de démarrage (signal de vie, délai, journal)
 npm run desktop:package-test # contenu de l'archive : complet, sans secret,
@@ -342,9 +366,11 @@ transferts simulés ont été retirés. Conséquences à connaître :
 | Comptes de démonstration d'une version antérieure | écartés au chargement ; les comptes Google, eux, sont conservés |
 | Aperçu navigateur | les écrans restent consultables, mais les fichiers ne sont pas accessibles (la connexion Google exige la fenêtre Windows) |
 
-`npm run verify:interface` parcourt les six écrans dans les deux situations
-(sans compte, puis avec un compte connecté simulé) et vérifie qu'aucun décor
-fictif ne subsiste.
+`npm run verify:interface` parcourt les écrans dans trois situations (sans
+compte, avec un compte connecté simulé, avec neuf comptes), vérifie qu'aucun
+décor fictif ne subsiste, puis **saisit une recherche** dans deux comptes
+simulés : regroupement par compte, portée « un seul compte », ouverture de
+l'emplacement réel du fichier.
 
 ### Démarrage de la fenêtre
 
@@ -379,9 +405,13 @@ Le second cas est Windows lui-même : l'antivirus analyse un exécutable qu'il
 n'a jamais vu. Aucun code ne peut accélérer cela — mais l'application peut
 **montrer qu'elle démarre** au lieu de laisser l'écran vide :
 
-- **écran d'attente** affiché en quelques dizaines de millisecondes
-  (une fenêtre sans cadre : marque, « Préparation de vos comptes… », fine barre
-  de progression), refermé dès que l'interface est interactive ;
+- **écran de démarrage peint avec la page** : marque, « Préparation de vos
+  comptes… », fine barre de progression — styles en ligne, aucun fichier à
+  charger, donc visible en quelques dizaines de millisecondes ; il est retiré
+  dès que l'interface prend la main. Une seconde fenêtre avait été essayée :
+  elle s'affichait comme un carré vide, elle a été supprimée ;
+- **thème appliqué avant le premier pixel** : le réglage enregistré est lu par
+  un script en ligne, sans clignotement d'un thème vers l'autre ;
 - **fond de fenêtre** aux couleurs du thème clair : plus d'aplat sombre devant
   une interface claire ;
 - **journal ouvert avant le contrôle d'instance unique** : un lancement refusé
@@ -390,7 +420,8 @@ n'a jamais vu. Aucun code ne peut accélérer cela — mais l'application peut
 - **second clic sur l'icône** : la fenêtre existante est restaurée, ramenée au
   premier plan et focalisée, au lieu de ne rien faire.
 
-Ces quatre points sont verrouillés par six contrôles automatiques.
+Ces points sont verrouillés par des contrôles automatiques, vus échouer avant
+correction.
 
 La version affichée dans **Paramètres → À propos** est lue dans `package.json`
 au moment de la compilation : elle ne peut plus annoncer un numéro périmé.
