@@ -31,9 +31,10 @@ import { useCatalog, useStore, type CatalogEntry, type Route } from './store';
 import { formatDecimal, formatSpeed } from './lib/format';
 
 export default function App() {
-  // Mesure des figements : une ligne dans le journal à chaque blocage > 1,2 s.
-  useFreezeWatchdog();
   const { state, dispatch } = useStore();
+  // Mesure des figements : chaque blocage laisse une ligne dans le journal,
+  // avec l'écran où il s'est produit.
+  useFreezeWatchdog(state.route.name);
   const catalog = useCatalog();
   const toast = useToast();
   const [shortcutsOpen, setShortcutsOpen] = useState(false);

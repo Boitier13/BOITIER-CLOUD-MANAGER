@@ -142,6 +142,12 @@ export type Action =
 
 const STORAGE_KEY = 'boitier-cloud-manager:v1';
 
+/**
+ * Nombre de transferts terminés conservés dans l'historique. Au-delà, l'état
+ * grossit à chaque téléchargement et chaque rendu avec lui.
+ */
+const HISTORIQUE_MAX = 50;
+
 const DEFAULT_SETTINGS: Settings = {
   theme: 'dark',
   // 110 % par défaut : les petites tailles de l'interface restaient justes.
@@ -360,8 +366,21 @@ function reducer(state: AppState, action: Action): AppState {
         ),
       };
 
-    case 'downloads/add':
-      return { ...state, downloads: [...action.items, ...state.downloads] };
+    case 'downloads/add': {
+      const tous = [...action.items, ...state.downloads];
+      // Historique borné : les transferts terminés ne sont gardés qu'en nombre
+      // limité, les transferts en cours ne le sont jamais. Un état qui grossit
+      // sans fin alourdit chaque rendu, chaque sauvegarde et chaque écriture.
+      let gardes = 0;
+      const downloads = tous.filter((item) => {
+        if (item.status === 'active' || item.status === 'queued' || item.status === 'paused') {
+          return true;
+        }
+        gardes += 1;
+        return gardes <= HISTORIQUE_MAX;
+      });
+      return { ...state, downloads };
+    }
 
     case 'downloads/pause': {
       const target = state.downloads.find((item) => item.id === action.id);
@@ -407,11 +426,11 @@ function reducer(state: AppState, action: Action): AppState {
     case 'downloads/progress': {
       if (!action.updates.length) return state;
       const byId = new Map(action.updates.map((update) => [update.id, update]));
-      return {
-        ...state,
-        downloads: state.downloads.map((item) => {
+      let touche = false;
+      const rafraichis = state.downloads.map((item) => {
           const update = byId.get(item.id);
           if (!update) return item;
+          touche = true;
           const status: DownloadItem['status'] =
             update.status === 'running'
               ? 'active'
@@ -434,8 +453,9 @@ function reducer(state: AppState, action: Action): AppState {
               ? { completedAt: new Date().toISOString(), error: undefined }
               : {}),
           } satisfies DownloadItem;
-        }),
-      };
+      });
+      // Événement sans destinataire (transfert retiré entre-temps) : aucun rendu.
+      return touche ? { ...state, downloads: rafraichis } : state;
     }
 
     case 'downloads/pauseAll': {

@@ -124,7 +124,11 @@ export interface BoitierBridge {
    * ligne dans le journal de démarrage : c'est le seul moyen de savoir *quand*
    * l'application s'est bloquée, et pendant combien de temps.
    */
-  reportFreeze?: (retard: number) => void;
+  reportFreeze?: (retard: number, contexte?: string) => void;
+  /** Aller-retour minimal vers le processus principal (mesure de réactivité). */
+  ping?: () => Promise<boolean>;
+  /** Ouvre le journal de démarrage ; renvoie son chemin, ou `null`. */
+  openLog?: () => Promise<string | null>;
   /** Mises à jour automatiques (absent dans un navigateur). */
   updater?: {
     state(): Promise<UpdateState>;

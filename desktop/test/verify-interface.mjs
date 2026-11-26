@@ -1521,6 +1521,15 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
     /1 transfert(?!s)/.test(corps) && !/1 transferts/.test(corps),
     corps.match(/[0-9] transferts?/)?.[0] ?? 'mention absente',
   );
+  const boutonJournal = [...doc.querySelectorAll('button')].find(
+    (button) => (button.textContent ?? '').trim() === 'Ouvrir',
+  );
+  check(
+    'journal : il s’ouvre depuis les paramètres',
+    /Journal de démarrage/.test(corps) && Boolean(boutonJournal),
+    boutonJournal ? 'bouton présent' : 'aucun bouton',
+  );
+
   check(
     'accords : « 0 favori » au singulier, comme partout ailleurs',
     /0 favori(?!s)/.test(corps) && !/0 favoris/.test(corps),
