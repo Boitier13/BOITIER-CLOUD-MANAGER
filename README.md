@@ -126,7 +126,14 @@ garde-fous ont été ajoutés après un blocage réel à 0 % :
   transfert, la ligne passe en « Échec » avec le motif. Avant, seule une
   notification fugace l'annonçait et la ligne restait « En cours » à 0 % ;
 - **un flux muet est abandonné au bout de 20 secondes** avec un message
-  explicite, au lieu d'attendre indéfiniment.
+  explicite, au lieu d'attendre indéfiniment ;
+- **une notification Windows annonce la fin du transfert**, réussite ou échec,
+  avec le nom du fichier et sa taille. Elle n'est pas conditionnée au premier
+  plan : un transfert long se termine rarement sous les yeux de l'utilisateur,
+  et l'écran des téléchargements reste ouvert pendant ce temps. Un clic sur la
+  bulle ramène la fenêtre. Si Windows refuse l'affichage, la raison est écrite
+  dans le journal (`notification : refusée par Windows — …`) au lieu de
+  disparaître en silence.
 
 Le dossier de destination n'est plus une liste de chemins inventés
 (`D:\Médias\…`) : vide, il désigne le dossier du système, et le bouton
@@ -317,7 +324,7 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 132 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 137 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
@@ -328,7 +335,8 @@ npm run desktop:test      # 132 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # recherche à deux portées, mise à jour
                           # automatique, trace avant chargement, verrou
                           # patient, défilement, traces de mise à jour,
-                          # notification de fin de transfert) —
+                          # notification de fin de transfert, repères de
+                          # démarrage) —
                           # sans réseau, faux Google
 npm run verify:interface  # les écrans sans compte, avec un compte simulé,
                           # avec neuf comptes, et la recherche à deux portées
@@ -392,6 +400,25 @@ Trois garde-fous empêchent désormais ce cas de passer inaperçu :
 | **Signal de vie** (`desktop:renderer-ready`) | l'interface prévient dès qu'elle est montée ; c'est la preuve qu'elle répond |
 | **Délai de 12 s** | sans signal, la fenêtre est rechargée **une fois** ; si elle reste muette, un message propose de relancer |
 | **Journal de démarrage** | `%APPDATA%\BOITIER CLOUD MANAGER\demarrage.log` : version, mode, chargement, incidents |
+
+La fenêtre s'affiche **dès que le document est prêt**, et non plus après le
+premier rendu de l'interface : l'écran de démarrage est du HTML dont les styles
+sont en ligne, il ne dépend d'aucun fichier. Les anciennes mesures montraient
+`fenêtre affichée +3483 ms` alors que l'écran de démarrage était prêt bien plus
+tôt — la fenêtre restait simplement invisible.
+
+Le journal découpe désormais le lancement en étapes datées :
+
+```
+chargement demandé · +352 ms
+document prêt · +988 ms
+fenêtre affichée (écran de démarrage) · +991 ms
+document chargé · +4460 ms
+interface : bundle exécuté (3820 ms) · +4210 ms
+interface : premier rendu (4180 ms) · +4570 ms
+interface : peinture (3900 ms) · +4571 ms
+interface : polices prêtes (4300 ms) · +4702 ms
+```
 
 En cas de défaut, le journal suffit à savoir ce qui s'est passé — plus besoin de
 deviner. Les échecs de chargement (`did-fail-load`) et les arrêts du processus

@@ -35,6 +35,15 @@ import { endpointsFromEnv } from './google/endpoints.ts';
 const here = __dirname;
 const devServerUrl = process.env.BOITIER_DEV_SERVER_URL;
 
+// Identifiant d'application Windows (`appId` du paquet) : c'est lui qui
+// rattache une notification à l'icône de l'application. S'il manque, Windows
+// ignore la bulle sans le dire — l'application croit avoir prévenu.
+try {
+  app.setAppUserModelId('com.boitier.cloudmanager');
+} catch {
+  /* plateforme sans identifiant d'application : les bulles resteront muettes */
+}
+
 const windows: BrowserWindow[] = [];
 let service: GoogleService | null = null;
 let updater: Updater | null = null;
@@ -93,37 +102,59 @@ function revealWindow(): void {
 }
 
 /**
+ * Notifications en cours d'affichage.
+ *
+ * Une `Notification` dont plus rien ne garde la référence peut être collectée
+ * avant que Windows ne l'affiche : la bulle n'apparaît alors jamais, sans la
+ * moindre erreur. On les conserve donc jusqu'à leur fermeture.
+ */
+const bulles = new Set<Notification>();
+
+/**
  * Prévient le système qu'un transfert est terminé.
  *
- * Silence si la fenêtre est au premier plan : l'utilisateur regarde déjà
- * l'écran, une bulle serait du bruit. Silence aussi quand la plateforme ne
- * propose pas de notifications.
+ * Toujours, y compris quand la fenêtre est au premier plan : un transfert de
+ * plusieurs minutes se termine rarement sous les yeux de l'utilisateur, et une
+ * alerte qui dépend du focus est une alerte qui n'arrive pas. Seule
+ * l'impossibilité technique (plateforme sans notification) la fait taire — et
+ * c'est alors écrit dans le journal.
  */
 function notifierTransfert(event: DownloadEvent): void {
-  if (!Notification.isSupported()) return;
-  const premiere = windows.find((target) => !target.isDestroyed());
-  if (premiere && premiere.isFocused()) return;
-
   const nom = event.name?.trim() || 'Fichier';
   const reussi = event.status === 'done';
   const corps = reussi
     ? `Enregistré (${formatMo(event.size)})`
     : event.message ?? 'Le téléchargement a échoué.';
 
+  if (!Notification.isSupported()) {
+    log(`notification : non prise en charge par la plateforme (${nom})`);
+    return;
+  }
+
   try {
     const bulle = new Notification({
       title: reussi ? `Téléchargé : ${nom}` : `Échec : ${nom}`,
       body: corps,
+      silent: false,
+    });
+    bulles.add(bulle);
+    const oublier = () => bulles.delete(bulle);
+    bulle.on('close', oublier);
+    bulle.on('failed', (_evenement, erreur) => {
+      oublier();
+      log(`notification : refusée par Windows — ${erreur}`);
     });
     // Cliquer la bulle ramène la fenêtre : c'est ce qu'on attend d'une alerte.
     bulle.on('click', () => {
+      oublier();
       const cible = windows.find((target) => !target.isDestroyed());
       if (!cible) return;
       if (cible.isMinimized()) cible.restore();
-      cible.show();
+      if (!cible.isVisible()) cible.show();
       cible.focus();
     });
     bulle.show();
+    log(`notification : ${reussi ? 'téléchargement terminé' : 'échec'} — ${nom}`);
   } catch (cause) {
     log(`notification impossible : ${(cause as Error).message}`);
   }
@@ -172,6 +203,14 @@ function createWindow(): BrowserWindow {
     win.show();
     log(`fenêtre affichée (${reason}) · +${sinceStart()} ms`);
   };
+  // Le document est prêt bien avant que le bundle ait fini de s'exécuter :
+  // l'écran de démarrage est du HTML et du CSS en ligne, peints sans attendre
+  // le moindre fichier. On montre la fenêtre là, pas après le premier rendu de
+  // l'interface — c'est plusieurs secondes d'écran vide en moins.
+  win.webContents.on('dom-ready', () => {
+    log(`document prêt · +${sinceStart()} ms`);
+    show('écran de démarrage');
+  });
   win.once('ready-to-show', () => show('prête à peindre'));
   setTimeout(() => show('délai d’affichage atteint'), 2500);
   win.once('closed', () => {
@@ -274,6 +313,7 @@ function createWindow(): BrowserWindow {
     showLoadFailure(win, details.reason);
   });
 
+  win.webContents.on('did-start-loading', () => log(`chargement demandé · +${sinceStart()} ms`));
   void load();
   return win;
 }

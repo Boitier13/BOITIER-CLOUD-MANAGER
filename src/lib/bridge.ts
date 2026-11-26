@@ -125,6 +125,8 @@ export interface BoitierBridge {
    * l'application s'est bloquée, et pendant combien de temps.
    */
   reportFreeze?: (retard: number, contexte?: string) => void;
+  /** Repère de temps du démarrage (libellé libre), écrit dans le journal. */
+  reportTiming?: (libelle: string) => void;
   /** Aller-retour minimal vers le processus principal (mesure de réactivité). */
   ping?: () => Promise<boolean>;
   /** Ouvre le journal de démarrage ; renvoie son chemin, ou `null`. */
@@ -204,6 +206,23 @@ export function isDesktop(): boolean {
  * une fois puis affiche un message, plutôt que de laisser un cadre inerte.
  * L'appel est sans effet dans un navigateur et ne lève jamais.
  */
+/**
+ * Écrit un repère de temps dans le journal de démarrage.
+ *
+ * Utile pour découper le temps de lancement vu depuis l'interface : bundle
+ * exécuté, premier rendu, polices prêtes. Sans effet hors application, et
+ * jamais bloquant — un repère manquant ne doit rien casser.
+ */
+export function reportTiming(libelle: string): void {
+  const bridge = getBridge();
+  if (!bridge?.reportTiming) return;
+  try {
+    bridge.reportTiming(libelle);
+  } catch {
+    /* purement diagnostique */
+  }
+}
+
 export function signalReady(): void {
   const bridge = getBridge();
   if (!bridge?.ready) return;
