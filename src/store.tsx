@@ -27,7 +27,13 @@ import {
   registerAccountProviders,
   resumeTransfer,
 } from './lib/cloud';
-import { isRealAccount, probeAccounts, realAccountId, toAccount } from './lib/google';
+import {
+  isRealAccount,
+  probeAccountsStrict,
+  realAccountId,
+  toAccount,
+} from './lib/google';
+import { mergeSyncedAccounts } from './lib/accountSync';
 
 /* ----------------------------------------------------------------------------
  * Types
@@ -272,18 +278,22 @@ function reducer(state: AppState, action: Action): AppState {
     }
 
     case 'account/sync': {
-      // Les comptes Google reflètent le coffre chiffré ; les comptes fictifs
-      // (y compris ceux de démonstration de Google Drive) sont conservés.
-      const next = [...state.accounts];
-      for (const account of action.accounts) {
-        const index = next.findIndex((item) => item.id === account.id);
-        if (index >= 0) next[index] = mergeAccount(next[index], account);
-        else next.push(account);
-      }
-      const realIds = new Set(action.accounts.map((account) => account.id));
-      const accounts = next.filter(
-        (account) => !isRealAccount(account) || realIds.has(account.id),
-      );
+      // Les comptes Google reflètent le coffre chiffré ; les autres fournisseurs
+      // (MEGA) ne sont **pas** concernés par cette synchronisation et doivent
+      // survivre tels quels.
+      //
+      // La condition précédente retirait tout compte « réel » absent du coffre
+      // Google : depuis que MEGA est un fournisseur réel, elle effaçait les
+      // comptes MEGA à chaque démarrage. Elle ne filtre plus que les comptes
+      // Google.
+      // La fusion (et la règle de retrait) vit dans `lib/accountSync.ts` : elle
+      // est vérifiée par un test, parce qu'une condition trop large y effaçait
+      // les comptes MEGA à chaque démarrage.
+      const fusionnes = action.accounts.map((account) => {
+        const courant = state.accounts.find((item) => item.id === account.id);
+        return courant ? mergeAccount(courant, account) : account;
+      });
+      const accounts = mergeSyncedAccounts(state.accounts, fusionnes);
       if (accounts.length === state.accounts.length &&
           accounts.every((account, index) => account === state.accounts[index])) {
         return state;
@@ -671,8 +681,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     const sync = async () => {
-      const infos = await probeAccounts();
+      // `null` = l'appel a échoué (pas « aucun compte »). Dans ce cas on ne
+      // touche à rien : une liste vide effacerait tous les comptes de l'écran,
+      // alors que le coffre, lui, est intact.
+      const infos = await probeAccountsStrict();
       if (cancelled) return;
+      if (!infos) return;
       dispatch({
         type: 'account/sync',
         accounts: infos.map((info) =>

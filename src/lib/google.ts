@@ -35,12 +35,24 @@ export function realAccountId(account: Account): string | undefined {
 
 /** Comptes Google détectés côté processus principal. */
 export async function probeAccounts(): Promise<GoogleAccountInfo[]> {
+  return (await probeAccountsStrict()) ?? [];
+}
+
+/**
+ * Comme `probeAccounts`, mais distingue « aucun compte » de « l'appel a échoué ».
+ *
+ * La distinction n'est pas cosmétique : la synchronisation retire de l'écran les
+ * comptes Google absents de la liste renvoyée. Sur un échec, une liste vide
+ * ferait donc disparaître tous les comptes — alors que le coffre est intact.
+ * `null` signifie « je ne sais pas », et la synchronisation s'abstient.
+ */
+export async function probeAccountsStrict(): Promise<GoogleAccountInfo[] | null> {
   const bridge = getBridge();
-  if (!bridge) return [];
+  if (!bridge) return null;
   try {
     return await bridge.google.accounts();
   } catch {
-    return [];
+    return null;
   }
 }
 
