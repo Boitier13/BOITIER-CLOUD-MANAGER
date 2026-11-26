@@ -974,6 +974,132 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   }
 }
 
+/* --- 11septies. Neuf comptes : tous visibles, sans coincement -------------- */
+{
+  const neuf = await parcours({
+    label: 'neuf comptes',
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      google: {
+        status: async () => ({ configured: true, source: 'env' }),
+        accounts: async () => [
+          {
+            accountId: 'g-1',
+            name: 'Boitier First Recup',
+            email: 'boitierecup@gmail.com',
+            usedBytes: 1000000000,
+            quotaBytes: 16106127360,
+            status: 'connected',
+            authorizedAt: '2026-11-26T09:00:00.000Z',
+          },
+          {
+            accountId: 'g-2',
+            name: 'Boitier First7',
+            email: 'boitierfirst7@gmail.com',
+            usedBytes: 2000000000,
+            quotaBytes: 16106127360,
+            status: 'connected',
+            authorizedAt: '2026-11-26T09:00:00.000Z',
+          },
+          {
+            accountId: 'g-3',
+            name: 'Boitier First8',
+            email: 'boitierfirst8@gmail.com',
+            usedBytes: 3000000000,
+            quotaBytes: 16106127360,
+            status: 'connected',
+            authorizedAt: '2026-11-26T09:00:00.000Z',
+          },
+          {
+            accountId: 'g-4',
+            name: 'Boitier First82',
+            email: 'boitierfirst82@gmail.com',
+            usedBytes: 4000000000,
+            quotaBytes: 16106127360,
+            status: 'connected',
+            authorizedAt: '2026-11-26T09:00:00.000Z',
+          },
+          {
+            accountId: 'g-5',
+            name: 'Saturnin Youkpo8',
+            email: 'saturninyoukpo8@gmail.com',
+            usedBytes: 5000000000,
+            quotaBytes: 16106127360,
+            status: 'connected',
+            authorizedAt: '2026-11-26T09:00:00.000Z',
+          },
+          {
+            accountId: 'g-6',
+            name: 'Saturnin Youkpo13',
+            email: 'saturninyoukpo13@gmail.com',
+            usedBytes: 6000000000,
+            quotaBytes: 16106127360,
+            status: 'connected',
+            authorizedAt: '2026-11-26T09:00:00.000Z',
+          },
+          {
+            accountId: 'g-7',
+            name: 'Boitier First1',
+            email: 'firstboitier1@gmail.com',
+            usedBytes: 7000000000,
+            quotaBytes: 16106127360,
+            status: 'connected',
+            authorizedAt: '2026-11-26T09:00:00.000Z',
+          },
+          {
+            accountId: 'g-8',
+            name: 'Boitier First2',
+            email: 'firstboitier2@gmail.com',
+            usedBytes: 8000000000,
+            quotaBytes: 16106127360,
+            status: 'connected',
+            authorizedAt: '2026-11-26T09:00:00.000Z',
+          },
+          {
+            accountId: 'g-9',
+            name: 'Boitier First3',
+            email: 'firstboitier3@gmail.com',
+            usedBytes: 9000000000,
+            quotaBytes: 16106127360,
+            status: 'connected',
+            authorizedAt: '2026-11-26T09:00:00.000Z',
+          }
+        ],
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+        storage: async () => ({
+          usedBytes: 12 * 1024 ** 3,
+          quotaBytes: 16106127360,
+          emailBytes: null,
+          partial: false,
+          categories: [],
+        }),
+        folder: async () => 'C:\\Users\\BOITIER_FIRST\\Downloads',
+      },
+    },
+  });
+
+  const toStorage = [...neuf.doc.querySelectorAll('.nav-item')].find((button) =>
+    (button.textContent ?? '').includes('Stockage'),
+  );
+  if (toStorage) await neuf.click(toStorage);
+
+  const groupe = neuf.doc.querySelector('.segmented--wrap');
+  check('stockage : le groupe de comptes peut passer à la ligne', Boolean(groupe));
+  const onglets = groupe ? [...groupe.querySelectorAll('.segmented__item')] : [];
+  check('stockage : les neuf comptes sont présents', onglets.length === 9, String(onglets.length));
+  const libelles = onglets.map((onglet) => (onglet.textContent ?? '').trim());
+  check(
+    'stockage : aucun nom n’est coupé',
+    libelles.includes('Boitier First3') && libelles.includes('Boitier First2'),
+    libelles.join(' | '),
+  );
+}
+
 console.log(
   failures === 0
     ? '\nInterface vérifiée : état vide maîtrisé, compte réel affiché, aucun décor.'

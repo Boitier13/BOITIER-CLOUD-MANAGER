@@ -155,6 +155,13 @@ choix est conservé d'une session à l'autre ; par défaut 110 %. L'ancien régl
 « Densité d'affichage » a été retiré : il ne modifiait que deux ou trois listes
 et donnait l'impression de ne rien faire.
 
+### Neuf comptes, tous visibles
+
+Sur l'écran **Stockage**, le sélecteur de compte ne défile plus horizontalement
+(le neuvième compte sortait de l'écran) : les onglets passent à la ligne
+suivante, libellés intacts, avec un espacement vertical serré (4 px) pour que
+les rangées se lisent comme une seule liste.
+
 ### Rangement des téléchargements
 
 Chaque fichier est rangé par cloud puis par nature, sous le dossier de base :
