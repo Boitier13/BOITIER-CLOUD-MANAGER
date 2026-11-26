@@ -31,6 +31,7 @@ export type Route =
   | { name: 'home' }
   | { name: 'clouds'; provider: ProviderId }
   | { name: 'files' }
+  | { name: 'search' }
   | { name: 'downloads' }
   | { name: 'favorites' }
   | { name: 'storage' }

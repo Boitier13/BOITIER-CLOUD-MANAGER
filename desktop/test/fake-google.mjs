@@ -22,6 +22,16 @@ const CONTENT = Buffer.from('BOITIER CLOUD MANAGER — test de téléchargement 
 
 const FILES = [
   {
+    // Racine du compte : Drive la désigne par l'alias `root` et ne la liste
+    // jamais comme un dossier ordinaire. Sa date est volontairement ancienne
+    // pour ne pas fausser le flux « récents ».
+    id: 'root',
+    name: 'Mon Drive',
+    mimeType: 'application/vnd.google-apps.folder',
+    modifiedTime: '2020-01-01T00:00:00.000Z',
+    parents: [],
+  },
+  {
     id: 'folder-projets',
     name: 'Projets',
     mimeType: 'application/vnd.google-apps.folder',

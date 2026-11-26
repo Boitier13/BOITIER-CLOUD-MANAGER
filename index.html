@@ -6,8 +6,135 @@
     <meta name="color-scheme" content="dark light" />
     <meta name="theme-color" content="#0b0d10" />
     <title>BOITIER CLOUD MANAGER</title>
+    <!--
+      Thème appliqué avant le moindre pixel : le réglage est déjà enregistré
+      dans le stockage local, inutile de peindre l'ancien thème puis de changer.
+      Le script est volontairement minuscule et ne peut pas échouer (tout est
+      enveloppé) : un écran de démarrage ne doit jamais bloquer l'application.
+    -->
+    <script>
+      try {
+        var saved = JSON.parse(localStorage.getItem('boitier-cloud-manager:v1') || '{}');
+        var theme = saved && saved.settings && saved.settings.theme;
+        if (theme === 'light' || theme === 'dark') {
+          document.documentElement.dataset.theme = theme;
+        }
+      } catch (error) {
+        /* stockage illisible : le thème par défaut reste en place */
+      }
+    </script>
+    <!--
+      Écran de démarrage, peint avant le chargement de l'interface.
+      Sans lui, la fenêtre reste vide plusieurs secondes au premier lancement
+      après installation (Windows analyse alors le nouvel exécutable). Les
+      styles sont ici, en ligne : ils ne dépendent d'aucun fichier à charger.
+      L'élément est retiré par l'interface dès qu'elle est montée.
+    -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+      }
+      html[data-theme='dark'] {
+        --boot-bg: #0b0c0e;
+        --boot-panel: #121417;
+        --boot-text: #eceef1;
+        --boot-muted: #808896;
+        --boot-accent: #d2b283;
+        --boot-track: rgba(255, 255, 255, 0.09);
+      }
+      html[data-theme='light'] {
+        --boot-bg: #f5f7fb;
+        --boot-panel: #ffffff;
+        --boot-text: #101828;
+        --boot-muted: #5a6473;
+        --boot-accent: #2f6bff;
+        --boot-track: #e3e8f2;
+      }
+      body {
+        background: var(--boot-bg);
+        color: var(--boot-text);
+        font-family: 'DM Sans Variable', 'Segoe UI Variable Text', 'Segoe UI', system-ui,
+          sans-serif;
+      }
+      .boot {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 13px;
+        user-select: none;
+        cursor: default;
+      }
+      .boot__mark {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        background: var(--boot-accent);
+        color: #fff;
+        font-weight: 700;
+        font-size: 16px;
+        letter-spacing: 0.06em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      html[data-theme='dark'] .boot__mark {
+        color: #211a0d;
+      }
+      .boot__name {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+      }
+      .boot__hint {
+        font-size: 12.5px;
+        color: var(--boot-muted);
+      }
+      .boot__bar {
+        width: 148px;
+        height: 3px;
+        border-radius: 2px;
+        background: var(--boot-track);
+        overflow: hidden;
+        margin-top: 3px;
+      }
+      .boot__bar span {
+        display: block;
+        width: 38%;
+        height: 100%;
+        border-radius: 2px;
+        background: var(--boot-accent);
+        animation: boot-run 1.15s ease-in-out infinite;
+      }
+      @keyframes boot-run {
+        0% {
+          transform: translateX(-110%);
+        }
+        100% {
+          transform: translateX(330%);
+        }
+      }
+      /* Mouvement réduit : la barre reste pleine, rien ne clignote. */
+      @media (prefers-reduced-motion: reduce) {
+        .boot__bar span {
+          animation: none;
+          width: 100%;
+        }
+      }
+    </style>
   </head>
   <body>
+    <div class="boot" id="boot" role="status" aria-live="polite">
+      <div class="boot__mark">BC</div>
+      <div class="boot__name">BOITIER CLOUD MANAGER</div>
+      <div class="boot__hint">Préparation de vos comptes…</div>
+      <div class="boot__bar"><span></span></div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

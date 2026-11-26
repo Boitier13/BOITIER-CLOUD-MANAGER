@@ -22,6 +22,7 @@ function reportFatal(error: unknown): void {
   const message =
     error instanceof Error ? `${error.name} : ${error.message}` : String(error);
   console.error('Interface interrompue', error);
+  document.getElementById('boot')?.remove();
   const host = document.getElementById('root');
   if (!host) return;
   host.innerHTML = '';
@@ -56,6 +57,9 @@ function reportFatal(error: unknown): void {
 function ReadySignal(): null {
   useEffect(() => {
     signalReady();
+    // L'interface a pris la main : l'écran de démarrage (peint en HTML, avant
+    // tout chargement) n'a plus de raison d'occuper la fenêtre.
+    document.getElementById('boot')?.remove();
   }, []);
   return null;
 }

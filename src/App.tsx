@@ -15,6 +15,7 @@ import { useToast } from './components/toast';
 import { Home } from './pages/Home';
 import { Clouds } from './pages/Clouds';
 import { Files } from './pages/Files';
+import { SearchPage } from './pages/Search';
 import { Storage } from './pages/Storage';
 import { Recent } from './pages/Recent';
 import { Downloads } from './pages/Downloads';
@@ -89,6 +90,9 @@ export default function App() {
       } else if (key === '2') {
         event.preventDefault();
         navigate({ name: 'files' });
+      } else if (key === '7') {
+        event.preventDefault();
+        navigate({ name: 'search' });
       } else if (key === '3') {
         event.preventDefault();
         navigate({ name: 'downloads' });
@@ -150,6 +154,8 @@ export default function App() {
         );
       case 'files':
         return <Files />;
+      case 'search':
+        return <SearchPage />;
       case 'downloads':
         return <Downloads onNavigate={navigate} />;
       case 'favorites':
@@ -250,6 +256,7 @@ export default function App() {
             {[
               ['Accueil', 'Ctrl + 1'],
               ['Explorateur', 'Ctrl + 2'],
+              ['Recherche', 'Ctrl + 7'],
               ['Téléchargements', 'Ctrl + 3'],
               ['Favoris', 'Ctrl + 4'],
               ['Stockage', 'Ctrl + 5'],

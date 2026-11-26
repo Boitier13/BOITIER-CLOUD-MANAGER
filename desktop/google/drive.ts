@@ -117,6 +117,26 @@ async function listAll(
   return items;
 }
 
+/**
+ * Métadonnées d'un élément précis (dossier ou fichier).
+ *
+ * Sert à retrouver **où** se trouve un fichier trouvé par la recherche : Drive
+ * ne renvoie que l'identifiant du dossier parent, jamais son nom ni son chemin.
+ * L'identifiant `root` désigne la racine du compte.
+ */
+export async function readItem(
+  endpoints: Endpoints,
+  token: string,
+  id: string,
+  signal?: AbortSignal,
+): Promise<DriveItem> {
+  const url = new URL(`${endpoints.drive}/files/${encodeURIComponent(id)}`);
+  url.searchParams.set('fields', 'id,name,mimeType,size,modifiedTime,parents');
+  url.searchParams.set('supportsAllDrives', 'true');
+  const raw = await fetchJson<Record<string, unknown>>(url.toString(), token, signal);
+  return toItem(raw);
+}
+
 /** Contenu d'un dossier. `root` désigne la racine du compte. */
 export function listChildren(
   endpoints: Endpoints,

@@ -4,7 +4,10 @@
  * Un dossier unique finit par contenir des vidéos, des factures et des
  * archives, indiscernables. Chaque transfert est donc rangé dans
  * `<dossier de base>\<cloud>\<nature>` — par exemple :
- * `C:\Users\…\Downloads\Google Drive\Vidéos`.
+ * `C:\Users\…\Downloads\Google Drive\Videos`.
+ *
+ * Les noms de dossiers sont **sans accent** : un `é` dans un chemin traverse
+ * mal l'archive ZIP, les partages réseau et les outils en ligne de commande.
  *
  * Module sans dépendance d'exécution : les types seuls sont importés, ce qui
  * permet de le vérifier hors navigateur.
@@ -14,7 +17,7 @@ import type { FileType, ProviderId } from '../data/catalog';
 
 /** Dossiers visibles par l'utilisateur, au pluriel et en français. */
 const TYPE_FOLDER: Record<FileType, string> = {
-  video: 'Vidéos',
+  video: 'Videos',
   audio: 'Audio',
   image: 'Images',
   document: 'Documents',

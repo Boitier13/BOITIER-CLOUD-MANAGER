@@ -16,7 +16,7 @@ import type { FileNode } from '../data/catalog';
 import { getBridge, type GoogleFile } from './bridge';
 import { GOOGLE_ROOT, toNode } from './google';
 
-interface FolderState {
+export interface FolderState {
   nodes: FileNode[];
   status: 'loading' | 'ready' | 'error';
   error?: string;
@@ -383,6 +383,44 @@ export function useRemoteFolder(
   }, [accountId, enabled, join]);
 
   return state;
+}
+
+/**
+ * Recherche dans **plusieurs** comptes à la fois.
+ *
+ * Chaque compte a sa propre requête : Drive ne sait pas chercher dans plusieurs
+ * espaces (comptes Google distincts) d'un seul appel. On interroge donc tous les
+ * comptes demandés et l'on renvoie l'état de chacun — y compris les échecs, qui
+ * doivent être visibles (une autorisation expirée sur un compte ne doit pas
+ * faire croire à l'absence de résultat).
+ *
+ * Aucun appel n'est refait : le cache du catalogue sait qu'une recherche déjà
+ * obtenue n'a pas besoin d'être relancée.
+ */
+export function useSearchAcross(
+  accountIds: string[],
+  term: string,
+  enabled: boolean,
+): Map<string, FolderState> {
+  const query = term.trim();
+  const active = enabled && query.length >= 2;
+  // Abonnement : toute réponse du catalogue provoque un nouveau rendu.
+  useSyncExternalStore(remoteCatalog.subscribe, () => remoteCatalog.revision);
+
+  const idsKey = accountIds.join('|');
+  useEffect(() => {
+    if (!active) return;
+    for (const id of accountIds) remoteCatalog.search(id, query);
+    // `idsKey` remplace le tableau : deux tableaux égaux ne sont jamais égaux.
+  }, [active, query, idsKey]);
+
+  const states = new Map<string, FolderState>();
+  if (!active) return states;
+  for (const id of accountIds) {
+    const state = remoteCatalog.get(remoteCatalog.searchKey(id, query));
+    if (state) states.set(id, state);
+  }
+  return states;
 }
 
 /** Résultat d'une recherche distante (dès 2 caractères). */

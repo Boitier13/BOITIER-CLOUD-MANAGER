@@ -185,6 +185,31 @@ try {
     !rootFiles.some((file) => file.id === shared[0]?.id),
   );
 
+  // --- 5quater. Chemin d'un résultat de recherche ----------------------------
+  //
+  // La recherche multi-comptes renvoie des fichiers sans leur chemin : Drive ne
+  // donne que l'identifiant du dossier parent. `locate` remonte la chaîne pour
+  // que « Ouvrir le dossier » mène quelque part. La racine du compte est exclue
+  // du chemin : elle n'est pas un dossier de l'utilisateur.
+  const trail = await service2.locate(account.accountId, 'file-devis');
+  check(
+    'chemin : « Devis 2026.pdf » est localisé dans Projets',
+    trail.length === 1 && trail[0].name === 'Projets',
+    trail.map((step) => step.name).join(' / ') || 'chemin vide',
+  );
+  const deep = await service2.locate(account.accountId, 'file-doc');
+  check(
+    'chemin : un fichier imbriqué donne la chaîne complète',
+    deep.length === 2 && deep[0].name === 'Projets' && deep[1].name === '2026',
+    deep.map((step) => step.name).join(' / ') || 'chemin vide',
+  );
+  const atRoot = await service2.locate(account.accountId, 'file-notes');
+  check(
+    'chemin : un fichier à la racine donne un chemin vide',
+    atRoot.length === 0,
+    atRoot.map((step) => step.name).join(' / ') || 'aucun niveau',
+  );
+
   // --- 5bis. Adresses Gmail : les alias ne font pas un second compte ---------
   check(
     'adresses Gmail : les variantes désignent la même boîte',
@@ -498,8 +523,8 @@ try {
     '../../src/lib/organize.ts'
   );
   check(
-    'rangement : une vidéo va dans « Google Drive\\Vidéos »',
-    downloadSubPath('gdrive', 'video') === 'Google Drive/Vidéos' &&
+    'rangement : une vidéo va dans « Google Drive\\Videos », sans accent',
+    downloadSubPath('gdrive', 'video') === 'Google Drive/Videos' &&
       categoryFolder('document') === 'Documents' &&
       categoryFolder('archive') === 'Archives' &&
       cloudFolder('gdrive') === 'Google Drive',
@@ -511,11 +536,11 @@ try {
   );
   check(
     'rangement : le chemin suit le séparateur du dossier de base',
-    joinFolder('C:\\Users\\BOITIER_FIRST\\Downloads', 'Google Drive/Vidéos') ===
-      'C:\\Users\\BOITIER_FIRST\\Downloads\\Google Drive\\Vidéos' &&
+    joinFolder('C:\\Users\\BOITIER_FIRST\\Downloads', 'Google Drive/Videos') ===
+      'C:\\Users\\BOITIER_FIRST\\Downloads\\Google Drive\\Videos' &&
       joinFolder('/home/saturnin/Downloads/', 'Google Drive/Audio') ===
         '/home/saturnin/Downloads/Google Drive/Audio',
-    joinFolder('C:\\Users\\BOITIER_FIRST\\Downloads', 'Google Drive/Vidéos'),
+    joinFolder('C:\\Users\\BOITIER_FIRST\\Downloads', 'Google Drive/Videos'),
   );
 }
 
@@ -651,20 +676,116 @@ try {
       /win\.focus\(\)/.test(main),
   );
 
-  const iBoot = main.indexOf('function boot()');
-  const bootBody = main.slice(iBoot, main.indexOf('// Le journal est ouvert avant'));
+  // L'écran de démarrage vit désormais **dans** la page : une seconde fenêtre
+  // s'affichait comme un carré vide au milieu de l'écran, avant que son contenu
+  // ne soit peint. Une seule fenêtre, un contenu peint avec le document.
+  const html = await lire(new URL('../../index.html', import.meta.url), 'utf8');
+  const app = await lire(new URL('../../src/main.tsx', import.meta.url), 'utf8');
   check(
-    'démarrage : l’écran d’attente s’ouvre avant la fenêtre principale',
-    iBoot !== -1 && /openSplash\(\)/.test(bootBody) &&
-      bootBody.indexOf('openSplash()') < bootBody.indexOf('createWindow()'),
+    'démarrage : l’écran de démarrage est dans la page, styles compris',
+    /id="boot"/.test(html) &&
+      /<style>[\s\S]*boot__bar[\s\S]*<\/style>/.test(html) &&
+      !/<link[^>]+stylesheet/i.test(html),
   );
   check(
-    'démarrage : l’écran d’attente disparaît dès que l’interface est prête',
-    /log\('interface prête'\);\s*\n\s*closeSplash\(\);/.test(main),
+    'démarrage : aucun fichier à charger avant le premier écran',
+    html.indexOf('id="boot"') < html.indexOf('/src/main.tsx'),
+  );
+  check(
+    'démarrage : l’écran de démarrage disparaît quand l’interface prend la main',
+    (() => {
+      const ready = app.slice(app.indexOf('function ReadySignal'), app.indexOf('return null'));
+      return ready.includes("getElementById('boot')?.remove()");
+    })(),
+    'retrait absent ou placé hors du signal de vie',
+  );
+  check(
+    'démarrage : le thème enregistré est appliqué avant le premier pixel',
+    /boitier-cloud-manager:v1/.test(html) && /dataset\.theme/.test(html),
+  );
+  check(
+    'démarrage : plus de seconde fenêtre d’attente (le carré vide)',
+    !/openSplash|SPLASH_HTML/.test(main),
   );
   check(
     'démarrage : le fond de fenêtre suit le thème livré, pas l’ancien sombre',
     /backgroundColor: '#f5f7fb'/.test(main) && !/backgroundColor: '#0b0d10'/.test(main),
+  );
+}
+
+/* --- 19. Recherche à deux portées ----------------------------------------- */
+//
+// Demande explicite : chercher dans **tous** les comptes *et* dans un seul.
+// Ces contrôles lisent la page de recherche : ils échouent si une portée
+// disparaît, si la frappe n'est plus temporisée, ou si un compte en échec
+// n'est plus signalé.
+{
+  const { readFile: lire } = await import('node:fs/promises');
+  const page = await lire(new URL('../../src/pages/Search.tsx', import.meta.url), 'utf8');
+  const app = await lire(new URL('../../src/App.tsx', import.meta.url), 'utf8');
+  const sidebar = await lire(
+    new URL('../../src/components/Sidebar.tsx', import.meta.url),
+    'utf8',
+  );
+
+  check(
+    'recherche : une entrée de menu et une route dédiées',
+    /'Recherche'/.test(sidebar) && /name: 'search'/.test(await (async () =>
+      lire(new URL('../../src/store.tsx', import.meta.url), 'utf8'))()) &&
+      /case 'search'/.test(app),
+  );
+  check(
+    'recherche : les deux portées existent — tous les comptes et un seul',
+    page.includes('Tous les comptes') &&
+      page.includes("setScope('all')") &&
+      page.includes('setScope(account.id)'),
+    'portée manquante',
+  );
+  check(
+    'recherche : la frappe est temporisée avant d’interroger les comptes',
+    page.includes('const DEBOUNCE_MS = 400') && page.includes('setTimeout(() => setSettled'),
+    'aucune temporisation',
+  );
+  check(
+    'recherche : la portée « tous » interroge bien tous les comptes',
+    page.includes("scope === 'all' ? accounts : accounts.filter"),
+    'portée unique en dur',
+  );
+  check(
+    'recherche : un compte en échec est annoncé, pas passé sous silence',
+    page.includes('className="search-status__error"') && page.includes("status === 'error'"),
+    'aucun signalement d’échec',
+  );
+  check(
+    'recherche : chaque résultat peut être ouvert à son emplacement ou téléchargé',
+    page.includes('await bridge.google.locate(') && page.includes('google') &&
+      page.includes('.download({'),
+    'aucune action sur le résultat',
+  );
+}
+
+/* --- 20. Chemin d'un résultat : câblage complet --------------------------- */
+{
+  const { readFile: lire } = await import('node:fs/promises');
+  const api = await lire(new URL('../api.ts', import.meta.url), 'utf8');
+  const preload = await lire(new URL('../preload.cjs', import.meta.url), 'utf8');
+  const bridge = await lire(new URL('../../src/lib/bridge.ts', import.meta.url), 'utf8');
+  const service = await lire(new URL('../google/service.ts', import.meta.url), 'utf8');
+
+  check(
+    'chemin : le canal est déclaré, exposé et enregistré',
+    /locate: 'google:locate'/.test(api) &&
+      /handle\(channels\.locate/.test(api) &&
+      /google:locate/.test(preload),
+  );
+  check(
+    'chemin : l’interface peut demander le chemin d’un fichier',
+    /locate\?\(accountId: string, fileId: string\): Promise/.test(bridge),
+  );
+  check(
+    'chemin : la remontée s’arrête à la racine du compte, pas au-delà',
+    /readItem\(this\.endpoints, token, 'root'\)/.test(service) &&
+      /depth < 20/.test(service),
   );
 }
 
