@@ -618,6 +618,56 @@ try {
   console.error('Veilleur : erreur inattendue', cause);
 }
 
+/* --- 18. Démarrage : trace, écran d'attente, instance unique --------------- */
+//
+// Trois défauts constatés sur les journaux réels, corrigés ici :
+//   • un second clic sur l'icône sortait **sans écrire une ligne** (le contrôle
+//     d'instance unique passait avant l'ouverture du journal) → l'application
+//     semblait refuser de démarrer ;
+//   • la fenêtre n'apparaissait qu'une fois l'interface chargée (4 à 13 s au
+//     premier lancement après installation) → rien à l'écran pendant ce temps ;
+//   • ce second clic ne ramenait même pas la fenêtre existante au premier plan.
+{
+  const { readFile: lire } = await import('node:fs/promises');
+  const main = await lire(new URL('../main.ts', import.meta.url), 'utf8');
+
+  const iLog = main.indexOf('startLog();');
+  const iLock = main.indexOf('requestSingleInstanceLock');
+  check(
+    'démarrage : le journal est ouvert avant le contrôle d’instance unique',
+    iLog !== -1 && iLock !== -1 && iLog < iLock,
+  );
+  check(
+    'démarrage : un lancement refusé laisse une ligne dans le journal',
+    /if \(!app\.requestSingleInstanceLock\(\)\) \{\s*log\(/.test(main),
+  );
+
+  const iSecond = main.indexOf("app.on('second-instance'");
+  check(
+    'démarrage : un second clic ramène la fenêtre existante au premier plan',
+    iSecond !== -1 &&
+      /revealWindow\(\)/.test(main.slice(iSecond, iSecond + 300)) &&
+      /if \(win\.isMinimized\(\)\) win\.restore\(\)/.test(main) &&
+      /win\.focus\(\)/.test(main),
+  );
+
+  const iBoot = main.indexOf('function boot()');
+  const bootBody = main.slice(iBoot, main.indexOf('// Le journal est ouvert avant'));
+  check(
+    'démarrage : l’écran d’attente s’ouvre avant la fenêtre principale',
+    iBoot !== -1 && /openSplash\(\)/.test(bootBody) &&
+      bootBody.indexOf('openSplash()') < bootBody.indexOf('createWindow()'),
+  );
+  check(
+    'démarrage : l’écran d’attente disparaît dès que l’interface est prête',
+    /log\('interface prête'\);\s*\n\s*closeSplash\(\);/.test(main),
+  );
+  check(
+    'démarrage : le fond de fenêtre suit le thème livré, pas l’ancien sombre',
+    /backgroundColor: '#f5f7fb'/.test(main) && !/backgroundColor: '#0b0d10'/.test(main),
+  );
+}
+
 const passed = results.filter((result) => result.ok).length;
 console.log(`\n${passed}/${results.length} vérifications réussies.`);
 if (failures) {
