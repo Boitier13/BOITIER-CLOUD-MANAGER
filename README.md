@@ -446,6 +446,12 @@ n'installe jamais une version que personne n'a demandée. L'installeur s'affiche
 ensuite comme lors d'une installation habituelle, pour que rien ne se produise
 en silence.
 
+**Ce que l'écran montre.** « À jour — version 0.22.3 vérifiée à 16 h 14 » :
+l'heure compte, sans elle on ne distingue pas une vérification faite à
+l'instant d'une vérification faite au démarrage. Pendant le téléchargement,
+une barre de progression remplace le pourcentage qui sautait, et le bouton
+annonce « Téléchargement… » plutôt que « Vérification… ».
+
 **Le manifeste fait partie de la release.** `latest.yml` (et les `.blockmap`)
 décrivent la version disponible et son empreinte. Le flux de publication les
 joint à chaque version et **échoue** s'ils manquent : sans eux, l'application

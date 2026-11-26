@@ -1354,6 +1354,85 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   check('navigateur : le bouton de vérification est inerte', Boolean(bouton) && bouton.disabled);
 }
 
+/* --- 12. Téléchargement : la progression doit se voir --------------------- */
+//
+// Une mise à jour de 90 Mo ne montrait qu'un nombre qui saute. La barre et le
+// libellé du bouton rendent l'attente visible — c'est justement l'étape que
+// l'utilisateur surveille pendant un essai de mise à jour.
+{
+  let emettre = null;
+  const verifie = new Date().toISOString();
+  const etat = {
+    status: 'idle',
+    currentVersion: '0.22.3',
+    checkedAt: verifie,
+  };
+
+  const suivi = await parcours({
+    label: 'téléchargement',
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      updater: {
+        state: async () => etat,
+        check: async () => etat,
+        install: async () => true,
+        onChange: (rapport) => {
+          emettre = rapport;
+          return () => {};
+        },
+      },
+      google: {
+        status: async () => ({ configured: false, source: 'none' }),
+        accounts: async () => [],
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+      },
+    },
+  });
+
+  const { doc } = suivi;
+  const versParametres = [...doc.querySelectorAll('.nav-item')].find((button) =>
+    (button.textContent ?? '').includes('Paramètres'),
+  );
+  if (versParametres) await suivi.click(versParametres);
+
+  check(
+    'mise à jour : l’heure de la vérification est affichée',
+    /vérifiée à \d{1,2} h \d{2}/.test(doc.body.textContent ?? ''),
+    (doc.body.textContent ?? '').match(/À jour[^.]*/)?.[0] ?? 'heure absente',
+  );
+
+  if (emettre) {
+    emettre({
+      status: 'downloading',
+      currentVersion: '0.22.3',
+      version: '0.23.0',
+      percent: 42,
+      checkedAt: verifie,
+    });
+    await suivi.click(doc.body);
+  }
+
+  const barre = doc.querySelector('[role="progressbar"]');
+  check('mise à jour : une barre de progression apparaît', Boolean(barre));
+  check(
+    'mise à jour : la barre reflète l’avancement réel',
+    barre?.getAttribute('aria-valuenow') === '42',
+    barre?.getAttribute('aria-valuenow') ?? 'absente',
+  );
+  const corps = doc.body.textContent ?? '';
+  check('mise à jour : le pourcentage est annoncé en clair', /42 %/.test(corps));
+  check(
+    'mise à jour : le bouton dit ce qui se passe',
+    /Téléchargement…/.test(corps),
+    corps.includes('Vérification…') ? 'libellé « Vérification… »' : 'libellé absent',
+  );
+}
+
 console.log(
   failures === 0
     ? '\nInterface vérifiée : état vide maîtrisé, compte réel affiché, aucun décor.'
