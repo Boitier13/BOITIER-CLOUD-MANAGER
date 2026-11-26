@@ -13,6 +13,7 @@ import { mkdir, rename, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { isGoogleDocument, openMedia, readFileMeta } from './drive.ts';
 import type { Endpoints } from './endpoints.ts';
+import { log } from '../log.ts';
 
 export type DownloadStatus = 'running' | 'paused' | 'done' | 'error';
 
@@ -197,15 +198,23 @@ export class DownloadManager {
   private async run(job: Job, token: string): Promise<void> {
     const { request } = job;
     const timer: { handle?: NodeJS.Timeout } = {};
+    // Déclaré hors du `try` : le nettoyage en cas d'échec doit y accéder.
+    let partPath = '';
     this.watch(job, timer);
-    const dir = relativeDir(request.dir || (await this.fallbackDir()), request.subPath);
-    await mkdir(dir, { recursive: true });
-    const finalPath = await uniquePath(dir, request.name);
-    const partPath = `${finalPath}.part`;
 
+    // Préparation DANS le try : un dossier impossible à créer lève ici, et
+    // l'erreur doit atteindre l'interface. Elle en sortait auparavant avant le
+    // `try` — la ligne restait alors « En cours » à 0 %, sans aucun message.
     try {
+      const dir = relativeDir(request.dir || (await this.fallbackDir()), request.subPath);
+      log(`transfert ${request.id} : dossier ${dir}`);
+      await mkdir(dir, { recursive: true });
+      const finalPath = await uniquePath(dir, request.name);
+      partPath = `${finalPath}.part`;
+
       // Documents Google natifs (Docs, Sheets…) : pas de flux binaire direct.
       const meta = await readFileMeta(this.endpoints, token, request.fileId, job.controller.signal);
+      log(`transfert ${request.id} : métadonnées ${meta.mimeType} ${meta.size} o`);
       if (isGoogleDocument(meta.mimeType)) {
         throw new Error(
           'Les documents Google natifs (Docs, Sheets, Slides) n’ont pas de fichier binaire. Exportez-les d’abord depuis Google Drive.',
@@ -214,6 +223,7 @@ export class DownloadManager {
 
       const media = await openMedia(this.endpoints, token, request.fileId, job.controller.signal);
       if (!job.size) job.size = media.size ?? meta.size;
+      log(`transfert ${request.id} : flux ouvert, ${job.size} o annoncés`);
 
       const sink = createWriteStream(partPath);
       const reader = media.body.getReader();
@@ -225,6 +235,7 @@ export class DownloadManager {
         const { done, value } = await reader.read();
         if (done) break;
         if (!value?.length) continue;
+        if (!job.received) log(`transfert ${request.id} : premier paquet (${value.length} o)`);
         job.received += value.length;
         this.watch(job, timer);
         if (!sink.write(Buffer.from(value))) await once(sink, 'drain');
@@ -250,6 +261,7 @@ export class DownloadManager {
 
       await rename(partPath, finalPath);
       job.status = 'done';
+      log(`transfert ${request.id} : terminé (${job.received} o) → ${finalPath}`);
       const seconds = Math.max((Date.now() - startedAt) / 1000, 0.001);
       this.emit({
         id: request.id,
@@ -264,6 +276,21 @@ export class DownloadManager {
         (cause as Error).name === 'AbortError' ||
         (cause as { code?: string }).code === 'ABORT_ERR';
       await rm(partPath, { force: true }).catch(() => undefined);
+
+      if (!job.stalled && !aborted) {
+        log(`transfert ${request.id} : échec — ${(cause as Error).message}`);
+      }
+
+      // Message lisible pour les refus du disque (chemin inexistant, droits…).
+      const code = (cause as { code?: string }).code;
+      const diskMessage =
+        code === 'ENOENT'
+          ? `Dossier introuvable : « ${request.dir} ». Choisissez un autre dossier dans Paramètres.`
+          : code === 'EACCES' || code === 'EPERM'
+            ? `Windows refuse l’écriture dans « ${request.dir} ». Choisissez un autre dossier dans Paramètres.`
+            : code === 'ENOSPC'
+              ? 'Le disque est plein : impossible de poursuivre le transfert.'
+              : '';
 
       if (job.stalled) {
         const seconds = Math.max(1, Math.round(this.stallMs / 1000));
@@ -301,7 +328,7 @@ export class DownloadManager {
         received: job.received,
         size: job.size,
         speed: 0,
-        message: (cause as Error).message || 'Téléchargement interrompu.',
+        message: diskMessage || (cause as Error).message || 'Téléchargement interrompu.',
       });
     } finally {
       if (timer.handle) clearTimeout(timer.handle);

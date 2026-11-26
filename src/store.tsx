@@ -17,6 +17,7 @@ import {
   type ProviderId,
 } from './data/catalog';
 import { advanceDownloads, type DownloadItem } from './lib/downloads';
+import { interruptStaleDownloads, isLegacyDownloadFolder } from './lib/transfers';
 import { flattenTree, type TreeEntry } from './lib/tree';
 import { remoteCatalog, remoteTree } from './lib/remote';
 import { getBridge } from './lib/bridge';
@@ -173,10 +174,13 @@ function loadState(): AppState {
 
     const accountIds = new Set(accounts.map((account) => account.id));
     const favorites = (parsed.favorites ?? []).filter((fav) => accountIds.has(fav.accountId));
-    const downloads = (parsed.downloads ?? []).filter(
-      (item) => item && accountIds.has(item.accountId),
+    const downloads = interruptStaleDownloads(
+      (parsed.downloads ?? []).filter((item) => item && accountIds.has(item.accountId)),
     );
     const settings = { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) };
+    // Ancien dossier inventé (`D:\Médias\Téléchargements`…) : retour au
+    // dossier du système plutôt qu'un chemin qui n'existe pas.
+    if (isLegacyDownloadFolder(settings.downloadFolder)) settings.downloadFolder = '';
     const activeAccount = accounts.find((a) => a.id === parsed.explorer?.accountId);
 
     return {
@@ -408,6 +412,8 @@ function reducer(state: AppState, action: Action): AppState {
             speed: update.speed,
             ...(update.path ? { savedPath: update.path } : {}),
             ...(update.message ? { error: update.message } : {}),
+            // Une relance efface le motif d'échec précédent.
+            ...(status === 'active' ? { error: undefined } : {}),
             ...(status === 'done'
               ? { completedAt: new Date().toISOString(), error: undefined }
               : {}),

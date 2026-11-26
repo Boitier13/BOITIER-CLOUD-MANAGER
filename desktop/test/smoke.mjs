@@ -426,6 +426,89 @@ try {
   await rm(workDir, { recursive: true, force: true }).catch(() => undefined);
 }
 
+/* --- 11bis. Dossier impossible : l'échec doit être signalé ------------------ */
+try {
+  const { writeFile: write, mkdir: make } = await import('node:fs/promises');
+  const dir = await mkdtemp(join(tmpdir(), 'boitier-dossier-'));
+  // Un fichier à la place du dossier : la création échoue forcément.
+  const obstacle = join(dir, 'obstacle');
+  await write(obstacle, 'x');
+  const events = [];
+  const manager = new DownloadManager(
+    { drive: 'http://127.0.0.1:9/drive/v3' },
+    (event) => events.push(event),
+    async () => dir,
+  );
+  await manager.start(
+    { id: 'dossier', fileId: 'f', name: 'v.mp4', size: 1024, dir: join(obstacle, 'sous') },
+    'jeton',
+  );
+  const ended = await waitFor(
+    () => events.some((event) => event.id === 'dossier' && event.status === 'error'),
+    3000,
+  );
+  check(
+    'dossier impossible : un échec est signalé au lieu d’un 0 % muet',
+    ended,
+    events.map((event) => `${event.status}:${event.message ?? ''}`).join(' | ') || 'aucun événement',
+  );
+  await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  void make;
+} catch (cause) {
+  failures += 1;
+  console.error('Dossier impossible : erreur inattendue', cause);
+}
+
+/* --- 11ter. Adresses autorisées vers le navigateur ------------------------- */
+{
+  const { driveFolderUrl, driveFileUrl, isAllowedExternalUrl } = await import(
+    '../../src/lib/driveLinks.ts'
+  );
+  check(
+    'liens : un dossier Drive est ouvert au bon endroit',
+    driveFolderUrl('1AbC') === 'https://drive.google.com/drive/folders/1AbC' &&
+      driveFolderUrl('root') === 'https://drive.google.com/drive/my-drive',
+    driveFolderUrl('1AbC'),
+  );
+  check(
+    'liens : un fichier Drive est ouvert dans son aperçu',
+    driveFileUrl('1AbC') === 'https://drive.google.com/file/d/1AbC/view',
+    driveFileUrl('1AbC'),
+  );
+  check(
+    'liens : une adresse étrangère reste refusée',
+    !isAllowedExternalUrl('https://exemple.test/piege') &&
+      !isAllowedExternalUrl('javascript:alert(1)') &&
+      isAllowedExternalUrl('https://drive.google.com/drive/my-drive') &&
+      isAllowedExternalUrl('https://console.cloud.google.com/apis'),
+  );
+}
+
+/* --- 11quater. Dossiers inventés et transferts fantômes -------------------- */
+{
+  const { isLegacyDownloadFolder, interruptStaleDownloads } = await import(
+    '../../src/lib/transfers.ts'
+  );
+  check(
+    'dossier : les anciens chemins inventés sont reconnus',
+    isLegacyDownloadFolder('D:\\Médias\\Téléchargements') &&
+      isLegacyDownloadFolder('C:\\Users\\Boitier\\Téléchargements') &&
+      !isLegacyDownloadFolder('C:\\Users\\Saturnin\\Téléchargements'),
+  );
+  const fantomes = interruptStaleDownloads([
+    { id: 'a', status: 'active', received: 0, speed: 4200 },
+    { id: 'b', status: 'done', received: 10, speed: 0 },
+  ]);
+  check(
+    'file : un transfert restauré « en cours » est déclaré interrompu',
+    fantomes[0].status === 'error' &&
+      /Relancez/.test(fantomes[0].error ?? '') &&
+      fantomes[0].speed === 0 &&
+      fantomes[1].status === 'done',
+    `${fantomes[0].status} — ${fantomes[0].error ?? ''}`,
+  );
+}
+
 /* --- 12. Veilleur : un flux muet devient une erreur, pas un 0 % éternel --- */
 try {
   const server = await silentStreamServer();
