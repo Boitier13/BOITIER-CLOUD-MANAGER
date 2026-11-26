@@ -457,7 +457,7 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 182 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 186 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
@@ -894,3 +894,17 @@ compris). Ajouter un troisième fournisseur revient à :
 
 Aucun écran n’est à réécrire : l’explorateur, la file de transferts, les
 favoris, la recherche et le stockage ne connaissent que ces formes communes.
+
+**Écran « Stockage »** : les comptes y sont désormais groupés par fournisseur, un
+groupe par entrée de `PROVIDER_IDS`, avec le total de chaque fournisseur et ses
+pastilles. Ajouter Shadow Drive ou TeraBox fera apparaître leur groupe sans
+toucher à cet écran. Ce qui n’est pas publié n’est pas inventé : quand un
+fournisseur ne communique pas la nature des fichiers (cas de MEGA), l’écran
+affiche son quota réel et dit pourquoi le détail manque, au lieu de huit lignes à
+0 o.
+
+**Reste à intégrer** : Shadow Drive et TeraBox, dans cet ordre de difficulté mais
+pas d’importance — ce sont les deux clouds les plus importants pour
+l’utilisateur. Les quatre étapes ci-dessus sont la marche à suivre ; le registre
+`PROVIDERS` et l’aiguillage `src/lib/cloud.ts` sont les deux seuls points
+obligés.
