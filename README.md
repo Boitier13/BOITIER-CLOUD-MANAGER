@@ -317,7 +317,7 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 101 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 107 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
@@ -325,7 +325,8 @@ npm run desktop:test      # 101 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # déconnexion, démarrage (journal, instance unique,
                           # écran de démarrage, chemin d'un résultat,
                           # recherche à deux portées, mise à jour
-                          # automatique) — sans réseau, faux Google
+                          # automatique, trace avant chargement, verrou
+                          # patient) — sans réseau, faux Google
 npm run verify:interface  # les écrans sans compte, avec un compte simulé,
                           # avec neuf comptes, et la recherche à deux portées
 npm run desktop:paths     # la fenêtre charge dist/ en file://, et possède ses
@@ -468,6 +469,22 @@ application qui démarre puis échoue à la première vérification.
 **Première installation manuelle.** Les versions ≤ 0.21.0 ne connaissent pas ce
 mécanisme : il faut installer la 0.22.0 une dernière fois à la main. Ensuite,
 les mises à jour arrivent seules, sans passer par la page des releases.
+
+### Pourquoi « l'application ne s'ouvre pas » est désormais impossible en silence
+
+L'installeur Windows ferme l'application avant de la remplacer, puis la relance
+(case « Lancer l'application » cochée). Trois mécanismes produisaient le même
+symptôme — rien à l'écran, aucune trace :
+
+| Cause | Ce qui l'empêche maintenant |
+| --- | --- |
+| échec au chargement d'un module | `boot.ts` ouvre le journal **avant** de charger le code applicatif ; `uncaughtException` écrit la pile et montre une boîte de dialogue |
+| l'ancien processus meurt encore, le verrou refuse | le verrou est retenté 6 fois sur ~8,5 s avant d'abandonner, et chaque tentative est journalisée |
+| la page ne peint jamais | la fenêtre s'affiche de toute force après 2,5 s, et les messages d'erreur ne sont plus attachés à une fenêtre invisible |
+
+Le journal `%APPDATA%\BOITIER CLOUD MANAGER\demarrage.log` contient donc, pour
+chaque lancement : `processus démarré`, les tentatives de verrou, `fenêtre
+affichée`, `interface prête`, puis les étapes de mise à jour.
 
 ### Chargement local (`file://`)
 

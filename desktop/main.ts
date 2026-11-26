@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { registerIpc, emitDownload, emitUpdate, channels } from './api.ts';
 import { Updater } from './updater.ts';
 import { loadEnvFile, readGoogleConfig } from './config.ts';
-import { initLog, log } from './log.ts';
+import { initLog, log, logPath as currentLogPath } from './log.ts';
 import { resolveDataDir, resolvePreload, resolveRendererDir } from './paths.ts';
 import { Vault } from './google/vault.ts';
 import { GoogleService } from './google/service.ts';
@@ -56,7 +56,9 @@ const RENDERER_TIMEOUT_MS = 12_000;
 function startLog(): void {
   try {
     dataDir = resolveDataDir(app.getPath('appData'));
-    logPath = initLog(dataDir);
+    // Le journal est déjà ouvert par `boot.ts` : on ne le rouvre pas (cela
+    // ferait tourner le fichier deux fois).
+    logPath = currentLogPath() ?? initLog(dataDir);
   } catch {
     dataDir = null;
     logPath = null;
@@ -101,7 +103,25 @@ function createWindow(): BrowserWindow {
     },
   });
 
-  win.once('ready-to-show', () => win.show());
+  // Affichage garanti.
+  //
+  // `ready-to-show` ne se déclenche que si la page peint. Une page qui échoue
+  // silencieusement laissait donc une fenêtre invisible : processus vivant,
+  // aucun écran, aucune explication — exactement ce qu'on observe quand
+  // « l'application ne s'ouvre pas ». Passé ce délai, on montre la fenêtre de
+  // toute façon : au pire un fond clair, jamais rien.
+  let shown = false;
+  const show = (reason: string) => {
+    if (shown || win.isDestroyed()) return;
+    shown = true;
+    win.show();
+    log(`fenêtre affichée (${reason})`);
+  };
+  win.once('ready-to-show', () => show('prête à peindre'));
+  setTimeout(() => show('délai d’affichage atteint'), 2500);
+  win.once('closed', () => {
+    shown = true;
+  });
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
   /**
@@ -215,9 +235,15 @@ function showLoadFailure(win: BrowserWindow, detail: string): void {
     defaultId: 0,
     cancelId: 1,
   };
-  const choice = dialog.showMessageBoxSync(win, options);
-  if (choice === 0) win.webContents.reload();
-  else app.quit();
+  // Sans fenêtre parente : si la fenêtre n'est jamais apparue, un dialogue
+  // attaché à elle serait invisible lui aussi.
+  const choice = dialog.showMessageBoxSync(options);
+  if (choice === 0) {
+    win.show();
+    win.webContents.reload();
+  } else {
+    app.quit();
+  }
 }
 
 /** L'interface est chargée mais ne répond pas : message clair, pas de fenêtre morte. */
@@ -234,7 +260,7 @@ function showUnresponsive(win: BrowserWindow): void {
     defaultId: 0,
     cancelId: 1,
   };
-  const choice = dialog.showMessageBoxSync(win, options);
+  const choice = dialog.showMessageBoxSync(options);
   if (choice === 0) {
     app.relaunch();
     app.quit();
@@ -294,13 +320,47 @@ function boot(): void {
 
 // Le journal est ouvert avant le contrôle d'instance : une tentative de
 // lancement refusée doit laisser une trace, sinon elle est indiagnostiquable.
-startLog();
+/**
+ * Attente avant de renoncer à ouvrir une fenêtre.
+ *
+ * L'installeur Windows ferme l'application avant de la remplacer, puis la
+ * relance avec la case « Lancer » cochée. Si l'ancien processus met quelques
+ * instants à mourir, le nouveau trouve le verrou d'instance encore pris et
+ * sortait aussitôt : rien à l'écran, aucune explication. On réessaie donc
+ * pendant quelques secondes avant de conclure qu'une autre fenêtre est ouverte.
+ */
+const LOCK_RETRY_DELAYS_MS = [400, 900, 1600, 2400, 3200];
 
-// Une seule instance : le serveur de boucle locale OAuth doit être unique.
-if (!app.requestSingleInstanceLock()) {
-  log('une instance est déjà ouverte : ce lancement s’arrête, la fenêtre existante est réutilisée');
-  app.quit();
-} else {
+async function acquireInstanceLock(): Promise<boolean> {
+  for (let attempt = 0; attempt <= LOCK_RETRY_DELAYS_MS.length; attempt += 1) {
+    if (app.requestSingleInstanceLock()) {
+      if (attempt) log(`verrou d’instance obtenu à la tentative ${attempt + 1}`);
+      return true;
+    }
+    const delay = LOCK_RETRY_DELAYS_MS[attempt];
+    if (delay === undefined) break;
+    log(`instance déjà ouverte (tentative ${attempt + 1}) : nouvelle tentative dans ${delay} ms`);
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+  return false;
+}
+
+/**
+ * Séquence de lancement, écrite en `async` : le verrou d'instance peut demander
+ * plusieurs tentatives (voir `acquireInstanceLock`).
+ */
+async function start(): Promise<void> {
+  startLog();
+
+  // Une seule instance : le serveur de boucle locale OAuth doit être unique.
+  if (!(await acquireInstanceLock())) {
+    log(
+      'une instance est déjà ouverte : ce lancement s’arrête, la fenêtre existante est réutilisée',
+    );
+    app.quit();
+    return;
+  }
+
   app.on('second-instance', () => {
     log('clic sur l’icône alors que l’application tourne déjà : retour à la fenêtre existante');
     revealWindow();
@@ -328,3 +388,5 @@ if (!app.requestSingleInstanceLock()) {
     current = win;
   });
 }
+
+void start();

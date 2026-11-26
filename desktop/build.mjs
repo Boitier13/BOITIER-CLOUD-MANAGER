@@ -3,6 +3,9 @@
  *
  * Le rendu React reste compilé par Vite : seul le code Node est regroupé ici,
  * dans un unique fichier CommonJS qu'Electron peut charger directement.
+ *
+ * Le point d'entrée est `boot.ts`, pas `main.ts` : il ouvre le journal avant de
+ * charger le code applicatif, pour qu'un échec de chargement laisse une trace.
  */
 
 import { build } from 'esbuild';
@@ -12,7 +15,7 @@ const outDir = 'desktop/dist';
 await mkdir(outDir, { recursive: true });
 
 await build({
-  entryPoints: ['desktop/main.ts'],
+  entryPoints: ['desktop/boot.ts'],
   outfile: `${outDir}/main.cjs`,
   bundle: true,
   platform: 'node',
