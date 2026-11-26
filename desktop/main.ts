@@ -10,9 +10,9 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from 'electron';
 import { join } from 'node:path';
 import { registerIpc, emitDownload, emitUpdate, channels } from './api.ts';
-import { Updater } from './updater.ts';
+import { traceMiseAJour, Updater } from './updater.ts';
 import { loadEnvFile, readGoogleConfig } from './config.ts';
-import { initLog, log, logPath as currentLogPath } from './log.ts';
+import { initLog, log, logPath as currentLogPath, sinceStart } from './log.ts';
 import { resolveDataDir, resolvePreload, resolveRendererDir } from './paths.ts';
 import { Vault } from './google/vault.ts';
 import { GoogleService } from './google/service.ts';
@@ -115,7 +115,7 @@ function createWindow(): BrowserWindow {
     if (shown || win.isDestroyed()) return;
     shown = true;
     win.show();
-    log(`fenêtre affichée (${reason})`);
+    log(`fenêtre affichée (${reason}) · +${sinceStart()} ms`);
   };
   win.once('ready-to-show', () => show('prête à peindre'));
   setTimeout(() => show('délai d’affichage atteint'), 2500);
@@ -198,13 +198,13 @@ function createWindow(): BrowserWindow {
     if (!signalled) {
       signalled = true;
       if (watchdog) clearTimeout(watchdog);
-      log('interface prête');
+      log(`interface prête · +${sinceStart()} ms`);
     }
     return true;
   });
 
   win.webContents.on('did-finish-load', () => {
-    log('document chargé');
+    log(`document chargé · +${sinceStart()} ms`);
     armWatchdog();
   });
 
@@ -303,15 +303,23 @@ function boot(): void {
     ...(config.clientSecret ? { clientSecret: config.clientSecret } : {}),
   });
 
+  // Une seule ligne par état réellement différent : la vérification est
+  // annoncée deux fois (par nous et par la bibliothèque), et la progression
+  // arrive par paquets. L'interface, elle, reçoit tout : c'est le journal qui
+  // doit rester lisible.
+  let derniereTrace = '';
   updater = new Updater((state) => {
-    log(`mise à jour : ${state.status}${state.version ? ` ${state.version}` : ''}` +
-      `${state.message ? ` (${state.message})` : ''}`);
+    const trace = traceMiseAJour(state);
+    if (trace !== derniereTrace) {
+      derniereTrace = trace;
+      log(trace);
+    }
     for (const target of windows) if (!target.isDestroyed()) emitUpdate(target, state);
   });
   registerIpc(win, service, updater);
   // La vérification démarre douze secondes après : l'interface passe d'abord.
   updater.start();
-  log('fenêtre créée');
+  log(`fenêtre créée · +${sinceStart()} ms`);
 
   // Un clic sur l'icône a eu lieu pendant la préparation : on montre la
   // fenêtre sans attendre un second clic de l'utilisateur.

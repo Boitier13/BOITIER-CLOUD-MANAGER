@@ -317,7 +317,7 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 113 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 116 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
@@ -453,13 +453,21 @@ l'application, ajout seul, rotation à 64 Ko) reçoit chaque étape :
 ```
 mise à jour : première vérification dans 12 s
 mise à jour : vérification demandée
-mise à jour : checking 0.22.4
-mise à jour : available 0.22.4
-mise à jour : downloading 0.22.4
-mise à jour : ready 0.22.4
-mise à jour : installation demandée 0.22.4
+mise à jour : checking
+mise à jour : available 0.22.5
+mise à jour : downloading 0.22.5 0 %
+mise à jour : downloading 0.22.5 40 %
+mise à jour : downloading 0.22.5 90 %
+mise à jour : ready 0.22.5
+mise à jour : installation demandée 0.22.5
 mise à jour : installeur lancé, fermeture de l’application
 ```
+
+Deux règles apprises sur un journal réel : **une seule ligne par état
+réellement différent** (la vérification était écrite deux fois, par notre code
+et par la bibliothèque) et **la progression par paliers de 10 %** (elle était
+écrite à chaque paquet — des centaines de lignes sur une connexion lente, qui
+finissaient par effacer l'historique des démarrages à la rotation).
 
 La ligne `installation demandée` est la seule preuve du clic : les états se
 lisent déjà, mais pas l'intention. Si l'installeur refuse de partir, la ligne
@@ -511,6 +519,26 @@ symptôme — rien à l'écran, aucune trace :
 Le journal `%APPDATA%\BOITIER CLOUD MANAGER\demarrage.log` contient donc, pour
 chaque lancement : `processus démarré`, les tentatives de verrou, `fenêtre
 affichée`, `interface prête`, puis les étapes de mise à jour.
+
+### Chaque étape du démarrage porte son temps
+
+Depuis 0.22.5, le journal date chaque étape **en millisecondes depuis le
+lancement du processus** :
+
+```
+processus démarré · 0.22.5 · installée · Electron 40.10.6
+démarrage 0.22.5 · installée · Electron 40.10.6 · win32
+fenêtre créée · +412 ms
+document chargé · +1806 ms
+interface prête · +1830 ms
+fenêtre affichée (prête à peindre) · +1854 ms
+```
+
+Raison d'être : sur une installation réelle, la fenêtre s'affichait par le
+filet de sécurité (`délai d'affichage atteint`) au lieu de `prête à peindre`, et
+`document chargé` a mis une fois **9,8 secondes**. Sans mesure, impossible de
+savoir si le temps se perd avant Electron, dans le chargement de la page, ou
+dans les appels à Google. Mesurer d'abord, corriger ensuite.
 
 ### Le bas d'une page ne doit jamais être coupé
 

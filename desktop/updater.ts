@@ -226,6 +226,29 @@ export class Updater {
   }
 }
 
+/**
+ * Ligne de journal décrivant un état, **sans doublon ni bavardage**.
+ *
+ * Deux sources annoncent la même vérification (notre propre `check()` et
+ * l'événement `checking-for-update` de la bibliothèque) : le journal écrivait
+ * donc deux fois la même ligne à la même milliseconde. Et la progression était
+ * écrite à chaque paquet — des centaines de lignes sur une connexion lente, qui
+ * finissaient par effacer l'historique des démarrages lors de la rotation.
+ *
+ * D'où un palier de 10 % : dix lignes au maximum pour un téléchargement, et une
+ * seule par état réellement différent.
+ */
+export function traceMiseAJour(state: UpdateState): string {
+  const tete = `mise à jour : ${state.status}${state.version ? ` ${state.version}` : ''}`;
+  const explication = state.message ? ` (${state.message})` : '';
+  if (state.status === 'downloading') {
+    const borne = Math.max(0, Math.min(100, state.percent ?? 0));
+    const palier = Math.floor(borne / 10) * 10;
+    return `${tete} ${palier} %${explication}`;
+  }
+  return `${tete}${explication}`;
+}
+
 /** Traduit les erreurs du moteur en une phrase utilisable. */
 function prettify(cause: Error): string {
   const raw = String(cause?.message ?? cause ?? '').trim();
