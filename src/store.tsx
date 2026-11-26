@@ -33,7 +33,7 @@ import {
   realAccountId,
   syncGoogleAccounts,
 } from './lib/google';
-import { mergeSyncedAccounts } from './lib/accountSync';
+import { mergeSyncedAccounts, normalizeAccounts } from './lib/accountSync';
 
 /* ----------------------------------------------------------------------------
  * Types
@@ -199,12 +199,14 @@ function loadState(): AppState {
     // Migration : les versions précédentes enregistraient des comptes de
     // démonstration. Ils sont écartés — seuls les comptes réellement connectés
     // à un fournisseur subsistent. Leur arborescence fictive disparaît avec eux.
-    const accounts = parsed.accounts.filter(
-      (account): account is Account =>
-        !!account &&
-        (account.source === 'google' || account.source === 'mega') &&
-        !!PROVIDERS[account.provider] &&
-        typeof account.id === 'string',
+    const accounts = normalizeAccounts(
+      parsed.accounts.filter(
+        (account): account is Account =>
+          !!account &&
+          (account.source === 'google' || account.source === 'mega') &&
+          !!PROVIDERS[account.provider] &&
+          typeof account.id === 'string',
+      ),
     );
     if (!accounts.length) return initial;
 
@@ -248,6 +250,11 @@ const samePath = (a: string[], b: string[]) =>
 /** Fusion d'un compte synchronisé : on ignore les valeurs identiques. */
 function mergeAccount(previous: Account | undefined, next: Account): Account {
   if (!previous) return next;
+  // Un identifiant appartient à un fournisseur : jamais l'un à la place de
+  // l'autre. Sans ce garde-fou, une synchronisation pouvait convertir un compte
+  // Google en compte MEGA (et inversement) quand les deux partageaient la même
+  // adresse.
+  if (previous.provider !== next.provider) return previous;
   const merged: Account = { ...previous, ...next };
   const identical =
     merged.name === previous.name &&

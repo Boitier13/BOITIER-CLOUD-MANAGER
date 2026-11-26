@@ -297,6 +297,26 @@ Aucun jeton n'y figure. C'est le seul moyen de trancher entre « l'affichage a
 perdu les comptes » (ils reviennent au lancement suivant) et « le disque les a
 perdus » (il faut les reconnecter).
 
+### Une même adresse peut être deux comptes
+
+Vos adresses Gmail servent à la fois de compte Google Drive **et** de compte
+MEGA. Ce n'est pas un détail : l'identité d'un compte, c'est son **fournisseur
+et son identifiant**, jamais son adresse.
+
+L'appariement se faisait par adresse seule : le compte MEGA « firstboitier1 »
+adoptait l'identifiant du compte Google « firstboitier1 », puis la
+synchronisation Google reprenait la place, puis MEGA… L'inventaire restait figé à
+treize comptes, mais la répartition basculait sans cesse entre « 9 Google ·
+4 MEGA » et « 2 Google · 11 MEGA ». Le journal le montrait ligne après ligne.
+
+Trois règles désormais, et un test pour chacune :
+
+| Règle | Effet |
+| --- | --- |
+| l'appariement est borné au fournisseur (`provider === 'mega'` / `'gdrive'`) | une adresse partagée donne **deux** comptes, côte à côte |
+| un identifiant appartient à un fournisseur (`mega-real-…`, `gdrive-real-…`) | une synchronisation ne peut plus **convertir** un compte d'un fournisseur à l'autre |
+| l'état enregistré est **réparé au chargement** | un identifiant volé est rétabli ; les identifiants sains ne sont jamais renommés, car favoris et transferts y sont liés |
+
 ### Quand la lecture du coffre échoue, elle le dit et elle réessaie
 
 Un coffre qui contient neuf comptes mais un écran qui en montre deux : c'est
@@ -437,7 +457,7 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 174 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 182 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
