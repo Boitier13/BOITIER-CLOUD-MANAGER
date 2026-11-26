@@ -213,7 +213,9 @@ la vérification de Google.**
 2. Sous « État de publication », cliquer **Publier l’application** puis confirmer.
    L’état passe de *Testing* à *En production*.
 3. Reconnecter **une dernière fois** chaque compte dans l’application : Google
-   n’émet un jeton durable qu’au moment où le consentement est donné.
+   n’émet un jeton durable qu’au moment où le consentement est donné. Le bouton
+   ↻ de la ligne du compte, dans **Google Drive**, renouvelle l’autorisation sans
+   retirer le compte — nom choisi, ordre et favoris restent en place.
 
 **Si le bouton « Publier » est grisé**, c’est que Google exige une configuration
 de marque avant publication. Trois champs suffisent, tous gratuits :

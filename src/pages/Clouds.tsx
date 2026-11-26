@@ -47,7 +47,7 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
   const [statusFilter, setStatusFilter] = useState<'all' | AccountStatus>('all');
   const [dialog, setDialog] = useState<
     | { kind: 'googleSetup' }
-    | { kind: 'googleConnect' }
+    | { kind: 'googleConnect'; reconnect?: boolean }
     | { kind: 'rename'; account: Account }
     | { kind: 'delete'; account: Account }
     | null
@@ -345,22 +345,7 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                     Ouvrir
                     <ArrowUpRight size={12} />
                   </button>
-                  {account.status === 'expired' ? (
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      title="Autorisation expirée — se reconnecter"
-                      onClick={() =>
-                        setDialog(
-                          googleClient.status?.configured
-                            ? { kind: 'googleConnect' }
-                            : { kind: 'googleSetup' },
-                        )
-                      }
-                    >
-                      <Cable size={14} />
-                    </button>
-                  ) : (
+                  {account.status === 'expired' ? null : (
                     <button
                       type="button"
                       className="icon-btn"
@@ -392,6 +377,23 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                       <RefreshCw size={14} />
                     </button>
                   )}
+                  {/* Renouveler l'autorisation sans retirer le compte : le nom
+                      choisi, l'ordre et les favoris restent en place. */}
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    title={`Reconnecter ${account.name} — renouveler l’autorisation Google`}
+                    aria-label={`Reconnecter ${account.name}`}
+                    onClick={() =>
+                      setDialog(
+                        googleClient.status?.configured
+                          ? { kind: 'googleConnect', reconnect: true }
+                          : { kind: 'googleSetup' },
+                      )
+                    }
+                  >
+                    <Cable size={14} />
+                  </button>
                   <button
                     type="button"
                     className="icon-btn"
@@ -488,6 +490,7 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
 
       {dialog?.kind === 'googleConnect' ? (
         <GoogleConnectDialog
+          reconnecting={dialog.reconnect === true}
           onClose={() => setDialog(null)}
           onConnected={(info) => {
             applyGoogleAccount(info);
