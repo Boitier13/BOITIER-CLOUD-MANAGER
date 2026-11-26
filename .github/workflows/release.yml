@@ -32,21 +32,39 @@ jobs:
       - name: Construire l'installeur
         run: npx electron-builder --win nsis --x64 --publish never
 
-      - name: Publier l'installeur dans la release
+      # `latest.yml` et les `.blockmap` sont la nourriture du mécanisme de mise
+      # à jour : sans eux, l'application sait qu'une version existe mais ne peut
+      # ni la vérifier ni la télécharger. Ils doivent être joints à CHAQUE
+      # release, sinon les installations existantes cessent de se mettre à jour.
+      - name: Publier l'installeur et le manifeste de mise à jour
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: release/*.exe
+          files: |
+            release/*.exe
+            release/latest.yml
+            release/*.blockmap
           name: BOITIER CLOUD MANAGER ${{ github.ref_name }}
           draft: false
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Vérifier le manifeste de mise à jour
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          if (-not (Test-Path release/latest.yml)) {
+            throw "latest.yml absent : aucune installation existante ne pourra se mettre à jour."
+          }
+          Get-Content release/latest.yml
+
       - name: Conserver l'installeur en artefact
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         uses: actions/upload-artifact@v4
         with:
           name: boitier-cloud-manager-windows
-          path: release/*.exe
+          path: |
+            release/*.exe
+            release/latest.yml
           retention-days: 14

@@ -16,6 +16,21 @@ contextBridge.exposeInMainWorld('boitier', {
    * alors une fois, puis prévient l'utilisateur.
    */
   ready: () => invoke('desktop:renderer-ready'),
+  /**
+   * Mises à jour : lecture d'état, vérification à la demande, installation.
+   * L'installation n'est possible qu'après un téléchargement complet — le
+   * processus principal refuse tout le reste.
+   */
+  updater: {
+    state: () => invoke('update:state'),
+    check: () => invoke('update:check'),
+    install: () => invoke('update:install'),
+    onChange: (listener) => {
+      const handler = (_event, state) => listener(state);
+      ipcRenderer.on('update:event', handler);
+      return () => ipcRenderer.removeListener('update:event', handler);
+    },
+  },
   setZoom: (factor) => invoke('desktop:set-zoom', factor),
   google: {
     status: () => invoke('google:status'),

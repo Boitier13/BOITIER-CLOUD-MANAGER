@@ -2558,6 +2558,19 @@ tr.is-folder .cell-name__text {
   line-height: 1.5;
 }
 
+/* Mise à jour prête : pastille discrète, jamais clignotante. */
+.nav-item__count--update {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  color: var(--text-2);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  padding: 0 5px;
+  height: 15px;
+  line-height: 13px;
+  border-radius: 4px;
+}
+
 /* --- Recherche multi-comptes ---------------------------------------------- */
 
 /* Rangée d'en-tête d'un compte dans les résultats : discrète, mais elle doit

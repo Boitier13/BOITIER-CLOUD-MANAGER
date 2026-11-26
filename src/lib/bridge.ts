@@ -82,6 +82,28 @@ export type GoogleDownloadEvent = {
   message?: string;
 };
 
+/* ----------------------------------------------------------------------------
+ * Mises à jour
+ * ------------------------------------------------------------------------- */
+
+export type UpdateStatus =
+  | 'unsupported'
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'downloading'
+  | 'ready'
+  | 'error';
+
+export interface UpdateState {
+  status: UpdateStatus;
+  currentVersion: string;
+  version?: string;
+  percent?: number;
+  message?: string;
+  checkedAt?: string;
+}
+
 export type GoogleClientStatus = {
   configured: boolean;
   source: 'env' | 'store' | 'none';
@@ -97,6 +119,15 @@ export interface BoitierBridge {
   ready?: () => Promise<unknown>;
   /** Applique le facteur de zoom de la fenêtre (taille du texte). */
   setZoom?: (factor: number) => Promise<unknown>;
+  /** Mises à jour automatiques (absent dans un navigateur). */
+  updater?: {
+    state(): Promise<UpdateState>;
+    check(): Promise<UpdateState>;
+    /** `true` si l'installation a été lancée, `false` si aucune version n'est prête. */
+    install(): Promise<boolean>;
+    /** Abonnement aux changements d'état ; renvoie la fonction de désabonnement. */
+    onChange(listener: (state: UpdateState) => void): () => void;
+  };
   google: {
     status(): Promise<GoogleClientStatus>;
     setClient(clientId: string, clientSecret: string): Promise<GoogleClientStatus>;

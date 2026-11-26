@@ -789,6 +789,90 @@ try {
   );
 }
 
+/* --- 21. Mise à jour automatique ----------------------------------------- */
+//
+// Une mise à jour automatique rate de trois façons silencieuses :
+//   • le manifeste `latest.yml` n'est pas joint à la release → l'application
+//     voit le dépôt mais aucun fichier à télécharger ;
+//   • une installation silencieuse au moment de quitter change de version sans
+//     que personne ne l'ait demandé ;
+//   • la bibliothèque n'est pas dans le paquet → l'application démarre puis
+//     échoue à la première vérification.
+// Ces contrôles couvrent les trois.
+{
+  const { readFile: lire } = await import('node:fs/promises');
+  const pkg = JSON.parse(await lire(new URL('../../package.json', import.meta.url), 'utf8'));
+  const flux = await lire(new URL('../../.github/workflows/release.yml', import.meta.url), 'utf8');
+  const updater = await lire(new URL('../updater.ts', import.meta.url), 'utf8');
+  const api = await lire(new URL('../api.ts', import.meta.url), 'utf8');
+  const preload = await lire(new URL('../preload.cjs', import.meta.url), 'utf8');
+  const bundle = await lire(new URL('../dist/main.cjs', import.meta.url), 'utf8');
+
+  const publish = (pkg.build?.publish ?? [])[0] ?? {};
+  check(
+    'mise à jour : le dépôt de publication est déclaré',
+    publish.provider === 'github' &&
+      publish.owner === 'Boitier13' &&
+      publish.repo === 'BOITIER-CLOUD-MANAGER',
+    JSON.stringify(publish),
+  );
+  check(
+    'mise à jour : installeur non signé — la vérification de signature est désactivée explicitement',
+    pkg.build?.win?.verifyUpdateCodeSignature === false,
+    String(pkg.build?.win?.verifyUpdateCodeSignature),
+  );
+  check(
+    'mise à jour : le manifeste et les blockmaps sont publiés avec chaque version',
+    /release\/latest\.yml/.test(flux) && /release\/\*\.blockmap/.test(flux),
+  );
+  check(
+    'mise à jour : la publication échoue si le manifeste manque',
+    /latest\.yml absent/.test(flux),
+  );
+  check(
+    'mise à jour : aucune installation silencieuse à la fermeture',
+    /autoInstallOnAppQuit = false/.test(updater),
+    'installation au quit autorisée',
+  );
+  check(
+    'mise à jour : l’installation passe par un clic, jamais par une vérification',
+    (updater.match(/quitAndInstall\(/g) ?? []).length === 1 &&
+      /if \(this\.state\.status !== 'ready'\) return false;/.test(updater),
+  );
+  check(
+    'mise à jour : rien ne s’exécute hors d’une installation réelle',
+    /if \(!app\.isPackaged \|\| this\.wired\) return;/.test(updater),
+  );
+  check(
+    'mise à jour : les trois canaux sont déclarés et enregistrés',
+    /updateState: 'update:state'/.test(api) &&
+      /updateCheck: 'update:check'/.test(api) &&
+      /updateInstall: 'update:install'/.test(api) &&
+      /handle\(channels\.updateCheck/.test(api) &&
+      /handle\(channels\.updateInstall/.test(api),
+  );
+  check(
+    'mise à jour : le pont expose l’état, la vérification et l’installation',
+    /updater: \{/.test(preload) &&
+      /update:state/.test(preload) &&
+      /update:install/.test(preload) &&
+      /update:event/.test(preload),
+  );
+  // Le point qui casserait tout en silence : une dépendance laissée externe
+  // n'existerait pas dans l'archive (`node_modules` en est exclu).
+  check(
+    'mise à jour : la bibliothèque est compilée dans le processus principal',
+    bundle.includes('autoUpdater') &&
+      bundle.includes('app-update.yml') &&
+      !/require\(["']electron-updater["']\)/.test(bundle),
+    'dépendance laissée externe',
+  );
+  check(
+    'mise à jour : le paquet ne dépend d’aucun module au démarrage',
+    (pkg.build?.files ?? []).includes('!node_modules/**/*'),
+  );
+}
+
 const passed = results.filter((result) => result.ok).length;
 console.log(`\n${passed}/${results.length} vérifications réussies.`);
 if (failures) {

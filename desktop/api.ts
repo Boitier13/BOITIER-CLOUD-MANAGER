@@ -8,6 +8,7 @@ import { ipcMain, shell, type BrowserWindow, dialog } from 'electron';
 import type { GoogleService } from './google/service.ts';
 import { isAllowedExternalUrl } from '../src/lib/driveLinks.ts';
 import type { DownloadEvent } from './google/downloads.ts';
+import type { UpdateState, Updater } from './updater.ts';
 
 export const channels = {
   status: 'google:status',
@@ -38,13 +39,18 @@ export const channels = {
   ready: 'desktop:renderer-ready',
   /** Facteur de zoom de la fenêtre (taille du texte choisie). */
   setZoom: 'desktop:set-zoom',
+  /** Mises à jour : état, vérification, installation. */
+  updateState: 'update:state',
+  updateCheck: 'update:check',
+  updateInstall: 'update:install',
+  updateEvent: 'update:event',
 } as const;
 
 
 
 let registered = false;
 
-export function registerIpc(_win: BrowserWindow, service: GoogleService): void {
+export function registerIpc(_win: BrowserWindow, service: GoogleService, updater: Updater): void {
   // Une seule instance : les gestionnaires ne sont enregistrés qu'une fois,
   // même si la fenêtre est recréée.
   if (registered) return;
@@ -106,6 +112,13 @@ export function registerIpc(_win: BrowserWindow, service: GoogleService): void {
     service.locate(accountId, fileId),
   );
 
+  // Mises à jour. `state` est une lecture sans effet de bord ; `check` et
+  // `install` sont les deux seules actions, et l'installation exige qu'une
+  // version ait été préalablement téléchargée.
+  handle(channels.updateState, () => updater.snapshot());
+  handle(channels.updateCheck, () => updater.check());
+  handle(channels.updateInstall, () => updater.install());
+
   /**
    * Choix du dossier de destination par la boîte de dialogue du système.
    *
@@ -158,4 +171,10 @@ export function registerIpc(_win: BrowserWindow, service: GoogleService): void {
 /** Diffuse un événement de transfert vers l'interface. */
 export function emitDownload(win: BrowserWindow, event: DownloadEvent): void {
   win.webContents.send(channels.event, { kind: 'download', event });
+}
+
+/** Diffuse l'état des mises à jour vers la fenêtre. */
+export function emitUpdate(win: BrowserWindow, state: UpdateState): void {
+  if (win.isDestroyed()) return;
+  win.webContents.send(channels.updateEvent, state);
 }
