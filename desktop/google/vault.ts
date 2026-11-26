@@ -28,6 +28,15 @@ export interface StoredAccount {
   quotaBytes: number;
   status: 'connected' | 'expired';
   createdAt: string;
+  /**
+   * Date du dernier consentement Google (celle du jeton de rafraîchissement).
+   *
+   * `createdAt` ne bouge plus après le premier ajout : il ne dit donc pas si
+   * l'autorisation est récente. Or c'est cette date-là qui décide de la durée
+   * de vie du jeton. Absente, elle signifie « autorisation antérieure à cette
+   * version » — donc à renouveler une fois.
+   */
+  authorizedAt?: string;
   tokens: TokenPair;
 }
 

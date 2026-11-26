@@ -58,6 +58,7 @@ export function toAccount(info: GoogleAccountInfo, existing?: Account): Account 
     usedBytes: info.usedBytes,
     quotaBytes: info.quotaBytes || existing?.quotaBytes || 200 * GB,
     createdAt: existing?.createdAt ?? new Date().toISOString(),
+    ...(info.authorizedAt ? { authorizedAt: info.authorizedAt } : {}),
     seed: existing?.seed ?? 7,
     source: 'google',
     googleId: info.accountId,

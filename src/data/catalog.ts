@@ -67,6 +67,8 @@ export interface Account {
   usedBytes: number;
   quotaBytes: number;
   createdAt: string;
+  /** Date du dernier consentement Google (comptes réels uniquement). */
+  authorizedAt?: string;
   /** Conservé pour la compatibilité de l'état stocké des versions précédentes. */
   seed: number;
   source?: AccountSource;

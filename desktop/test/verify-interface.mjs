@@ -846,6 +846,67 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   }
 }
 
+/* --- 11quinquies. Âge de l'autorisation Google ---------------------------- */
+{
+  const autorisations = await parcours({
+    label: 'autorisations',
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      google: {
+        status: async () => ({ configured: true, source: 'env' }),
+        accounts: async () => [
+          {
+            accountId: 'g-1',
+            name: 'Boitier',
+            email: 'boitierecup@gmail.com',
+            usedBytes: 1,
+            quotaBytes: 100,
+            status: 'connected',
+            authorizedAt: '2026-11-26T09:00:00.000Z',
+          },
+          {
+            accountId: 'g-2',
+            name: 'Saturnin Youkpo13',
+            email: 'saturninyoukpo13@gmail.com',
+            usedBytes: 1,
+            quotaBytes: 100,
+            status: 'connected',
+          },
+        ],
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+      },
+    },
+  });
+
+  const toClouds = [...autorisations.doc.querySelectorAll('.nav-item, .cloud-item')].find(
+    (button) => (button.textContent ?? '').includes('Google Drive'),
+  );
+  if (toClouds) await autorisations.click(toClouds);
+
+  const texte = autorisations.doc.body.textContent ?? '';
+  check(
+    'autorisations : la date de consentement est affichée',
+    /Autorisation du 26 nov\. 2026/i.test(texte),
+    (texte.match(/Autorisation du [^.]+/) ?? ['absente'])[0],
+  );
+  const aRenouveler = [...autorisations.doc.querySelectorAll('.account-row__auth--todo')];
+  check(
+    'autorisations : le compte sans date est signalé à renouveler',
+    aRenouveler.length === 1,
+    String(aRenouveler.length),
+  );
+  check(
+    'autorisations : un seul compte est annoncé à renouveler',
+    /1 compte porte une autorisation antérieure/i.test(texte),
+    (texte.match(/\d+ comptes? porte[^.]*/) ?? ['aucun bandeau'])[0],
+  );
+}
+
 console.log(
   failures === 0
     ? '\nInterface vérifiée : état vide maîtrisé, compte réel affiché, aucun décor.'

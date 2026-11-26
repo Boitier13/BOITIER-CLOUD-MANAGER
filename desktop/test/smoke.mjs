@@ -133,6 +133,14 @@ try {
     `${account.usedBytes} / ${account.quotaBytes}`,
   );
   check('identifiant local stable', account.accountId.startsWith('gdrive-'));
+  // La date de consentement est réécrite à chaque autorisation : c'est elle qui
+  // distingue un jeton durable d'un jeton hérité de la période de test.
+  check(
+    'date de consentement enregistrée',
+    typeof account.authorizedAt === 'string' &&
+      Math.abs(Date.now() - Date.parse(account.authorizedAt)) < 60_000,
+    String(account.authorizedAt),
+  );
 
   const cipher = await readFile(join(userData, 'google-accounts.enc'));
   check('coffre écrit sur le disque', cipher.length > 0);
