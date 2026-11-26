@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   Check,
   FolderCog,
@@ -24,6 +24,7 @@ import { getBridge, isDesktop, type GoogleVaultReport } from '../lib/bridge';
 import { useGoogleClientStatus } from '../hooks/useGoogle';
 import { syncGoogleAccounts } from '../lib/google';
 import { describeUpdate, useUpdater } from '../hooks/useUpdater';
+import { useSystemFolder } from '../lib/systemFolder';
 
 // Plus de liste inventée : le dossier par défaut est celui du système, et le
 // bouton ouvre la boîte de dialogue de Windows.
@@ -45,20 +46,7 @@ export function Settings() {
   const [reaffiche, setReaffiche] = useState('');
   const updater = useUpdater();
   /** Chemin réel du dossier système : sans lui, ce réglage reste abstrait. */
-  const [systemFolder, setSystemFolder] = useState('');
-
-  useEffect(() => {
-    let active = true;
-    void getBridge()
-      ?.google.folder?.()
-      .then((folder) => {
-        if (active) setSystemFolder(folder || '');
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, []);
+  const systemFolder = useSystemFolder();
   const { status: googleStatus } = useGoogleClientStatus();
   const { settings } = state;
 

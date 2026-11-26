@@ -2018,6 +2018,212 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   );
 }
 
+/* --- 16. Dossier MEGA, dossier commun et logos des clouds ---------------- */
+//
+// Trois demandes de l'utilisateur, vérifiées ensemble parce qu'elles se
+// rejoignent dans la même file :
+//
+//   • un dossier MEGA se télécharge entier, comme un dossier Google Drive ;
+//   • tout atterrit sous `Téléchargements\\BOITIER-CLOUD-MANAGER\\<cloud>` ;
+//   • chaque cloud porte son vrai logo, jamais une initiale dans un carré.
+{
+  const dossierCommun = 'C:\\Users\\BOITIER_FIRST\\Downloads\\BOITIER-CLOUD-MANAGER';
+  const megaCompte = {
+    id: 'mega-real-m9',
+    megaId: 'm9',
+    email: 'firstboitier1@gmail.com',
+    source: 'mega',
+    provider: 'mega',
+    name: 'firstboitier1',
+    usedBytes: 18 * 1024 ** 3,
+    quotaBytes: 20 * 1024 ** 3,
+    status: 'connected',
+    createdAt: '2026-11-01T10:00:00.000Z',
+    seed: 11,
+    localTree: false,
+  };
+  const googleCompte = {
+    id: 'gdrive-real-g9',
+    googleId: 'g9',
+    email: 'boitierecup@gmail.com',
+    source: 'google',
+    provider: 'gdrive',
+    name: 'boitierecup',
+    usedBytes: 4 * 1024 ** 3,
+    quotaBytes: 15 * 1024 ** 3,
+    status: 'connected',
+    createdAt: '2026-11-01T10:00:00.000Z',
+    seed: 7,
+    localTree: false,
+  };
+
+  /** Tout ce que l'interface demande au processus principal. */
+  const demandes = [];
+  const planCalls = [];
+
+  const mega = await parcours({
+    label: 'dossier MEGA',
+    storage: {
+      key: 'boitier-cloud-manager:v1',
+      value: {
+        version: 1,
+        accounts: [googleCompte, megaCompte],
+        favorites: [],
+        downloads: [],
+        settings: {},
+        explorer: { accountId: megaCompte.id, path: [] },
+      },
+    },
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      google: {
+        status: async () => ({ configured: true, source: 'env' }),
+        accounts: async () => [],
+        folder: async () => dossierCommun,
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+        storage: async () => ({ usedBytes: 0, categories: [] }),
+      },
+      mega: {
+        accounts: async () => [],
+        onUpload: () => () => {},
+        folder: async () => dossierCommun,
+        list: async () => [
+          {
+            id: 'mf1',
+            name: 'Series',
+            kind: 'folder',
+            size: 0,
+            modified: '2026-11-02T10:00:00.000Z',
+          },
+        ],
+        plan: async (accountId, folderId) => {
+          planCalls.push(`${accountId}:${folderId}`);
+          return {
+            files: [
+              { fileId: 'x1', path: 'Saison 1/ep1.mkv', size: 1_200_000, mimeType: 'video/x-matroska' },
+              { fileId: 'x2', path: 'Saison 1/ep2.mkv', size: 800_000, mimeType: 'video/x-matroska' },
+            ],
+            folders: ['Saison 1'],
+            skipped: [],
+            truncated: false,
+            totalBytes: 2_000_000,
+          };
+        },
+        download: async (request) => {
+          demandes.push(request);
+        },
+        pause: async () => {},
+        resume: async () => true,
+        cancel: async () => {},
+      },
+    },
+  });
+
+  /** Ouvre un écran de la navigation par son libellé. */
+  const aller = async (nom) => {
+    const cible = [...mega.doc.querySelectorAll('.nav-item, .cloud-item')].find((button) =>
+      (button.textContent ?? '').includes(nom),
+    );
+    if (cible) await mega.click(cible);
+    await new Promise((r) => setTimeout(r, 250));
+    return Boolean(cible);
+  };
+
+  // 16.a — les logos remplacent les initiales (visibles sur l'accueil, qui
+  // présente un fournisseur par carte).
+  await aller('Accueil');
+  const pastilles = [...mega.doc.querySelectorAll('.provider-mark')];
+  check(
+    'logos : chaque fournisseur affiche un dessin, pas une lettre',
+    pastilles.length > 0 &&
+      pastilles.every((element) => element.querySelector('svg') && !(element.textContent ?? '').trim()),
+    `${pastilles.length} pastille(s) : ${pastilles.map((e) => (e.textContent ?? '').trim() || 'svg').join(', ')}`,
+  );
+  check(
+    'logos : aucune initiale « G » ou « M » dans un carré',
+    ![...mega.doc.querySelectorAll('.provider-mark')].some((element) =>
+      /^[GM]$/.test((element.textContent ?? '').trim()),
+    ),
+  );
+  check(
+    'logos : Google Drive et MEGA ont chacun leur dessin',
+    (mega.doc.querySelectorAll('.provider-mark svg path').length ?? 0) >= 4,
+    'un seul dessin générique',
+  );
+
+  // 16.b — le dossier MEGA se prépare puis se télécharge depuis la file.
+  await aller('Tous les fichiers');
+  const boutonDossier = mega.doc.querySelector('[aria-label^="Télécharger le dossier"]');
+  check('dossier MEGA : commande de téléchargement complet présente', Boolean(boutonDossier));
+  if (boutonDossier) {
+    await mega.click(boutonDossier);
+    await new Promise((r) => setTimeout(r, 250));
+    const dialogue = mega.doc.querySelector('.modal')?.textContent ?? '';
+    check(
+      'dossier MEGA : le plan vient de MEGA, pas de Google',
+      planCalls.some((appel) => appel.startsWith('m9:')),
+      planCalls.join(', ') || 'aucun parcours demandé',
+    );
+    check('dossier MEGA : résumé annoncé avant tout transfert', /2 fichiers/.test(dialogue), dialogue.trim().slice(0, 90));
+    check(
+      'dossier MEGA : destination sous le dossier commun, puis le cloud',
+      /BOITIER-CLOUD-MANAGER/.test(dialogue) && /MEGA/.test(dialogue),
+      dialogue.match(/Destination[^\n]*/)?.[0] ?? 'destination absente',
+    );
+    const confirmer = [...mega.doc.querySelectorAll('.modal__foot .btn')].find(
+      (button) => (button.textContent ?? '').trim() === 'Télécharger',
+    );
+    check('dossier MEGA : bouton de confirmation présent', Boolean(confirmer));
+    if (confirmer) {
+      await mega.click(confirmer);
+      await new Promise((r) => setTimeout(r, 400));
+      check(
+        'dossier MEGA : deux transferts réellement lancés',
+        demandes.length === 2,
+        `${demandes.length} demande(s)`,
+      );
+      check(
+        'dossier MEGA : chaque fichier part sous le cloud puis son arborescence',
+        demandes.every((demande) => /^MEGA\/Series/.test(demande.subPath ?? '')),
+        demandes.map((demande) => demande.subPath).join(' | ') || 'aucun sous-chemin',
+      );
+      const versTelechargements = [...mega.doc.querySelectorAll('.nav-item')].find((button) =>
+        (button.textContent ?? '').includes('Téléchargements'),
+      );
+      if (versTelechargements) await mega.click(versTelechargements);
+      const file = [...mega.doc.querySelectorAll('.download-row__name')].map(
+        (row) => row.textContent ?? '',
+      );
+      check(
+        'dossier MEGA : la file reprend l’arborescence du dossier',
+        file.some((nom) => nom.includes('ep1.mkv')) && file.some((nom) => nom.includes('ep2.mkv')),
+        file.join(', ') || 'file vide',
+      );
+    }
+  }
+
+  // 16.c — depuis l'intérieur d'un dossier, on peut aussi le télécharger.
+  await aller('Tous les fichiers');
+  const ouvrir = mega.doc.querySelector('[aria-label^="Ouvrir Series"]');
+  if (ouvrir) {
+    await mega.click(ouvrir);
+    await new Promise((r) => setTimeout(r, 250));
+    const boutonCourant = mega.doc.querySelector('.folder-download');
+    check(
+      'dossier MEGA : le dossier ouvert se télécharge depuis la barre d’outils',
+      Boolean(boutonCourant) && /Ce dossier/.test(boutonCourant.textContent ?? ''),
+      boutonCourant?.textContent?.trim() ?? 'bouton absent',
+    );
+  } else {
+    check('dossier MEGA : bouton « Ouvrir » présent', false, 'absent');
+  }
+}
+
 console.log(
   failures === 0
     ? '\nInterface vérifiée : état vide maîtrisé, compte réel affiché, aucun décor.'

@@ -519,9 +519,10 @@ try {
 
 /* --- 11bis-quater. Rangement des téléchargements -------------------------- */
 {
-  const { downloadSubPath, categoryFolder, joinFolder, cloudFolder } = await import(
+  const { downloadSubPath, categoryFolder, cloudFolder } = await import(
     '../../src/lib/organize.ts'
   );
+  const { joinFolder } = await import('../../src/lib/downloadFolder.ts');
   check(
     'rangement : une vidéo va dans « Google Drive\\Videos », sans accent',
     downloadSubPath('gdrive', 'video') === 'Google Drive/Videos' &&
@@ -541,6 +542,102 @@ try {
       joinFolder('/home/saturnin/Downloads/', 'Google Drive/Audio') ===
         '/home/saturnin/Downloads/Google Drive/Audio',
     joinFolder('C:\\Users\\BOITIER_FIRST\\Downloads', 'Google Drive/Videos'),
+  );
+}
+
+/* --- 11bis-quinquies. Un seul dossier pour tous les téléchargements ------- */
+//
+// Les fichiers tombaient directement dans « Téléchargements », mêlés aux
+// vidéos personnelles et aux archives du bureau : impossible de retrouver ce
+// qui vient des clouds. Tout est désormais écrit sous
+// `Téléchargements\\BOITIER-CLOUD-MANAGER\\<cloud>\\<nature>`.
+{
+  const { APP_DOWNLOAD_FOLDER, defaultDownloadDir, joinFolder: joinFolderPath } = await import(
+    '../../src/lib/downloadFolder.ts'
+  );
+  check(
+    'téléchargements : le dossier commun porte le nom de l’application',
+    APP_DOWNLOAD_FOLDER === 'BOITIER-CLOUD-MANAGER',
+    APP_DOWNLOAD_FOLDER,
+  );
+  check(
+    'téléchargements : le chemin par défaut se place sous le dossier commun',
+    defaultDownloadDir('C:\\Users\\BOITIER_FIRST\\Downloads') ===
+      'C:\\Users\\BOITIER_FIRST\\Downloads\\BOITIER-CLOUD-MANAGER' &&
+      defaultDownloadDir('/home/saturnin/Downloads/') ===
+        '/home/saturnin/Downloads/BOITIER-CLOUD-MANAGER',
+    defaultDownloadDir('C:\\Users\\BOITIER_FIRST\\Downloads'),
+  );
+  check(
+    'téléchargements : le module est autonome (lisible par le processus principal)',
+    joinFolderPath('C:\\a', 'b') === 'C:\\a\\b' && joinFolderPath('/a', 'b') === '/a/b',
+    joinFolderPath('C:\\a', 'b'),
+  );
+
+  const racineSmoke = new URL('../../', import.meta.url);
+  const lire = (chemin) => readFile(new URL(chemin, racineSmoke), 'utf8');
+  const sourceMain = await lire('desktop/main.ts');
+  check(
+    'téléchargements : Google et MEGA écrivent dans le dossier commun',
+    /downloadsDir: async \(\) => defaultDownloadDir\(app\.getPath\('downloads'\)\)/.test(
+      sourceMain,
+    ) &&
+      /fallbackDir: async \(\) => defaultDownloadDir\(app\.getPath\('downloads'\)\)/.test(
+        sourceMain,
+      ),
+    'un des deux chemins écrit encore à la racine de Téléchargements',
+  );
+  check(
+    'téléchargements : aucun dossier système brut ne sert de destination',
+    !/dir: app\.getPath\('downloads'\)|= app\.getPath\('downloads'\);/.test(sourceMain),
+    'chemin brut encore présent',
+  );
+
+  // Les deux fournisseurs passent par le même sous-chemin : c'est ce qui range
+  // un fichier sous `<cloud>\\<nature>`, quel que soit le cloud.
+  const sourceGoogle = await lire('desktop/google/downloads.ts');
+  const sourceMega = await lire('desktop/mega/service.ts');
+  check(
+    'téléchargements : Google Drive et MEGA partagent le même rangement',
+    /relativeDir\(request\.dir \|\| \(await this\.fallbackDir\(\)\), request\.subPath\)/.test(
+      sourceGoogle,
+    ) &&
+      /relativeDir\(request\.dir \|\| \(await (this\.)?fallbackDir\(\)\), request\.subPath\)/.test(
+        sourceMega,
+      ),
+    'un fournisseur range autrement',
+  );
+}
+
+/* --- 11bis-sexies. Les clouds portent leur vrai logo --------------------- */
+//
+// Un « G » et un « M » dans deux carrés de couleur se ressemblaient trop : la
+// reconnaissance du fournisseur passait par la seule teinte du cadre.
+{
+  const sourceVisuals = await readFile(
+    new URL('../../src/components/visuals.tsx', import.meta.url),
+    'utf8',
+  );
+  check(
+    'logos : la pastille ne fabrique plus d’initiale',
+    !/name\.charAt\(0\)|charAt\(0\)\.toUpperCase\(\)/.test(sourceVisuals) &&
+      !/def\.id === 'gdrive' \? 'G'/.test(sourceVisuals),
+    'initiale encore présente',
+  );
+  check(
+    'logos : chaque fournisseur connu a son dessin',
+    (sourceVisuals.match(/<svg/g) ?? []).length >= 2 &&
+      /#d9272e/.test(sourceVisuals) &&
+      /#34a853/.test(sourceVisuals) &&
+      /#fbbc04/.test(sourceVisuals) &&
+      /#4285f4/.test(sourceVisuals),
+    'dessin manquant',
+  );
+  check(
+    'logos : un fournisseur non dessiné reçoit un nuage, pas une lettre',
+    /un fournisseur pas encore dessiné|reçoit un nuage/i.test(sourceVisuals) ||
+      /stroke="currentColor"/.test(sourceVisuals),
+    'repli muet',
   );
 }
 

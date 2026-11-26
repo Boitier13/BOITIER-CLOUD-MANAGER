@@ -57,6 +57,8 @@ import {
 } from '../lib/format';
 import { getChildren } from '../lib/tree';
 import { cloudFolder, downloadSubPath } from '../lib/organize';
+import { joinFolder } from '../lib/downloadFolder';
+import { useSystemFolder } from '../lib/systemFolder';
 import { downloadAccount, onMegaUpload, uploadToMega } from '../lib/cloud';
 import { driveFolderUrl } from '../lib/driveLinks';
 import { Meter, TypeIcon } from '../components/visuals';
@@ -81,6 +83,8 @@ export function Files() {
   const toast = useToast();
 
   const account = state.accounts.find((a) => a.id === state.explorer.accountId);
+  /** Dossier système (sous-dossier commun inclus), pour annoncer la destination. */
+  const systemFolder = useSystemFolder();
   const path = state.explorer.path;
   const remote = Boolean(account && isRealAccount(account));
   /**
@@ -99,11 +103,16 @@ export function Files() {
     dir: 'asc',
   });
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  /** Dossier dont on prépare le téléchargement complet (dialogue ouvert). */
+  /**
+   * Dossier dont on prépare le téléchargement complet (dialogue ouvert).
+   *
+   * On garde le compte, pas seulement son identifiant : la file et le rangement
+   * dépendent du fournisseur, et une sélection peut mêler plusieurs comptes.
+   */
   const [folderTarget, setFolderTarget] = useState<{
     name: string;
     fileId: string;
-    accountId: string;
+    account: Account;
     basePath: string[];
   } | null>(null);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
@@ -767,6 +776,35 @@ export function Files() {
               />
             )}
 
+            {/*
+              Dossier courant : le même dialogue que pour une ligne, ouvert
+              depuis la barre d'outils. Sans lui, il fallait remonter d'un
+              niveau pour retrouver le bouton du dossier qu'on venait d'ouvrir.
+            */}
+            {!sharedView && path.length > 0 && realAccountId(account) ? (
+              <button
+                type="button"
+                className="btn btn--sm folder-download"
+                title={`Télécharger « ${displaySegment(path[path.length - 1])} » avec toute son arborescence`}
+                onClick={() => {
+                  // Le chemin brut, pas `cleanPath` : lui seul porte l'identifiant.
+                  const folderId = driveFolderId(path);
+                  if (!folderId) {
+                    toast.push('Dossier introuvable côté fournisseur', 'warn');
+                    return;
+                  }
+                  setFolderTarget({
+                    name: displaySegment(path[path.length - 1]),
+                    fileId: folderId,
+                    account,
+                    basePath: path.slice(0, -1),
+                  });
+                }}
+              >
+                <FolderDown size={13} />
+                Ce dossier
+              </button>
+            ) : null}
           </div>
 
           <div className="explorer__filters">
@@ -962,7 +1000,7 @@ export function Files() {
                       setFolderTarget({
                         name: folderRow.node.name,
                         fileId: folderRow.node.id,
-                        accountId: googleId,
+                        account: targetAccount,
                         basePath: folderRow.path.slice(0, -1),
                       });
                       setSelected(new Set());
@@ -1336,7 +1374,7 @@ export function Files() {
                                       setFolderTarget({
                                         name: node.name,
                                         fileId: node.id,
-                                        accountId: googleId,
+                                        account: targetAccount,
                                         basePath: rowPath.slice(0, -1),
                                       });
                                     }}
@@ -1405,12 +1443,19 @@ export function Files() {
       {folderTarget ? (
         <FolderDownloadDialog
           folderName={folderTarget.name}
-          accountId={folderTarget.accountId}
+          accountId={realAccountId(folderTarget.account) as string}
           fileId={folderTarget.fileId}
           basePath={folderTarget.basePath}
-          targetDir={state.settings.downloadFolder}
+          // Destination réelle : dossier commun, puis le cloud. Le dialogue
+          // n'ajoute plus que le nom du dossier choisi.
+          targetDir={joinFolder(
+            state.settings.downloadFolder || systemFolder,
+            state.settings.organizeDownloads ? cloudFolder(folderTarget.account.provider) : '',
+          )}
           onClose={() => setFolderTarget(null)}
-          onQueue={(plan, folderName, basePath) => queuePlan(plan, folderName, basePath, account)}
+          onQueue={(plan, folderName, basePath) =>
+            queuePlan(plan, folderName, basePath, folderTarget.account)
+          }
         />
       ) : null}
     </div>
