@@ -23,6 +23,23 @@ export function readableMegaError(cause: unknown): string {
   );
 }
 
+/**
+ * Compte MEGA déjà connu, s'il existe.
+ *
+ * L'appariement se fait **par adresse seulement entre comptes MEGA**. Sans ce
+ * garde-fou, une même adresse utilisée à la fois pour Google Drive et pour MEGA
+ * — cas réel — faisait adopter au compte MEGA l'identifiant du compte Google :
+ * les deux se recouvraient, l'un après l'autre, à chaque synchronisation, et
+ * l'écran alternait entre deux inventaires faux.
+ */
+function megaExistant(accounts: Account[], info: MegaAccountInfo): Account | undefined {
+  return accounts.find(
+    (compte) =>
+      compte.provider === 'mega' &&
+      (compte.megaId === info.accountId || compte.email === info.email),
+  );
+}
+
 /** Traduit un compte MEGA du processus principal en compte d'application. */
 export function toMegaAccount(info: MegaAccountInfo, existing?: Account): Account {
   return {
@@ -63,12 +80,7 @@ export function useMegaAccountSync(): void {
         dispatch({
           type: 'account/addMany',
           accounts: comptes.map((info) =>
-            toMegaAccount(
-              info,
-              state.accounts.find(
-                (compte) => compte.megaId === info.accountId || compte.email === info.email,
-              ),
-            ),
+            toMegaAccount(info, megaExistant(state.accounts, info)),
           ),
         });
       })
@@ -98,9 +110,7 @@ export function useMegaConnect(): (
       }
       try {
         const info = await bridge.mega.connect(email, password, secondFactor);
-        const existant = state.accounts.find(
-          (compte) => compte.megaId === info.accountId || compte.email === info.email,
-        );
+        const existant = megaExistant(state.accounts, info);
         dispatch({ type: 'account/upsert', account: toMegaAccount(info, existant) });
         return { ok: true as const };
       } catch (cause) {

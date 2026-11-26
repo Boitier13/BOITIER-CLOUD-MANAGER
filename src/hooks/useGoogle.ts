@@ -62,10 +62,13 @@ export function useGoogleAccountSync(): (account: {
       quotaBytes: number;
       status: 'connected' | 'expired';
     }) => {
+      // Le fournisseur fait partie de l'identité : une même adresse peut être
+      // un compte Google **et** un compte MEGA.
       const existing = state.accounts.find(
         (account) =>
-          (account.googleId && account.googleId === info.accountId) ||
-          (account.source === 'google' && account.email === info.email),
+          account.provider === 'gdrive' &&
+          ((account.googleId && account.googleId === info.accountId) ||
+            account.email === info.email),
       );
       dispatch({
         type: 'account/upsert',

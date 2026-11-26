@@ -1369,7 +1369,7 @@ try {
     format: 'esm',
     logLevel: 'silent',
   });
-  const { mergeSyncedAccounts } = await import(pathToFileURL(sortie).href);
+  const { mergeSyncedAccounts, normalizeAccounts } = await import(pathToFileURL(sortie).href);
 
   const google = (id, email) => ({
     id: `gdrive-real-${id}`,
@@ -1607,6 +1607,84 @@ try {
     'coffre non révoqué à la suppression',
   );
 
+  // 7bis. Même adresse des deux côtés : les identifiants ne se recouvrent pas.
+  {
+    const mega = (id, email, idApp) => ({
+      id: idApp,
+      provider: 'mega',
+      megaId: id,
+      source: 'mega',
+      name: email.split('@')[0],
+      email,
+      usedBytes: 1,
+      quotaBytes: 2,
+      status: 'connected',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      seed: 11,
+      localTree: false,
+    });
+
+    // Un compte MEGA qui a volé l'identifiant d'un compte Google.
+    const vole = mega('m1', 'firstboitier1@gmail.com', 'gdrive-real-gdrive-h1');
+    const repare = normalizeAccounts([vole]);
+    check(
+      'comptes : un identifiant volé entre fournisseurs est rétabli',
+      repare.length === 1 && repare[0].id === 'mega-real-m1' && repare[0].provider === 'mega',
+      repare[0]?.id ?? 'aucun',
+    );
+
+    const googleVole = {
+      id: 'mega-real-m2',
+      provider: 'gdrive',
+      googleId: 'gdrive-h2',
+      source: 'google',
+      name: 'deux',
+      email: 'deux@gmail.com',
+      usedBytes: 1,
+      quotaBytes: 2,
+      status: 'connected',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      seed: 7,
+      localTree: false,
+    };
+    const repare2 = normalizeAccounts([googleVole]);
+    check(
+      'comptes : le rétablissement fonctionne dans les deux sens',
+      repare2[0]?.id === 'gdrive-real-gdrive-h2',
+      repare2[0]?.id ?? 'aucun',
+    );
+
+    // Un identifiant sain n'est jamais renommé (favoris et transferts y sont liés).
+    const sain = google('g7', 'sain@gmail.com');
+    check(
+      'comptes : un identifiant cohérent n’est jamais renommé',
+      normalizeAccounts([sain])[0]?.id === sain.id,
+      normalizeAccounts([sain])[0]?.id,
+    );
+
+    // Deux fournisseurs, même adresse : les deux doivent survivre à la fusion.
+    const fusion = mergeSyncedAccounts(
+      [mega('m1', 'partage@gmail.com', 'mega-real-m1'), google('g1', 'partage@gmail.com')],
+      [google('g1', 'partage@gmail.com')],
+    );
+    check(
+      'comptes : deux fournisseurs peuvent partager une adresse',
+      fusion.filter((compte) => compte.email === 'partage@gmail.com').length === 2,
+      `${fusion.length} compte(s)`,
+    );
+
+    // Une synchronisation ne convertit jamais un compte d'un fournisseur à l'autre.
+    const tentative = mergeSyncedAccounts(
+      [mega('m3', 'trois@gmail.com', 'mega-real-m3')],
+      [{ ...google('g3', 'trois@gmail.com'), id: 'mega-real-m3' }],
+    );
+    check(
+      'comptes : une synchronisation ne peut pas convertir un compte',
+      tentative.length === 1 && tentative[0].provider === 'mega',
+      tentative[0]?.provider,
+    );
+  }
+
   // 8. La synchronisation réessaie, se note, et se rétablit.
   const sourceStoreSync = await readFile(join(racine, 'src/store.tsx'), 'utf8');
   check(
@@ -1640,6 +1718,24 @@ try {
   );
 
   const sourceMegaHook = await readFile(join(racine, 'src/hooks/useMega.ts'), 'utf8');
+  check(
+    'comptes : un compte MEGA n’est apparié qu’à un compte MEGA',
+    /function megaExistant/.test(sourceMegaHook) &&
+      /compte\.provider === 'mega' &&/.test(sourceMegaHook) &&
+      (sourceMegaHook.match(/compte\.email === info\.email/g) ?? []).length === 1,
+    `${(sourceMegaHook.match(/compte\.email === info\.email/g) ?? []).length} appariement(s) par adresse`,
+  );
+  const sourceStoreGarde = await readFile(join(racine, 'src/store.tsx'), 'utf8');
+  check(
+    'comptes : aucun compte ne peut changer de fournisseur',
+    /if \(previous\.provider !== next\.provider\) return previous;/.test(sourceStoreGarde),
+    'garde-fou absent du reducer',
+  );
+  check(
+    'comptes : l’état enregistré est réparé au chargement',
+    /normalizeAccounts\(/.test(sourceStoreGarde),
+    'réparation absente',
+  );
   check(
     'MEGA : les onze comptes arrivent en une seule action',
     /type: 'account\/addMany'/.test(sourceMegaHook),

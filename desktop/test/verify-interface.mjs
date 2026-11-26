@@ -1767,6 +1767,143 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   );
 }
 
+/* --- 14. Même adresse des deux côtés : les comptes ne se recouvrent plus --- */
+//
+// Incident réel : les mêmes adresses Gmail servent de compte Google Drive **et**
+// de compte MEGA. L'appariement se faisait par adresse seule, si bien que le
+// compte MEGA adoptait l'identifiant du compte Google (et inversement). D'où un
+// inventaire figé à treize comptes qui basculait sans cesse entre
+// « 9 Google · 4 MEGA » et « 2 Google · 11 MEGA ».
+{
+  const adresses = [
+    'boitierecup@gmail.com',
+    'firstboitier1@gmail.com',
+    'firstboitier2@gmail.com',
+    'firstboitier3@gmail.com',
+    'boitierfirst7@gmail.com',
+    'boitierfirst8@gmail.com',
+    'boitierfirst82@gmail.com',
+    'saturninyoukpo8@gmail.com',
+    'saturninyoukpo13@gmail.com',
+  ];
+
+  const coffre = adresses.map((email, index) => ({
+    accountId: `gdrive-h${index}`,
+    name: email.split('@')[0],
+    email,
+    usedBytes: 10,
+    quotaBytes: 100,
+    status: 'connected',
+  }));
+
+  // État enregistré, abîmé : onze comptes MEGA dont sept portent un identifiant
+  // Google (celui qu'ils ont volé), et deux comptes Google seulement.
+  const mega = Array.from({ length: 11 }, (_, index) => {
+    const adresse = adresses[index] ?? `mega${index}@exemple.com`;
+    const volé = index < 7;
+    return {
+      id: volé ? `gdrive-real-gdrive-h${index}` : `mega-real-m${index}`,
+      megaId: `m${index}`,
+      source: 'mega',
+      provider: 'mega',
+      name: adresse.split('@')[0],
+      email: adresse,
+      usedBytes: 1,
+      quotaBytes: 20,
+      status: 'connected',
+      createdAt: '2026-11-01T10:00:00.000Z',
+      seed: 11,
+      localTree: false,
+    };
+  });
+
+  const google = coffre.slice(0, 2).map((info) => ({
+    id: `gdrive-real-${info.accountId}`,
+    googleId: info.accountId,
+    source: 'google',
+    provider: 'gdrive',
+    name: info.name,
+    email: info.email,
+    usedBytes: info.usedBytes,
+    quotaBytes: info.quotaBytes,
+    status: 'connected',
+    createdAt: '2026-11-01T10:00:00.000Z',
+    seed: 7,
+    localTree: false,
+  }));
+
+  const notes = [];
+  const cohabitation = await parcours({
+    label: 'mêmes adresses des deux côtés',
+    storage: {
+      key: 'boitier-cloud-manager:v1',
+      value: {
+        version: 1,
+        accounts: [...google, ...mega],
+        favorites: [],
+        downloads: [],
+        settings: {},
+        explorer: { accountId: google[0].id, path: [] },
+      },
+    },
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      note: (message) => notes.push(message),
+      google: {
+        status: async () => ({ configured: true, source: 'env' }),
+        accounts: async () => coffre,
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+      },
+      mega: {
+        accounts: async () =>
+          mega.map((compte, index) => ({
+            accountId: `m${index}`,
+            name: compte.name,
+            email: compte.email,
+            usedBytes: 1,
+            quotaBytes: 20,
+            status: 'connected',
+          })),
+        onUpload: () => () => {},
+        list: async () => [],
+      },
+    },
+  });
+
+  const page = cohabitation.after['Google Drive'];
+  check(
+    'mêmes adresses : les neuf comptes Google coexistent',
+    adresses.every((email) => page.includes(email)) && /9 comptes/.test(page),
+    page.match(/\d+ comptes? connectés?/)?.[0] ?? 'compteur absent',
+  );
+  const sidebar = [...cohabitation.doc.querySelectorAll('.cloud-item')]
+    .map((element) => (element.textContent ?? '').replace(/\s+/g, ' ').trim())
+    .join(' | ');
+  check(
+    'mêmes adresses : les onze comptes MEGA restent entiers',
+    /MEGA ?11/.test(sidebar),
+    sidebar.slice(0, 90),
+  );
+  // La première note peut légitimement annoncer l'état enregistré (2) : c'est
+  // la synchronisation qui rétablit 9. Ce qui doit avoir disparu, c'est
+  // l'alternance 9 → 2 → 9 qui trahissait le recouvrement des identifiants.
+  const suite = notes
+    .map((message) => /comptes : (\d+) compte\(s\) Google/.exec(message)?.[1])
+    .filter((valeur) => valeur !== undefined)
+    .map(Number);
+  const pic = suite.indexOf(9);
+  check(
+    'mêmes adresses : l’inventaire ne bascule plus après le rétablissement',
+    pic >= 0 && suite.slice(pic).every((valeur) => valeur === 9),
+    suite.join(' → '),
+  );
+}
+
 console.log(
   failures === 0
     ? '\nInterface vérifiée : état vide maîtrisé, compte réel affiché, aucun décor.'

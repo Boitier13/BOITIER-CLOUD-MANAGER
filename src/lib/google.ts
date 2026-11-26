@@ -67,8 +67,12 @@ export function noteJournal(message: string): void {
 
 /** Compte existant correspondant à une entrée du coffre. */
 function existingFor(accounts: Account[], info: GoogleAccountInfo): Account | undefined {
+  // Le fournisseur fait partie de l'identité : la même adresse peut désigner un
+  // compte Google et un compte MEGA distincts.
   return (
-    accounts.find((account) => isRealAccount(account) && account.googleId === info.accountId) ??
+    accounts.find(
+      (account) => account.provider === 'gdrive' && account.googleId === info.accountId,
+    ) ??
     accounts.find(
       (account) => account.provider === 'gdrive' && account.email === info.email,
     )
