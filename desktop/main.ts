@@ -26,6 +26,7 @@ import { traceMiseAJour, Updater } from './updater.ts';
 import { loadEnvFile, readGoogleConfig } from './config.ts';
 import { initLog, log, logPath as currentLogPath, sinceStart } from './log.ts';
 import { resolveDataDir, resolvePreload, resolveRendererDir } from './paths.ts';
+import { defaultDownloadDir } from '../src/lib/downloadFolder.ts';
 import type { DownloadEvent } from './google/downloads.ts';
 import { Vault } from './google/vault.ts';
 import { GoogleService } from './google/service.ts';
@@ -407,7 +408,10 @@ function boot(): void {
     vault,
     userDataDir: app.getPath('userData'),
     openExternal: (url) => void shell.openExternal(url),
-    downloadsDir: async () => app.getPath('downloads'),
+    // Tous les fichiers atterrissent dans `Téléchargements/BOITIER-CLOUD-MANAGER`
+    // (puis `<cloud>/<nature>`) : ils ne se confondent plus avec le reste du
+    // dossier Téléchargements.
+    downloadsDir: async () => defaultDownloadDir(app.getPath('downloads')),
     emitDownload: (event) => {
       for (const target of windows) if (!target.isDestroyed()) emitDownload(target, event);
       // Notification système à la fin du transfert — et à la fin seulement.
@@ -470,7 +474,7 @@ function boot(): void {
         });
       }
     },
-    fallbackDir: async () => app.getPath('downloads'),
+    fallbackDir: async () => defaultDownloadDir(app.getPath('downloads')),
   });
 
   megaService = mega;

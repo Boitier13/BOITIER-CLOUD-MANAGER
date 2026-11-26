@@ -56,17 +56,3 @@ export function downloadSubPath(
   if (!organize) return undefined;
   return `${CLOUD_FOLDER[provider] ?? 'Cloud'}/${categoryFolder(type)}`;
 }
-
-/**
- * Assemble un chemin Windows ou POSIX sans doubler les séparateurs.
- *
- * Le séparateur suit celui du dossier de base : `C:\…` reçoit des `\`,
- * `/home/…` des `/`.
- */
-export function joinFolder(base: string, subPath?: string): string {
-  const cleanBase = base.trim().replace(/[\\/]+$/, '');
-  const parts = (subPath ?? '').split('/').filter(Boolean);
-  if (!parts.length) return cleanBase;
-  const separator = cleanBase.includes('\\') ? '\\' : '/';
-  return [cleanBase, ...parts].filter(Boolean).join(separator);
-}

@@ -1007,33 +1007,36 @@ a {
   min-width: 0;
 }
 
+/**
+ * Pastille de fournisseur : le logo officiel, sans cadre ni initiale.
+ *
+ * Le logo porte ses propres couleurs ; un fond teinté par `--brand` jurait
+ * avec le vert ou le jaune de Google Drive.
+ */
 .provider-mark {
   display: grid;
   place-items: center;
   flex: none;
   width: 24px;
   height: 24px;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
   color: var(--brand);
-  background: color-mix(in srgb, var(--brand) 13%, transparent);
-  border: 1px solid color-mix(in srgb, var(--brand) 26%, transparent);
+}
+
+.provider-mark svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
 }
 
 .provider-mark--sm {
-  width: 20px;
-  height: 20px;
-  border-radius: 5px;
-  font-size: 11px;
+  width: 19px;
+  height: 19px;
 }
 
 .provider-mark--lg {
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
-  font-size: 14px;
+  width: 32px;
+  height: 32px;
 }
 
 .cloud-tile__name {
@@ -1950,6 +1953,18 @@ a {
   padding: 7px 10px;
   border-bottom: 1px solid var(--line-soft);
   min-width: 0;
+}
+
+/* « Ce dossier » se cale à droite : le fil d'Ariane garde toute la place. */
+.folder-download {
+  margin-left: auto;
+  flex: none;
+  white-space: nowrap;
+  color: var(--text-2);
+}
+
+.folder-download:hover {
+  color: var(--text);
 }
 
 /* Deuxième ligne : recherche, catégories et tri. */

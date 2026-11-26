@@ -16,6 +16,8 @@ import { Home } from './pages/Home';
 import { Clouds } from './pages/Clouds';
 import { Files } from './pages/Files';
 import { SearchPage } from './pages/Search';
+import { Profiler } from 'react';
+import { traceRendu } from './lib/trace';
 import { Storage } from './pages/Storage';
 import { Recent } from './pages/Recent';
 import { Downloads } from './pages/Downloads';
@@ -180,7 +182,17 @@ export default function App() {
       <Sidebar onNavigate={navigate} />
       <div className="app__main">
         <div className="app__content" key={currentRouteKey}>
-          {renderPage()}
+          {/*
+            Mesure du rendu lui-même : la sentinelle de figement dit qu'une
+            seconde a été perdue, ce profileur dit si c'est React qui la tient
+            ou un autre code. Aucune ligne n'est écrite sous 120 ms.
+          */}
+          <Profiler
+            id={currentRouteKey}
+            onRender={(id, phase, actualDuration) => traceRendu(id, phase, actualDuration)}
+          >
+            {renderPage()}
+          </Profiler>
         </div>
         <StatusBar
           left={

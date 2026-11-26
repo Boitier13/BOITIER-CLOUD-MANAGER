@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ArrowDownToLine,
   Check,
@@ -18,9 +18,10 @@ import { formatBytes, formatDecimal, formatSpeed, percent } from '../lib/format'
 import { formatEta, statusLabels, type DownloadStatus } from '../lib/downloads';
 import { Meter, ProviderMark, TypeIcon } from '../components/visuals';
 import { getBridge } from '../lib/bridge';
+import { useSystemFolder } from '../lib/systemFolder';
 import { downloadAccount } from '../lib/cloud';
 import { parentDir } from '../lib/transfers';
-import { joinFolder } from '../lib/organize';
+import { joinFolder } from '../lib/downloadFolder';
 import { useToast } from '../components/toast';
 
 const STATUS_BADGE: Record<DownloadStatus, string> = {
@@ -50,20 +51,7 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
    * « dossier système » ne dit pas où le fichier atterrit : le chemin réel est
    * demandé une fois au processus principal et affiché tel quel.
    */
-  const [systemFolder, setSystemFolder] = useState('');
-
-  useEffect(() => {
-    let active = true;
-    void getBridge()
-      ?.google.folder?.()
-      .then((folder) => {
-        if (active) setSystemFolder(folder || '');
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, []);
+  const systemFolder = useSystemFolder();
 
   /** Dossier où ce transfert est (ou sera) écrit. */
   const targetFolder = (item: { savedPath?: string; subPath?: string }): string =>

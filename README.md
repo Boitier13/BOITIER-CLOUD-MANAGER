@@ -171,19 +171,44 @@ les rangées se lisent comme une seule liste.
 
 ### Rangement des téléchargements
 
-Chaque fichier est rangé par cloud puis par nature, sous le dossier de base :
+Tout ce que l’application télécharge est rassemblé dans **un seul dossier**, créé
+dans Téléchargements : `BOITIER-CLOUD-MANAGER`. Les fichiers ne se confondent
+plus avec le reste du dossier système (vidéos personnelles, archives, autres
+téléchargements), et faire de la place d’un coup se fait à un seul endroit.
 
-```
-C:\Users\…\Downloads\Google Drive\Videos
-C:\Users\…\Downloads\Google Drive\Documents
+```text
+C:\Users\…\Downloads\BOITIER-CLOUD-MANAGER\Google Drive\Videos
+C:\Users\…\Downloads\BOITIER-CLOUD-MANAGER\Google Drive\Documents
+C:\Users\…\Downloads\BOITIER-CLOUD-MANAGER\MEGA\Autres
 ```
 
-Videos, Audio, Images, Documents, Archives, Sous-titres, Autres. **Aucun accent
-dans les noms de dossiers** : un `é` traverse mal un ZIP, un partage réseau ou un
-enchaînement de commandes. Un dossier
-téléchargé en entier conserve son arborescence, sous le nom du cloud. Le
-réglage **Ranger par cloud et par type** (Paramètres, actif par défaut) permet
-de revenir à un dossier unique.
+- le nom du dossier commun est défini une seule fois, dans
+  `src/lib/downloadFolder.ts` ; le processus principal (Google **et** MEGA) et
+  l’interface le lisent au même endroit ;
+- sous ce dossier, le rangement se poursuit **par cloud puis par nature** :
+  Videos, Audio, Images, Documents, Archives, Sous-titres, Autres ;
+- **aucun accent dans les noms de dossiers** : un `é` traverse mal un ZIP, un
+  partage réseau ou un enchaînement de commandes ;
+- un dossier téléchargé en entier conserve son arborescence, sous le nom du
+  cloud ;
+- le réglage **Ranger par cloud et par type** (Paramètres, actif par défaut)
+  permet de revenir à un rangement plus plat, toujours sous
+  `BOITIER-CLOUD-MANAGER` ;
+- choisir un autre dossier dans les Paramètres reste possible : il devient alors
+  la racine, et le rangement par cloud s’y applique.
+
+### Logos des fournisseurs
+
+Chaque cloud est reconnaissable à son **logo officiel** : triangle tricolore de
+Google Drive, « M » rouge de MEGA. Les pastilles sont dessinées en SVG dans
+`src/components/visuals.tsx` (aucune image à charger, aucun appel réseau) et
+apparaissent au même endroit partout — volet des comptes, accueil, cartes de
+cloud, file de transferts, favoris, stockage.
+
+Les initiales dans un carré coloré (`G`, `M`) ont disparu : deux lettres se
+ressemblent, et seule la teinte du cadre les distinguait. Un fournisseur **pas
+encore dessiné** reçoit un nuage neutre — jamais une initiale — pour que l'ajout
+de Shadow Drive et TeraBox ne casse pas l'ensemble.
 
 ### Recherche : tous les comptes, ou un seul
 
@@ -457,7 +482,7 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 186 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 195 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
@@ -803,8 +828,10 @@ Raccourcis : `Ctrl+1…6`, `Ctrl+,`, `Ctrl+A` (sélection), `Échap`, `?`.
 La recherche de l’explorateur couvre **tous les comptes** : chaque résultat affiche
 son cloud, son compte et son chemin ; un clic bascule automatiquement sur le bon compte.
 
-**Télécharger un dossier entier.** La commande se trouve sur chaque dossier réel
-(icône dédiée dans la liste, ou bouton « Télécharger » sur une sélection). Le
+**Télécharger un dossier entier.** La commande se trouve sur chaque dossier réel,
+**quel que soit le fournisseur** — Google Drive comme MEGA : icône dédiée dans la
+liste, bouton « Télécharger » sur une sélection, et bouton **« Ce dossier »** dans
+la barre d’outils quand on est déjà à l’intérieur. Le
 dossier n’est pas lu par l’interface : le processus principal en parcourt
 l’arborescence et renvoie un **plan** — nombre de fichiers, sous-dossiers, taille
 totale — affiché avant tout transfert. Rien ne s’écrit avant la confirmation.
