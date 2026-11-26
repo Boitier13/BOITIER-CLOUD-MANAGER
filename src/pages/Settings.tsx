@@ -396,6 +396,30 @@ export function Settings() {
                 ) : null}
               </div>
               <div className="settings-row__desc">{describeUpdate(updater.state)}</div>
+              {updater.state.status === 'downloading' ||
+              updater.state.status === 'available' ? (
+                <div
+                  className="update-bar"
+                  role="progressbar"
+                  aria-label="Téléchargement de la mise à jour"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={updater.state.percent ?? 0}
+                >
+                  <span
+                    className={
+                      updater.state.status === 'available'
+                        ? 'update-bar__fill update-bar__fill--indeterminee'
+                        : 'update-bar__fill'
+                    }
+                    style={
+                      updater.state.status === 'available'
+                        ? undefined
+                        : { width: `${updater.state.percent ?? 0}%` }
+                    }
+                  />
+                </div>
+              ) : null}
             </div>
             <div className="settings-row__control">
               {updater.state.status === 'ready' ? (
@@ -420,7 +444,11 @@ export function Settings() {
                   }
                 >
                   <RefreshCw size={12} />
-                  {updater.busy ? 'Vérification…' : 'Rechercher'}
+                  {updater.state.status === 'downloading'
+                    ? 'Téléchargement…'
+                    : updater.busy
+                      ? 'Vérification…'
+                      : 'Rechercher'}
                 </button>
               )}
             </div>

@@ -85,6 +85,27 @@ export function useUpdater(): UpdaterView {
   };
 }
 
+/**
+ * Heure d'une vérification, en clair.
+ *
+ * « vérifiée » sans date ne prouve rien : l'utilisateur ne peut pas distinguer
+ * une vérification faite il y a dix secondes d'une faite au démarrage. Avec
+ * l'heure, il voit que le mécanisme tourne vraiment.
+ */
+export function describeCheckedAt(iso: string, now: Date = new Date()): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const heure = `${date.getHours()} h ${String(date.getMinutes()).padStart(2, '0')}`;
+  const jour = (valeur: Date) =>
+    new Date(valeur.getFullYear(), valeur.getMonth(), valeur.getDate()).getTime();
+  const ecart = Math.round((jour(now) - jour(date)) / 86_400_000);
+  if (ecart === 0) return `à ${heure}`;
+  if (ecart === 1) return `hier à ${heure}`;
+  const mois = String(date.getMonth() + 1).padStart(2, '0');
+  const quantieme = String(date.getDate()).padStart(2, '0');
+  return `le ${quantieme}/${mois} à ${heure}`;
+}
+
 /** Phrase lisible décrivant l'état, sans jargon. */
 export function describeUpdate(state: UpdateState): string {
   switch (state.status) {
@@ -97,12 +118,15 @@ export function describeUpdate(state: UpdateState): string {
     case 'downloading':
       return `Téléchargement de la version ${state.version ?? 'récente'} — ${state.percent ?? 0} %.`;
     case 'ready':
-      return `Version ${state.version ?? 'récente'} prête. Elle s’installera au prochain redémarrage, sur votre clic.`;
+      return `Version ${state.version ?? 'récente'} prête. Cliquez pour redémarrer et installer.`;
     case 'error':
       return state.message ?? 'Vérification impossible pour le moment.';
-    default:
-      return state.checkedAt
-        ? `À jour — version ${state.currentVersion} vérifiée.`
-        : 'Aucune vérification depuis le démarrage.';
+    default: {
+      if (!state.checkedAt) return 'Aucune vérification depuis le démarrage.';
+      const quand = describeCheckedAt(state.checkedAt);
+      return quand
+        ? `À jour — version ${state.currentVersion} vérifiée ${quand}.`
+        : `À jour — version ${state.currentVersion} vérifiée.`;
+    }
   }
 }

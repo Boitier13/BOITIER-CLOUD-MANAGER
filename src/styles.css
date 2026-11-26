@@ -3041,6 +3041,48 @@ tr.is-folder .cell-name__text {
   line-height: 1.45;
 }
 
+/* Téléchargement d'une mise à jour : la barre rend l'attente visible. Sans
+   elle, un téléchargement de 90 Mo ne montrait qu'un nombre qui saute. */
+.update-bar {
+  position: relative;
+  margin-top: 8px;
+  height: 4px;
+  max-width: 320px;
+  border-radius: 99px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.update-bar__fill {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--accent);
+  transition: width 240ms var(--ease);
+}
+
+.update-bar__fill--indeterminee {
+  width: 35%;
+  animation: update-bar-glisse 1400ms var(--ease) infinite;
+}
+
+@keyframes update-bar-glisse {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(320%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-bar__fill--indeterminee {
+    animation: none;
+    width: 100%;
+    opacity: 0.4;
+  }
+}
+
 .settings-row__control {
   flex: none;
   display: flex;
