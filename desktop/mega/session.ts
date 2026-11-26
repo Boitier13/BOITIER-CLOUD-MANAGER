@@ -40,6 +40,22 @@ export class MegaSession {
   private readonly ouvertures = new Map<string, Promise<Storage>>();
   /** Comptes dont MEGA a refusé la session pendant ce lancement. */
   private readonly expirees = new Set<string>();
+  /**
+   * Comptes bloqués par MEGA (`-16`), avec la date de fin de la garde.
+   *
+   * Réessayer pendant le blocage ne fait qu'allonger celui-ci. On attend donc
+   * quelques minutes avant de retenter, et l'interface affiche une raison
+   * lisible en attendant.
+   */
+  private readonly bloques = new Map<string, number>();
+  /**
+   * File d'attente des restaurations : une seule session ouverte à la fois.
+   *
+   * Onze comptes affichés au démarrage lançaient onze relectures d'arborescence
+   * en parallèle : le processus principal se figeait plusieurs dizaines de
+   * secondes et MEGA finissait par bloquer le compte.
+   */
+  private file: Promise<unknown> = Promise.resolve();
 
   constructor(vault: MegaVault) {
     this.vault = vault;
@@ -86,7 +102,12 @@ export class MegaSession {
         ...(secondFactor ? { secondFactorCode: secondFactor.trim() } : {}),
         autoload: true,
         autologin: true,
-        keepalive: true,
+        // Pas de connexion permanente. Avec `keepalive`, MEGA maintient un
+        // canal par compte : onze comptes ouverts donnaient onze canaux, des
+        // erreurs -16 (EBLOCKED, « compte bloqué ») et des promesses rejetées
+        // non capturées à l'intérieur de `megajs`. Rien ici n'a besoin d'être
+        // prévenu par le serveur : chaque action rouvre ce qu'il faut.
+        keepalive: false,
       });
       await storage.ready;
     } catch (cause) {
@@ -98,6 +119,7 @@ export class MegaSession {
     const nom = storage.name || adresse;
     this.vivantes.set(id, storage);
     this.expirees.delete(id);
+    this.bloques.delete(id);
 
     const mesure = await this.mesurer(id, storage);
     const json = storage.toJSON();
@@ -176,10 +198,22 @@ export class MegaSession {
     const enCours = this.ouvertures.get(accountId);
     if (enCours) return enCours;
 
-    const ouverture = this.restaurer(accountId).finally(() => {
-      this.ouvertures.delete(accountId);
-    });
+    const garde = this.bloques.get(accountId) ?? 0;
+    if (garde > Date.now()) {
+      throw new Error(
+        'MEGA bloque temporairement ce compte (trop de connexions) : patientez quelques minutes',
+      );
+    }
+
+    // Mise à la file : une session à la fois.
+    const ouverture = this.file
+      .catch(() => undefined)
+      .then(() => this.restaurer(accountId))
+      .finally(() => {
+        this.ouvertures.delete(accountId);
+      });
     this.ouvertures.set(accountId, ouverture);
+    this.file = ouverture.catch(() => undefined);
     return ouverture;
   }
 
@@ -200,7 +234,7 @@ export class MegaSession {
         password: '',
         autoload: true,
         autologin: false,
-        keepalive: true,
+        keepalive: false,
       },
     });
 
@@ -214,6 +248,11 @@ export class MegaSession {
       if (sessionExpiree(cause)) {
         this.expirees.add(accountId);
         throw new Error('session MEGA expirée : reconnectez ce compte');
+      }
+      if (Number((cause as { code?: number } | null)?.code) === -16) {
+        // Blocage temporaire côté MEGA : on ne réessaie pas tout de suite.
+        this.bloques.set(accountId, Date.now() + 3 * 60_000);
+        log(`MEGA : compte ${accountId} temporairement bloqué par MEGA (-16)`);
       }
       throw new Error(messageErreurMega(cause));
     }
@@ -249,6 +288,9 @@ export class MegaSession {
       if (sessionExpiree(cause)) {
         this.expirees.add(accountId);
         throw new Error('session MEGA expirée : reconnectez ce compte');
+      }
+      if (Number((cause as { code?: number } | null)?.code) === -16) {
+        this.bloques.set(accountId, Date.now() + 3 * 60_000);
       }
       throw new Error(messageErreurMega(cause));
     }

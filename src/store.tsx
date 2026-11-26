@@ -331,11 +331,10 @@ function reducer(state: AppState, action: Action): AppState {
       };
 
     case 'account/remove': {
-      const removed = state.accounts.find((account) => account.id === action.id);
-      if (removed && isRealAccount(removed)) {
-        const googleId = realAccountId(removed);
-        if (googleId) void getBridge()?.google.disconnect(googleId);
-      }
+      // Aucune révocation ici : un reducer doit rester pur, et React peut
+      // l'exécuter plusieurs fois pour une même action. C'est le bouton de
+      // déconnexion qui révoque (`useDisconnect` dans Cloud.tsx), avant de
+      // dispatcher cette action.
       const remaining = state.accounts.filter((account) => account.id !== action.id);
       if (remaining.length === 0) return state;
       return {

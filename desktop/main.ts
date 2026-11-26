@@ -384,6 +384,19 @@ function unprotect(cipher: Buffer): string | null {
 function boot(): void {
   // En développement, les identifiants peuvent venir de .env.local.
   loadEnvFile();
+  /**
+   * État du chiffrement système au démarrage.
+   *
+   * C'est lui qui décide si le coffre est lisible : sans cette ligne, un poste
+   * où `safeStorage` est momentanément indisponible donnerait un coffre vide
+   * sans la moindre trace. Le coffre refuse désormais d'écrire dans ce cas, mais
+   * il faut pouvoir le constater.
+   */
+  try {
+    log(`chiffrement système : ${safeStorage.isEncryptionAvailable() ? 'disponible' : 'INDISPONIBLE'}`);
+  } catch {
+    log('chiffrement système : état illisible');
+  }
   const config = readGoogleConfig();
   const vault = new Vault(dataDir ?? resolveDataDir(app.getPath('appData')), protect, unprotect);
   const win = createWindow();

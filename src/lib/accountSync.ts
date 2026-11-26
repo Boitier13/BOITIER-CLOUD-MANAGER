@@ -19,14 +19,15 @@ export function googleAccountsOf(accounts: Account[]): Account[] {
 /**
  * Applique une liste fraîche de comptes Google à la liste courante.
  *
- * - les comptes Google connus sont mis à jour, les nouveaux ajoutés ;
- * - les comptes Google disparus du coffre sont retirés ;
- * - **tous les autres comptes sont conservés tels quels** (MEGA, futurs
- *   fournisseurs, comptes sans fournisseur distinct).
+ * Règle unique, et volontairement pauvre : **la synchronisation ne fait
+ * qu'ajouter et mettre à jour**. Elle ne retire jamais rien.
  *
- * Une liste `fresh` vide est traitée comme « le coffre est vide », et non comme
- * « je ne sais pas » : c'est à l'appelant de passer `null` quand l'appel a
- * échoué, et de ne rien faire dans ce cas.
+ * C'est la leçon de l'incident : toute soustraction fondée sur « le coffre ne
+ * mentionne plus ce compte » se trompe un jour — appel échoué, coffre illisible,
+ * compte pas encore écrit, autre fournisseur confondu — et le compte disparaît
+ * de l'écran alors que ses jetons sont toujours sur le disque. La seule
+ * disparition légitime est une déconnexion demandée par l'utilisateur, qui
+ * retire le compte du disque *et* de la liste au même moment.
  */
 export function mergeSyncedAccounts(current: Account[], fresh: Account[]): Account[] {
   const next = [...current];
@@ -35,9 +36,5 @@ export function mergeSyncedAccounts(current: Account[], fresh: Account[]): Accou
     if (index >= 0) next[index] = { ...next[index], ...account };
     else next.push(account);
   }
-  const connus = new Set(fresh.map((account) => account.id));
-  return next.filter(
-    (account) =>
-      account.provider !== 'gdrive' || !isRealAccount(account) || connus.has(account.id),
-  );
+  return next;
 }

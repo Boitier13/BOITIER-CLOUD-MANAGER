@@ -42,15 +42,34 @@ export function useFreezeWatchdog(ecran: string): void {
     if (!signaler) return;
 
     const contexte = (origine: string) => `${origine} · écran ${ecranRef.current}`;
+    /**
+     * Une fenêtre masquée ou réduite n'est pas une fenêtre figée : Chromium
+     * étrangle ses minuteurs à une fois par minute. Le journal se remplissait de
+     * « figement 59,5 s » toutes les minutes simplement parce que l'application
+     * était derrière une autre fenêtre — et ces fausses alertes masquaient les
+     * vrais blocages. On ne mesure donc que ce qui est visible.
+     */
+    const visible = () => document.visibilityState === 'visible';
 
     // 1a. Blocages longs : le minuteur reprend en retard, l'écart est le temps perdu.
     let attendu = Date.now() + PERIODE_MS;
     const minuteur = window.setInterval(() => {
       const maintenant = Date.now();
       const retard = maintenant - attendu;
-      if (retard > SEUIL_MINUTEUR_MS) signaler(retard, contexte('interface'));
+      if (retard > SEUIL_MINUTEUR_MS && visible()) {
+        signaler(retard, contexte('interface'));
+      }
+      // Remise à zéro à chaque battement : au retour de la fenêtre, le premier
+      // tour ne compte pas le temps passé en arrière-plan.
       attendu = maintenant + PERIODE_MS;
     }, PERIODE_MS);
+
+    // Au retour, on repart d'une mesure propre : le temps d'arrière-plan a déjà
+    // été écarté ci-dessus, et le minuteur peut avoir été étranglé.
+    const onVisibility = () => {
+      attendu = Date.now() + PERIODE_MS;
+    };
+    document.addEventListener('visibilitychange', onVisibility);
 
     // 1b. Blocages courts, ceux qui rendent l'application pâteuse sans jamais
     // laisser une seconde d'arrêt : mesurés par le navigateur lui-même.
@@ -58,7 +77,7 @@ export function useFreezeWatchdog(ecran: string): void {
     try {
       observateur = new PerformanceObserver((liste) => {
         for (const entree of liste.getEntries()) {
-          if (entree.duration >= SEUIL_TACHE_MS) {
+          if (entree.duration >= SEUIL_TACHE_MS && visible()) {
             signaler(entree.duration, contexte('tâche longue'));
           }
         }
@@ -73,7 +92,7 @@ export function useFreezeWatchdog(ecran: string): void {
     let vivant = true;
     let boucle: number | undefined;
     const mesurer = async () => {
-      if (!ping || !vivant) return;
+      if (!ping || !vivant || !visible()) return;
       const depart = performance.now();
       try {
         await ping();
@@ -87,6 +106,7 @@ export function useFreezeWatchdog(ecran: string): void {
 
     return () => {
       vivant = false;
+      document.removeEventListener('visibilitychange', onVisibility);
       window.clearInterval(minuteur);
       if (boucle !== undefined) window.clearInterval(boucle);
       observateur?.disconnect();

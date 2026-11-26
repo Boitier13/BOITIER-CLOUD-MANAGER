@@ -32,7 +32,7 @@ import {
   type DriveItem,
   type DriveQuota,
 } from './drive.ts';
-import type { StoredAccount, StoredClient, Vault } from './vault.ts';
+import type { StoredAccount, StoredClient, Vault, VaultReport } from './vault.ts';
 
 export type AccountView = {
   accountId: string;
@@ -136,6 +136,11 @@ export class GoogleService {
 
   async accounts(): Promise<AccountView[]> {
     return (await this.session.accounts()).map(toView);
+  }
+
+  /** État du coffre pour le diagnostic (aucun jeton, aucune donnée secrète). */
+  async report(): Promise<VaultReport> {
+    return this.options.vault.describe();
   }
 
   /**
