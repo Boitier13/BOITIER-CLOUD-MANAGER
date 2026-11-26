@@ -317,7 +317,7 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 124 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 127 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
@@ -539,10 +539,25 @@ Trois corrections, chacune vérifiée par un contrôle :
 | minuteur permanent (900 ms) | minuteur **uniquement** s'il reste un transfert à faire avancer |
 | stockage réécrit à chaque point de progression | écriture sur changement **structurel** seulement |
 
-S'y ajoute une sentinelle : un minuteur de 500 ms dans l'interface. En cas de
-blocage, il reprend en retard, et l'écart est écrit dans le journal —
-`interface figée 2,3 s`. Ce défaut-là ne laissait aucune trace ; le suivant en
-laissera une.
+S'y ajoute une sentinelle, en trois mesures complémentaires, parce qu'un gel
+peut venir de deux endroits très différents :
+
+| Mesure | Ce qu'elle attrape |
+| --- | --- |
+| minuteur de 500 ms | un gel franc de l'interface (> 600 ms) |
+| observateur de tâches longues | les à-coups de 250 ms à 1 s, qui rendent pâteux sans arrêter |
+| aller-retour `ping` toutes les 2 s | un **processus principal** bloqué : la fenêtre peint mais n'accepte plus rien |
+
+Chaque ligne porte l'écran où cela s'est produit :
+
+```
+figement 2.3 s — interface · écran files
+figement 0.9 s — tâche longue · écran clouds
+figement 1.4 s — processus principal · écran settings
+```
+
+Le journal s'ouvre désormais depuis **Paramètres → Données locales → Journal de
+démarrage → Ouvrir** : plus besoin de retrouver `%APPDATA%` à la main.
 
 ### Chaque étape du démarrage porte son temps
 

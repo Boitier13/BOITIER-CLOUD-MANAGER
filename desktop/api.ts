@@ -9,7 +9,7 @@ import type { GoogleService } from './google/service.ts';
 import { isAllowedExternalUrl } from '../src/lib/driveLinks.ts';
 import type { DownloadEvent } from './google/downloads.ts';
 import type { UpdateState, Updater } from './updater.ts';
-import { log } from './log.ts';
+import { log, logPath } from './log.ts';
 
 export const channels = {
   status: 'google:status',
@@ -41,10 +41,14 @@ export const channels = {
   /** Facteur de zoom de la fenêtre (taille du texte choisie). */
   setZoom: 'desktop:set-zoom',
   /**
-   * Signalement d'un figement de l'interface (millisecondes perdues).
+   * Signalement d'un figement (millisecondes perdues + contexte).
    * L'interface ne peut pas écrire dans le journal : elle le dit ici.
    */
   freeze: 'desktop:freeze',
+  /** Aller-retour minimal : mesure la réactivité du processus principal. */
+  ping: 'desktop:ping',
+  /** Ouvre le journal de démarrage dans l'éditeur du système. */
+  openLog: 'desktop:open-log',
   /** Mises à jour : état, vérification, installation. */
   updateState: 'update:state',
   updateCheck: 'update:check',
@@ -122,11 +126,23 @@ export function registerIpc(_win: BrowserWindow, service: GoogleService, updater
   // `install` sont les deux seules actions, et l'installation exige qu'une
   // version ait été préalablement téléchargée.
   // Figement signalé par l'interface : une ligne de journal, pas de correction.
-  // Sans cela, « ça se fige » ne laisse aucune trace exploitable.
-  ipcMain.on(channels.freeze, (_event, retard: number) => {
+  // Le contexte (écran, processus principal) évite d'avoir à deviner d'où vient
+  // le blocage quand il n'existe aucun moyen de reproduire sur une autre machine.
+  ipcMain.on(channels.freeze, (_event, retard: number, contexte?: string) => {
     const perdu = Math.round(Number(retard) || 0);
-    if (perdu < 1000) return;
-    log(`interface figée ${(perdu / 1000).toFixed(1)} s`);
+    if (perdu < 400) return;
+    const ou = typeof contexte === 'string' && contexte.trim() ? ` — ${contexte}` : '';
+    log(`figement ${(perdu / 1000).toFixed(1)} s${ou}`);
+  });
+
+  // Réactivité du processus principal : l'interface mesure l'aller-retour.
+  handle(channels.ping, () => true);
+
+  handle(channels.openLog, async () => {
+    const chemin = logPath();
+    if (!chemin) return null;
+    await shell.openPath(chemin);
+    return chemin;
   });
 
   handle(channels.updateState, () => updater.snapshot());

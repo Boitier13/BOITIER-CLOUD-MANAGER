@@ -11,6 +11,7 @@ import {
   Plus,
   RefreshCw,
   RotateCcw,
+  ScrollText,
   SlidersHorizontal,
   Sun,
 } from 'lucide-react';
@@ -52,6 +53,21 @@ export function Settings() {
 
   const patch = (value: Partial<typeof settings>) =>
     dispatch({ type: 'settings/patch', patch: value });
+
+  /** Ouvre le journal de démarrage dans l'éditeur du système. */
+  const ouvrirJournal = async () => {
+    const ouvreur = getBridge()?.openLog;
+    if (!ouvreur) {
+      toast.push('Journal disponible dans l’application Windows installée', 'warn');
+      return;
+    }
+    try {
+      const chemin = await ouvreur();
+      if (!chemin) toast.push('Journal introuvable sur cet ordinateur', 'warn');
+    } catch {
+      toast.push('Impossible d’ouvrir le journal', 'warn');
+    }
+  };
 
   const totalUsed = state.accounts.reduce((sum, a) => sum + a.usedBytes, 0);
 
@@ -377,6 +393,29 @@ export function Settings() {
               >
                 <RotateCcw size={12} />
                 Réinitialiser
+              </button>
+            </div>
+          </div>
+          {/* Le journal ne servait à rien s'il fallait le retrouver à la main
+              dans %APPDATA% : il s'ouvre d'un clic, et c'est ce fichier qui
+              explique un figement ou un démarrage raté. */}
+          <div className="settings-row">
+            <div className="settings-row__text">
+              <div className="settings-row__label">Journal de démarrage</div>
+              <div className="settings-row__desc">
+                Chaque lancement y laisse une trace, ainsi que les figements de
+                l’interface. C’est le fichier à consulter en cas de problème.
+              </div>
+            </div>
+            <div className="settings-row__control">
+              <button
+                type="button"
+                className="btn btn--sm"
+                onClick={() => void ouvrirJournal()}
+                title="Ouvrir demarrage.log"
+              >
+                <ScrollText size={12} />
+                Ouvrir
               </button>
             </div>
           </div>

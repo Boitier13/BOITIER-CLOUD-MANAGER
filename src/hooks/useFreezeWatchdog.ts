@@ -2,39 +2,94 @@
  * Sentinelle de figement.
  *
  * Le défaut signalé — « l'application se fige beaucoup » — ne laissait aucune
- * trace : impossible de dire si le blocage a duré 300 ms ou 4 s, ni s'il
- * touchait l'interface seule ou tout le processus. Un minuteur de 500 ms suffit
- * à le mesurer : quand un blocage survient, le minuteur reprend tres en retard,
- * et l'écart est exactement le temps perdu.
+ * trace exploitable. Ce module en produit trois, chacune répondant à une
+ * question différente :
  *
- * Purement diagnostique : rien n'est corrigé ici, tout est écrit dans
- * `demarrage.log`.
+ *   1. **L'interface s'est-elle bloquée ?** Deux mesures : un minuteur de 500 ms
+ *      (blocages longs) et l'observateur de tâches longues de Chromium
+ *      (blocages de 250 ms à 1 s, trop courts pour le minuteur mais sensibles
+ *      à l'usage).
+ *   2. **Ou est-ce le processus principal ?** Un aller-retour minimal (`ping`)
+ *      toutes les 2 secondes. Si le retour tarde, c'est la fenêtre qui attend
+ *      son processus — l'interface peut peindre et pourtant ne rien accepter.
+ *   3. **Où cela se produit-il ?** L'écran courant est joint à chaque ligne.
+ *
+ * Rien n'est corrigé ici : tout est écrit dans `demarrage.log`.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
-/** Cadence de la sentinelle : assez fine pour voir un gel d'une seconde. */
+/** Cadence du minuteur : assez fine pour voir un gel d'une seconde. */
 const PERIODE_MS = 500;
+/** Retard du minuteur à partir duquel on parle de figement. */
+const SEUIL_MINUTEUR_MS = 600;
+/** Durée d'une tâche longue signalée par Chromium. */
+const SEUIL_TACHE_MS = 250;
+/** Cadence de l'aller-retour vers le processus principal. */
+const PERIODE_PING_MS = 2000;
+/** Aller-retour au-delà duquel le processus principal est déclaré lent. */
+const SEUIL_PING_MS = 700;
 
-/**
- * Retard à partir duquel on parle de figement. En dessous, c'est le bruit
- * normal d'un rendu un peu lourd — inutile d'alarmer.
- */
-const SEUIL_MS = 1200;
+export function useFreezeWatchdog(ecran: string): void {
+  // L'écran change souvent ; on ne veut pas recréer les observateurs pour
+  // autant. Une référence suffit, et évite d'abîmer les mesures en cours.
+  const ecranRef = useRef(ecran);
+  ecranRef.current = ecran;
 
-export function useFreezeWatchdog(): void {
   useEffect(() => {
     const signaler = typeof window === 'undefined' ? undefined : window.boitier?.reportFreeze;
-    // Dans un navigateur, aucun journal : inutile de faire tourner un minuteur.
+    // Dans un navigateur, aucun journal : inutile de faire tourner quoi que ce soit.
     if (!signaler) return;
 
+    const contexte = (origine: string) => `${origine} · écran ${ecranRef.current}`;
+
+    // 1a. Blocages longs : le minuteur reprend en retard, l'écart est le temps perdu.
     let attendu = Date.now() + PERIODE_MS;
-    const timer = window.setInterval(() => {
+    const minuteur = window.setInterval(() => {
       const maintenant = Date.now();
       const retard = maintenant - attendu;
-      if (retard > SEUIL_MS) signaler(retard);
+      if (retard > SEUIL_MINUTEUR_MS) signaler(retard, contexte('interface'));
       attendu = maintenant + PERIODE_MS;
     }, PERIODE_MS);
-    return () => window.clearInterval(timer);
+
+    // 1b. Blocages courts, ceux qui rendent l'application pâteuse sans jamais
+    // laisser une seconde d'arrêt : mesurés par le navigateur lui-même.
+    let observateur: PerformanceObserver | null = null;
+    try {
+      observateur = new PerformanceObserver((liste) => {
+        for (const entree of liste.getEntries()) {
+          if (entree.duration >= SEUIL_TACHE_MS) {
+            signaler(entree.duration, contexte('tâche longue'));
+          }
+        }
+      });
+      observateur.observe({ entryTypes: ['longtask'] });
+    } catch {
+      observateur = null; // navigateur sans « longtask » : on garde le minuteur
+    }
+
+    // 2. Réactivité du processus principal.
+    const ping = window.boitier?.ping;
+    let vivant = true;
+    let boucle: number | undefined;
+    const mesurer = async () => {
+      if (!ping || !vivant) return;
+      const depart = performance.now();
+      try {
+        await ping();
+      } catch {
+        return;
+      }
+      const duree = performance.now() - depart;
+      if (duree > SEUIL_PING_MS && vivant) signaler(duree, contexte('processus principal'));
+    };
+    if (ping) boucle = window.setInterval(() => void mesurer(), PERIODE_PING_MS);
+
+    return () => {
+      vivant = false;
+      window.clearInterval(minuteur);
+      if (boucle !== undefined) window.clearInterval(boucle);
+      observateur?.disconnect();
+    };
   }, []);
 }

@@ -36,7 +36,11 @@ contextBridge.exposeInMainWorld('boitier', {
    * Signale un figement de l'interface, en millisecondes. Purement
    * diagnostique : le processus principal l'écrit dans le journal de démarrage.
    */
-  reportFreeze: (retard) => ipcRenderer.send('desktop:freeze', retard),
+  reportFreeze: (retard, contexte) => ipcRenderer.send('desktop:freeze', retard, contexte),
+  /** Aller-retour minimal : l'interface mesure la réactivité du processus principal. */
+  ping: () => invoke('desktop:ping'),
+  /** Ouvre le journal de démarrage : plus besoin de retrouver le chemin à la main. */
+  openLog: () => invoke('desktop:open-log'),
   google: {
     status: () => invoke('google:status'),
     setClient: (clientId, clientSecret) => invoke('google:set-client', clientId, clientSecret),

@@ -1088,6 +1088,10 @@ try {
   const api = await lire(new URL('../api.ts', import.meta.url), 'utf8');
   const preload = await lire(new URL('../preload.cjs', import.meta.url), 'utf8');
   const principal = await lire(new URL('../main.ts', import.meta.url), 'utf8');
+  const parametres = await lire(
+    new URL('../../src/pages/Settings.tsx', import.meta.url),
+    'utf8',
+  );
 
   check(
     'figement : le minuteur de file ne tourne que s’il y a du travail',
@@ -1103,13 +1107,40 @@ try {
       /\n    fileStructure,/.test(store),
     'écriture à chaque point de progression',
   );
+  const sentinelle = await lire(
+    new URL('../../src/hooks/useFreezeWatchdog.ts', import.meta.url),
+    'utf8',
+  );
   check(
     'figement : un blocage de l’interface est journalisé',
-    /useFreezeWatchdog\(\)/.test(app) &&
+    /useFreezeWatchdog\(state\.route\.name\)/.test(app) &&
       /freeze: 'desktop:freeze'/.test(api) &&
-      /interface figée \$\{\(perdu \/ 1000\)\.toFixed\(1\)\} s/.test(api) &&
-      /reportFreeze: \(retard\) => ipcRenderer\.send\('desktop:freeze'/.test(preload),
+      /figement \$\{\(perdu \/ 1000\)\.toFixed\(1\)\} s/.test(api) &&
+      /reportFreeze: \(retard, contexte\) => ipcRenderer\.send\('desktop:freeze'/.test(preload),
     'aucune trace du blocage',
+  );
+  check(
+    'figement : les tâches longues sont mesurées, pas seulement les gros gels',
+    /new PerformanceObserver/.test(sentinelle) &&
+      /entryTypes: \['longtask'\]/.test(sentinelle) &&
+      /SEUIL_TACHE_MS = 250/.test(sentinelle),
+    'blocages courts invisibles',
+  );
+  check(
+    'figement : la lenteur du processus principal est distinguée de celle de l’interface',
+    /ping: 'desktop:ping'/.test(api) &&
+      /handle\(channels\.ping, \(\) => true\)/.test(api) &&
+      /ping: \(\) => invoke\('desktop:ping'\)/.test(preload) &&
+      /processus principal/.test(sentinelle),
+    'origine du blocage inconnue',
+  );
+  check(
+    'figement : le journal s’ouvre depuis les paramètres',
+    /openLog: 'desktop:open-log'/.test(api) &&
+      /shell\.openPath\(chemin\)/.test(api) &&
+      /openLog: \(\) => invoke\('desktop:open-log'\)/.test(preload) &&
+      /ouvrirJournal/.test(parametres),
+    'journal inaccessible sans chercher le chemin',
   );
   check(
     'figement : les événements de mise à jour sont limités pour l’interface',
