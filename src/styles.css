@@ -251,6 +251,12 @@ a {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  /* Sans `min-height: 0`, un enfant de colonne flexible refuse de rétrécir
+     sous la hauteur de son contenu : la page débordait alors de la fenêtre,
+     coupée net, sans barre de défilement. C'est exactement ce qu'on voyait en
+     bas des Paramètres et de la liste des comptes. */
+  min-height: 0;
+  overflow: hidden;
   position: relative;
   background-image: var(--glow-top);
   background-repeat: no-repeat;
@@ -258,11 +264,14 @@ a {
 }
 
 .app__content {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 28px 32px 44px;
   scrollbar-gutter: stable;
+  /* Le défilement se fait au clavier et à la molette dans toute la zone. */
+  overscroll-behavior: contain;
 }
 
 .page {
@@ -2271,7 +2280,10 @@ a {
 /* --- File table ----------------------------------------------------------- */
 
 .filetable-wrap {
-  min-height: 380px;
+  /* `min-height` en dur forçait un débordement sur une fenêtre courte ou un
+     texte agrandi. Le tableau garde une hauteur confortable, mais peut
+     rétrécir : la page entière défile alors, au lieu de couper la fin. */
+  min-height: min(380px, 40vh);
   max-height: calc(100vh - 236px);
   overflow: auto;
 }

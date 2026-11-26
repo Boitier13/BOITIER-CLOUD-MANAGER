@@ -317,7 +317,7 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 107 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 110 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
@@ -326,7 +326,7 @@ npm run desktop:test      # 107 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # écran de démarrage, chemin d'un résultat,
                           # recherche à deux portées, mise à jour
                           # automatique, trace avant chargement, verrou
-                          # patient) — sans réseau, faux Google
+                          # patient, défilement) — sans réseau, faux Google
 npm run verify:interface  # les écrans sans compte, avec un compte simulé,
                           # avec neuf comptes, et la recherche à deux portées
 npm run desktop:paths     # la fenêtre charge dist/ en file://, et possède ses
@@ -485,6 +485,26 @@ symptôme — rien à l'écran, aucune trace :
 Le journal `%APPDATA%\BOITIER CLOUD MANAGER\demarrage.log` contient donc, pour
 chaque lancement : `processus démarré`, les tentatives de verrou, `fenêtre
 affichée`, `interface prête`, puis les étapes de mise à jour.
+
+### Le bas d'une page ne doit jamais être coupé
+
+Défaut constaté sur deux captures : le bas des **Paramètres** (« Ranger par
+cloud et par type ») et le **neuvième compte** de la page Google Drive
+sortaient de la fenêtre, sans barre de défilement.
+
+La cause n'est pas la mise en page mais une règle CSS manquante : dans une
+colonne flexible, un enfant refuse de rétrécir sous la hauteur de son contenu
+(`min-height: auto`). La zone de contenu ne pouvait donc pas défiler : elle
+s'étirait et débordait de la fenêtre, qui la coupait.
+
+```css
+.app__main    { min-height: 0; overflow: hidden; }
+.app__content { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+```
+
+La hauteur minimale fixe du tableau (`min-height: 380px`) a également été
+remplacée par une valeur relative : un texte agrandi à 130 % sur une fenêtre
+courte forçait sinon un débordement. Trois contrôles verrouillent ces règles.
 
 ### Chargement local (`file://`)
 

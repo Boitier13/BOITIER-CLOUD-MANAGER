@@ -933,6 +933,40 @@ try {
   );
 }
 
+/* --- 23. Défilement : la page entière doit pouvoir descendre -------------- */
+//
+// Défaut constaté sur deux captures : le bas des Paramètres (« Ranger par cloud
+// et par type ») et le neuvième compte étaient coupés net, sans barre de
+// défilement. Cause : dans une colonne flexible, un enfant refuse de rétrécir
+// sous la hauteur de son contenu sans `min-height: 0` ; la page débordait donc
+// de la fenêtre au lieu de défiler.
+{
+  const { readFile: lire } = await import('node:fs/promises');
+  const css = await lire(new URL('../../src/styles.css', import.meta.url), 'utf8');
+  const bloc = (selecteur) => {
+    const index = css.indexOf(`${selecteur} {`);
+    return index === -1 ? '' : css.slice(index, css.indexOf('}', index));
+  };
+
+  const main = bloc('.app__main');
+  const content = bloc('.app__content');
+  check(
+    'défilement : la colonne principale peut rétrécir sous son contenu',
+    /min-height: 0/.test(main) && /overflow: hidden/.test(main),
+    main.trim().split('\n')[0],
+  );
+  check(
+    'défilement : la zone de contenu défile réellement',
+    /min-height: 0/.test(content) && /overflow-y: auto/.test(content),
+    'zone non défilante',
+  );
+  check(
+    'défilement : aucun tableau n’impose une hauteur minimale fixe',
+    !/\.filetable-wrap \{[^}]*min-height: 380px/.test(css),
+    'hauteur minimale fixe',
+  );
+}
+
 const passed = results.filter((result) => result.ok).length;
 console.log(`\n${passed}/${results.length} vérifications réussies.`);
 if (failures) {
