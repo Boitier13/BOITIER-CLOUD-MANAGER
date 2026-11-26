@@ -1,7 +1,7 @@
 {
   "name": "boitier-cloud-manager",
   "private": true,
-  "version": "0.21.0",
+  "version": "0.22.0",
   "description": "BOITIER CLOUD MANAGER — gestionnaire local multi-cloud (Google Drive réel en lecture seule)",
   "type": "module",
   "scripts": {
@@ -37,6 +37,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "^40.10.6",
     "electron-builder": "^25.1.8",
+    "electron-updater": "^6.8.11",
     "jsdom": "^25.0.1",
     "typescript": "^5.7.2",
     "vite": "^6.0.7"
@@ -55,7 +56,8 @@
       "desktop/dist/main.cjs",
       "desktop/dist/preload.cjs",
       "package.json",
-      "!**/*.map"
+      "!**/*.map",
+      "!node_modules/**/*"
     ],
     "extraMetadata": {
       "main": "desktop/dist/main.cjs"
@@ -71,7 +73,8 @@
         }
       ],
       "icon": "build/icon.ico",
-      "artifactName": "BOITIER-CLOUD-MANAGER-${version}-setup.${ext}"
+      "artifactName": "BOITIER-CLOUD-MANAGER-${version}-setup.${ext}",
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
@@ -82,7 +85,15 @@
       "shortcutName": "BOITIER CLOUD MANAGER",
       "uninstallDisplayName": "BOITIER CLOUD MANAGER",
       "deleteAppDataOnUninstall": false
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Boitier13",
+        "repo": "BOITIER-CLOUD-MANAGER",
+        "releaseType": "release"
+      }
+    ]
   },
   "author": {
     "name": "Boitier13"

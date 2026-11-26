@@ -317,14 +317,15 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 90 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 101 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
                           # flux des récents, pause, révocation à la
                           # déconnexion, démarrage (journal, instance unique,
                           # écran de démarrage, chemin d'un résultat,
-                          # recherche à deux portées) — sans réseau, faux Google
+                          # recherche à deux portées, mise à jour
+                          # automatique) — sans réseau, faux Google
 npm run verify:interface  # les écrans sans compte, avec un compte simulé,
                           # avec neuf comptes, et la recherche à deux portées
 npm run desktop:paths     # la fenêtre charge dist/ en file://, et possède ses
@@ -366,11 +367,12 @@ transferts simulés ont été retirés. Conséquences à connaître :
 | Comptes de démonstration d'une version antérieure | écartés au chargement ; les comptes Google, eux, sont conservés |
 | Aperçu navigateur | les écrans restent consultables, mais les fichiers ne sont pas accessibles (la connexion Google exige la fenêtre Windows) |
 
-`npm run verify:interface` parcourt les écrans dans trois situations (sans
-compte, avec un compte connecté simulé, avec neuf comptes), vérifie qu'aucun
-décor fictif ne subsiste, puis **saisit une recherche** dans deux comptes
-simulés : regroupement par compte, portée « un seul compte », ouverture de
-l'emplacement réel du fichier.
+`npm run verify:interface` parcourt les écrans dans cinq situations (sans
+compte, avec un compte connecté simulé, avec neuf comptes, avec une mise à jour
+prête, dans un navigateur), vérifie qu'aucun décor fictif ne subsiste, **saisit
+une recherche** dans deux comptes simulés (regroupement, portée « un seul
+compte », ouverture de l'emplacement réel) et vérifie qu'une mise à jour prête
+ne s'installe **qu'après un clic**.
 
 ### Démarrage de la fenêtre
 
@@ -425,6 +427,47 @@ correction.
 
 La version affichée dans **Paramètres → À propos** est lue dans `package.json`
 au moment de la compilation : elle ne peut plus annoncer un numéro périmé.
+
+### Mise à jour automatique
+
+L'application vérifie d'elle-même, **douze secondes après le démarrage** puis
+toutes les six heures, si une version plus récente est publiée. Rien ne bloque
+l'interface : la vérification se fait en arrière-plan.
+
+| Étape | Qui décide |
+| --- | --- |
+| vérification | l'application (au démarrage, puis toutes les 6 h) |
+| téléchargement | l'application, en arrière-plan |
+| **installation** | **vous**, par un clic sur « Redémarrer et installer » |
+
+`autoInstallOnAppQuit` est explicitement désactivé : fermer la fenêtre
+n'installe jamais une version que personne n'a demandée. L'installeur s'affiche
+ensuite comme lors d'une installation habituelle, pour que rien ne se produise
+en silence.
+
+**Le manifeste fait partie de la release.** `latest.yml` (et les `.blockmap`)
+décrivent la version disponible et son empreinte. Le flux de publication les
+joint à chaque version et **échoue** s'ils manquent : sans eux, l'application
+verrait le dépôt sans jamais trouver de fichier à télécharger.
+
+**Signature.** L'installeur n'est pas signé ; `win.verifyUpdateCodeSignature`
+est donc désactivé **explicitement** dans la configuration de construction.
+C'est le seul réglage honnête dans ce cas : sans lui, `electron-builder` 27
+refuse de construire, et `electron-updater` 7 rejette toute mise à jour avec
+`ERR_UPDATER_INVALID_SIGNATURE`. Conséquence assumée : l'empreinte SHA-512 de
+`latest.yml` protège du téléchargement corrompu, **pas** d'un dépôt compromis.
+Une signature de code (≈ 120 €/an chez Microsoft Trusted Signing) lèverait
+cette limite ; elle n'est pas au programme.
+
+**La bibliothèque est compilée dans le processus principal** (`esbuild`), pas
+chargée depuis `node_modules` : l'archive n'embarque aucun module et
+`desktop:test` vérifie qu'aucun `require('electron-updater')` ne subsiste dans
+`desktop/dist/main.cjs`. Une dépendance laissée externe aurait produit une
+application qui démarre puis échoue à la première vérification.
+
+**Première installation manuelle.** Les versions ≤ 0.21.0 ne connaissent pas ce
+mécanisme : il faut installer la 0.22.0 une dernière fois à la main. Ensuite,
+les mises à jour arrivent seules, sans passer par la page des releases.
 
 ### Chargement local (`file://`)
 

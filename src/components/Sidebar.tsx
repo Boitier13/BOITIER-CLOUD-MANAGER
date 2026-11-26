@@ -12,6 +12,7 @@ import {
 import { PROVIDER_LIST } from '../data/catalog';
 import { BrandMark } from './BrandMark';
 import { useStore, type Route } from '../store';
+import { useUpdater } from '../hooks/useUpdater';
 import { formatDecimal } from '../lib/format';
 
 interface SidebarProps {
@@ -30,6 +31,9 @@ const NAV = [
 
 export function Sidebar({ onNavigate }: SidebarProps) {
   const { state } = useStore();
+  // Une mise à jour prête se signale ici : sans cela, il faudrait ouvrir les
+  // paramètres pour découvrir qu'elle attend un clic.
+  const { state: update } = useUpdater();
   const { route } = state;
 
   const countFor = (provider: string) =>
@@ -134,6 +138,11 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           >
             <Settings size={15} strokeWidth={1.85} />
             <span>Paramètres</span>
+            {update.status === 'ready' ? (
+              <span className="nav-item__count nav-item__count--update" title={`Version ${update.version} prête à installer`}>
+                MAJ
+              </span>
+            ) : null}
           </button>
         </div>
       </div>

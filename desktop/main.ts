@@ -9,7 +9,8 @@
 
 import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from 'electron';
 import { join } from 'node:path';
-import { registerIpc, emitDownload, channels } from './api.ts';
+import { registerIpc, emitDownload, emitUpdate, channels } from './api.ts';
+import { Updater } from './updater.ts';
 import { loadEnvFile, readGoogleConfig } from './config.ts';
 import { initLog, log } from './log.ts';
 import { resolveDataDir, resolvePreload, resolveRendererDir } from './paths.ts';
@@ -26,6 +27,7 @@ const devServerUrl = process.env.BOITIER_DEV_SERVER_URL;
 
 const windows: BrowserWindow[] = [];
 let service: GoogleService | null = null;
+let updater: Updater | null = null;
 let current: BrowserWindow | null = null;
 /** Chemin du journal de démarrage, affiché dans les messages d'erreur. */
 let logPath: string | null = null;
@@ -275,7 +277,14 @@ function boot(): void {
     ...(config.clientSecret ? { clientSecret: config.clientSecret } : {}),
   });
 
-  registerIpc(win, service);
+  updater = new Updater((state) => {
+    log(`mise à jour : ${state.status}${state.version ? ` ${state.version}` : ''}` +
+      `${state.message ? ` (${state.message})` : ''}`);
+    for (const target of windows) if (!target.isDestroyed()) emitUpdate(target, state);
+  });
+  registerIpc(win, service, updater);
+  // La vérification démarre douze secondes après : l'interface passe d'abord.
+  updater.start();
   log('fenêtre créée');
 
   // Un clic sur l'icône a eu lieu pendant la préparation : on montre la
@@ -302,6 +311,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
       log('fermeture : plus aucune fenêtre');
+      updater?.stop();
       app.quit();
     }
   });

@@ -1255,6 +1255,105 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   }
 }
 
+/* --- 10. Mise à jour prête : l'écran doit le dire et n'installer qu'au clic - */
+{
+  let installations = 0;
+  let verifications = 0;
+  const etatPret = {
+    status: 'ready',
+    currentVersion: '0.21.0',
+    version: '0.22.0',
+    percent: 100,
+    checkedAt: '2026-11-26T12:00:00.000Z',
+  };
+
+  const maj = await parcours({
+    label: 'mise à jour',
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      updater: {
+        state: async () => etatPret,
+        check: async () => {
+          verifications += 1;
+          return { ...etatPret, status: 'idle' };
+        },
+        install: async () => {
+          installations += 1;
+          return true;
+        },
+        onChange: () => () => {},
+      },
+      google: {
+        status: async () => ({ configured: false, source: 'none' }),
+        accounts: async () => [],
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+      },
+    },
+  });
+
+  const { doc } = maj;
+  const badge = [...doc.querySelectorAll('.nav-item__count')].find(
+    (node) => (node.textContent ?? '').trim() === 'MAJ',
+  );
+  check('mise à jour : le menu signale une version prête', Boolean(badge));
+
+  const versParametres = [...doc.querySelectorAll('.nav-item')].find((button) =>
+    (button.textContent ?? '').includes('Paramètres'),
+  );
+  if (versParametres) await maj.click(versParametres);
+  const corps = doc.body.textContent ?? '';
+  check(
+    'mise à jour : les paramètres annoncent la version prête',
+    /Mises à jour/.test(corps) && /0’|\.22\.0|22\.0/.test(corps) && /prête/i.test(corps),
+  );
+  check(
+    'mise à jour : la version installée est rappelée',
+    /0\.21\.0/.test(corps),
+    corps.match(/Version [0-9.]+/)?.[0] ?? 'version absente',
+  );
+
+  const boutonInstaller = [...doc.querySelectorAll('button')].find((button) =>
+    (button.textContent ?? '').includes('Redémarrer et installer'),
+  );
+  check('mise à jour : le bouton d’installation est proposé', Boolean(boutonInstaller));
+  if (boutonInstaller) await maj.click(boutonInstaller);
+  check(
+    'mise à jour : l’installation n’a lieu qu’après le clic',
+    installations === 1,
+    `${installations} appel(s)`,
+  );
+  check(
+    'mise à jour : aucune vérification déclenchée par l’ouverture de l’écran',
+    verifications === 0,
+    `${verifications} appel(s)`,
+  );
+}
+
+/* --- 11. Navigateur : pas de mise à jour, et on le dit -------------------- */
+{
+  const web = await parcours({ label: 'navigateur', bridge: null });
+  const { doc } = web;
+  const versParametres = [...doc.querySelectorAll('.nav-item')].find((button) =>
+    (button.textContent ?? '').includes('Paramètres'),
+  );
+  if (versParametres) await web.click(versParametres);
+  const corps = doc.body.textContent ?? '';
+  check(
+    'navigateur : les mises à jour sont déclarées indisponibles',
+    /version installée uniquement/i.test(corps),
+    corps.includes('Mises à jour') ? 'mention absente' : 'section absente',
+  );
+  const bouton = [...doc.querySelectorAll('button')].find((button) =>
+    (button.textContent ?? '').includes('Rechercher'),
+  );
+  check('navigateur : le bouton de vérification est inerte', Boolean(bouton) && bouton.disabled);
+}
+
 console.log(
   failures === 0
     ? '\nInterface vérifiée : état vide maîtrisé, compte réel affiché, aucun décor.'

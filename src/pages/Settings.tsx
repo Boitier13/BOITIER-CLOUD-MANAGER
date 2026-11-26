@@ -9,6 +9,7 @@ import {
   Monitor,
   Moon,
   Plus,
+  RefreshCw,
   RotateCcw,
   SlidersHorizontal,
   Sun,
@@ -20,6 +21,7 @@ import { BrandMark } from '../components/BrandMark';
 import { useToast } from '../components/toast';
 import { getBridge, isDesktop } from '../lib/bridge';
 import { useGoogleClientStatus } from '../hooks/useGoogle';
+import { describeUpdate, useUpdater } from '../hooks/useUpdater';
 
 // Plus de liste inventée : le dossier par défaut est celui du système, et le
 // bouton ouvre la boîte de dialogue de Windows.
@@ -29,6 +31,7 @@ export function Settings() {
   const { state, dispatch } = useStore();
   const toast = useToast();
   const [resetOpen, setResetOpen] = useState(false);
+  const updater = useUpdater();
   /** Chemin réel du dossier système : sans lui, ce réglage reste abstrait. */
   const [systemFolder, setSystemFolder] = useState('');
 
@@ -282,7 +285,7 @@ export function Settings() {
               <div className="settings-row__label">Ranger par cloud et par type</div>
               <div className="settings-row__desc">
                 Classe chaque fichier dans « Google Drive » puis dans un dossier
-                par nature : Vidéos, Audio, Images, Documents, Archives.
+                par nature : Videos, Audio, Images, Documents, Archives.
               </div>
             </div>
             <div className="settings-row__control">
@@ -373,6 +376,62 @@ export function Settings() {
                 <RotateCcw size={12} />
                 Réinitialiser
               </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="settings-group">
+          <div className="settings-group__head">
+            <RefreshCw size={13} />
+            <span className="settings-group__title">Mises à jour</span>
+          </div>
+          <div className="settings-row">
+            <div className="settings-row__text">
+              <div className="settings-row__label">
+                Version {updater.state.currentVersion}
+                {updater.state.status === 'ready' ? (
+                  <span className="badge badge--ok" style={{ marginLeft: 8 }}>
+                    {updater.state.version} prête
+                  </span>
+                ) : null}
+              </div>
+              <div className="settings-row__desc">{describeUpdate(updater.state)}</div>
+            </div>
+            <div className="settings-row__control">
+              {updater.state.status === 'ready' ? (
+                <button
+                  type="button"
+                  className="btn btn--sm btn--primary"
+                  onClick={() => void updater.install()}
+                >
+                  <RefreshCw size={12} />
+                  Redémarrer et installer
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn--sm"
+                  disabled={!updater.supported || updater.busy}
+                  onClick={() => void updater.check()}
+                  title={
+                    updater.supported
+                      ? 'Vérifier maintenant'
+                      : 'Disponible dans la version Windows installée'
+                  }
+                >
+                  <RefreshCw size={12} />
+                  {updater.busy ? 'Vérification…' : 'Rechercher'}
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="settings-row">
+            <div className="settings-row__text">
+              <div className="settings-row__desc">
+                Une nouvelle version se télécharge en arrière-plan et ne s’installe
+                jamais sans votre clic. L’installeur s’affiche, comme lors d’une
+                installation habituelle.
+              </div>
             </div>
           </div>
         </section>
