@@ -34,9 +34,17 @@ check('bundle JavaScript trouvé', Boolean(jsHref), jsHref ?? 'aucun');
 const js = await readFile(new URL(jsHref, pageUrl), 'utf8');
 
 /* --- 1. Aucun décor fictif dans le code livré --------------------------- */
-for (const forbidden of ['MEGA', 'SHADOW', 'TERABOX', 'shadow.demo', 'terabox.demo']) {
+// MEGA n'est plus un décor : c'est un fournisseur réel, avec sa session et ses
+// transferts. Les fournisseurs purement fictifs des versions précédentes, eux,
+// ne doivent jamais réapparaître dans le paquet livré.
+for (const forbidden of ['SHADOW', 'TERABOX', 'shadow.demo', 'terabox.demo']) {
   check(`aucun fournisseur fictif : ${forbidden}`, !js.includes(forbidden));
 }
+check(
+  'fournisseur réel : MEGA est proposé',
+  js.includes('MEGA') && /Connecter un compte MEGA/.test(js),
+  'MEGA absent du paquet',
+);
 check(
   'aucun compte de démonstration pré-rempli',
   !/makeSeedAccounts|seedDownloads/.test(js),

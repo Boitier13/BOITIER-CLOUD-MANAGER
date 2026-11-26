@@ -12,12 +12,24 @@ import { getBridge, type GoogleAccountInfo, type GoogleFile } from './bridge';
 
 export const GOOGLE_ROOT = 'root';
 
-/** Un compte est réel lorsqu'il vient de Google et non des données fictives. */
+/**
+ * Un compte est réel lorsqu'il correspond à une session chez un fournisseur.
+ *
+ * Le nom de la fonction est historique : elle couvre désormais Google **et**
+ * MEGA, parce que tout l'explorateur s'appuie dessus pour savoir s'il doit
+ * demander le contenu au processus principal plutôt qu'à une arborescence
+ * locale.
+ */
 export function isRealAccount(account: Account): boolean {
-  return account.provider === 'gdrive' && account.source === 'google';
+  return (
+    (account.provider === 'gdrive' && account.source === 'google') ||
+    (account.provider === 'mega' && account.source === 'mega')
+  );
 }
 
+/** Identifiant du compte côté fournisseur (jamais un secret). */
 export function realAccountId(account: Account): string | undefined {
+  if (account.provider === 'mega') return account.megaId ?? account.id;
   return account.googleId ?? (account.source === 'google' ? account.id : undefined);
 }
 

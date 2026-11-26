@@ -23,8 +23,10 @@ import {
 } from '../lib/format';
 import { Meter, ProviderMark, TypeIcon } from '../components/visuals';
 import { createDownload } from '../lib/downloads';
+import { realAccountId } from '../lib/google';
 import { displaySegment } from '../lib/remote';
 import { getBridge } from '../lib/bridge';
+import { downloadAccount } from '../lib/cloud';
 import { useToast } from '../components/toast';
 
 interface FavoritesProps {
@@ -186,7 +188,11 @@ export function Favorites({ onOpenEntry }: FavoritesProps) {
                   type="button"
                   className="btn btn--sm"
                   onClick={() => {
-                    const real = account.source === 'google' && account.googleId;
+                    // Un compte réel est un compte adossé à une session chez un
+                    // fournisseur (Google ou MEGA) : sans cela, le favori MEGA
+                    // partait en téléchargement simulé, sans aucun fichier écrit.
+                    const remoteAccountId = realAccountId(account);
+                    const real = Boolean(remoteAccountId);
                     const item = createDownload({
                       id: `${entry.node.id}-${Date.now()}`,
                       name: entry.node.name,
@@ -197,8 +203,8 @@ export function Favorites({ onOpenEntry }: FavoritesProps) {
                       accountName: account.name,
                       path: entry.path,
                       seed: entry.node.name.length * 5,
-                      ...(real && account.googleId
-                        ? { remoteId: entry.node.id, remoteAccount: account.googleId }
+                      ...(real
+                        ? { remoteId: entry.node.id, remoteAccount: remoteAccountId }
                         : {}),
                     });
                     if (!getBridge()) {
@@ -209,16 +215,18 @@ export function Favorites({ onOpenEntry }: FavoritesProps) {
                       return;
                     }
                     dispatch({ type: 'downloads/add', items: [item] });
-                    if (real && account.googleId) {
-                      void getBridge()
-                        ?.google.download({
-                          id: item.id,
-                          accountId: account.googleId,
-                          fileId: entry.node.id,
-                          name: entry.node.name,
-                          size: entry.node.size,
-                          dir: state.settings.downloadFolder,
-                        })
+                    if (real && remoteAccountId) {
+                      void downloadAccount({
+                        id: item.id,
+                        provider: account.provider,
+                        // Google attend son identifiant externe, MEGA
+                        // l'identifiant d'application.
+                        accountId: account.provider === 'mega' ? account.id : remoteAccountId,
+                        fileId: entry.node.id,
+                        name: entry.node.name,
+                        size: entry.node.size,
+                        dir: state.settings.downloadFolder,
+                      })
                         .catch((cause: Error) =>
                           toast.push(cause.message || 'Téléchargement impossible', 'error'),
                         );

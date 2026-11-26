@@ -31,6 +31,27 @@ export type GoogleFile = {
   parentId?: string;
 };
 
+/** Compte MEGA tel que le processus principal le décrit. */
+export type MegaAccountInfo = {
+  accountId: string;
+  name: string;
+  email: string;
+  usedBytes: number;
+  quotaBytes: number;
+  status: 'connected' | 'expired';
+};
+
+/** Progression d'un téléversement MEGA. */
+export type MegaUploadEvent = {
+  id: string;
+  accountId: string;
+  name: string;
+  status: 'running' | 'paused' | 'done' | 'error';
+  received: number;
+  size: number;
+  message?: string;
+};
+
 /** Plan de téléchargement d'un dossier entier (métadonnées seules). */
 export type GoogleFolderPlan = {
   files: { fileId: string; path: string; size: number; mimeType: string }[];
@@ -179,6 +200,31 @@ export interface BoitierBridge {
     openExternal?(url: string): Promise<boolean>;
     /** Ouvre un dossier dans l'explorateur de fichiers. */
     openDirectory?(path: string): Promise<boolean>;
+  };
+  /**
+   * MEGA : même forme de données que Google, session distincte.
+   * Le mot de passe sert à ouvrir la session et n'est jamais conservé.
+   */
+  mega?: {
+    accounts(): Promise<MegaAccountInfo[]>;
+    connect(
+      email: string,
+      password: string,
+      secondFactor?: string,
+    ): Promise<MegaAccountInfo>;
+    disconnect(accountId: string): Promise<void>;
+    list(accountId: string, folderId: string): Promise<GoogleFile[]>;
+    search(accountId: string, term: string): Promise<GoogleFile[]>;
+    recent(accountId: string, limit?: number): Promise<GoogleFile[]>;
+    usage(accountId: string): Promise<{ usedBytes: number; quotaBytes: number }>;
+    /** Parcours d'un dossier : plan de téléchargement, sans rien écrire. */
+    plan(accountId: string, folderId: string): Promise<GoogleFolderPlan>;
+    download(request: GoogleDownloadRequest): Promise<void>;
+    pause(id: string): Promise<void>;
+    resume(id: string): Promise<boolean>;
+    cancel(id: string): Promise<void>;
+    upload(accountId: string, folderId: string): Promise<{ sent: number }>;
+    onUpload(listener: (event: MegaUploadEvent) => void): () => void;
   };
 }
 

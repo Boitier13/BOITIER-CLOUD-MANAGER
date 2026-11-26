@@ -110,7 +110,7 @@ async function taillePartiel(path: string): Promise<number> {
 }
 
 /** Ajoute « (1) », « (2) »… plutôt que d'écraser un fichier existant. */
-async function uniquePath(dir: string, name: string): Promise<string> {
+export async function uniquePath(dir: string, name: string): Promise<string> {
   const base = safeFileName(name);
   const dot = base.lastIndexOf('.');
   const stem = dot > 0 ? base.slice(0, dot) : base;

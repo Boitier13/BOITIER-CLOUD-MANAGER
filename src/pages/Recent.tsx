@@ -23,6 +23,7 @@ import {
 import { ProviderMark, TypeIcon } from '../components/visuals';
 import { createDownload } from '../lib/downloads';
 import { getBridge } from '../lib/bridge';
+import { downloadAccount } from '../lib/cloud';
 import { useToast } from '../components/toast';
 
 /**
@@ -122,9 +123,9 @@ export function Recent({ onNavigate }: { onNavigate: (route: Route) => void }) {
       remoteAccount: googleId,
     });
     dispatch({ type: 'downloads/add', items: [item] });
-    void bridge.google
-      .download({
+    void downloadAccount({
         id: item.id,
+        provider: row.account.provider,
         accountId: googleId,
         fileId: row.file.id,
         name: row.file.name,

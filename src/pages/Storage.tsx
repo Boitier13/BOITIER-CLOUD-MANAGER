@@ -49,6 +49,14 @@ export function Storage({ onNavigate }: { onNavigate: (route: Route) => void }) 
   const googleId = account ? realAccountId(account) : undefined;
 
   const measure = (id: string, force = false) => {
+    // MEGA n'expose pas de répartition par catégorie : le quota vient de la
+    // session (mesuré à la connexion et après chaque envoi), et il n'y a donc
+    // rien de plus à demander ici. On ne lance pas une requête inutile.
+    if (account?.provider === 'mega') {
+      setUsage(null);
+      measuredFor.current = id;
+      return;
+    }
     if (!bridge?.google.storage || !id) return;
     if (!force && measuredFor.current === id) return;
     measuredFor.current = id;

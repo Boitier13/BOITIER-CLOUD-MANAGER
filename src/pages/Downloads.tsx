@@ -18,6 +18,7 @@ import { formatBytes, formatDecimal, formatSpeed, percent } from '../lib/format'
 import { formatEta, statusLabels, type DownloadStatus } from '../lib/downloads';
 import { Meter, ProviderMark, TypeIcon } from '../components/visuals';
 import { getBridge } from '../lib/bridge';
+import { downloadAccount } from '../lib/cloud';
 import { parentDir } from '../lib/transfers';
 import { joinFolder } from '../lib/organize';
 import { useToast } from '../components/toast';
@@ -393,15 +394,21 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
                             },
                           ],
                         });
-                        void bridge.google
-                          .download({
-                            id: item.id,
-                            accountId: item.remoteAccount ?? '',
-                            fileId: item.remoteId,
-                            name: item.name,
-                            size: item.size,
-                            dir: state.settings.downloadFolder,
-                          })
+                        // Le compte visé dépend du fournisseur : Google attend
+                        // son identifiant externe, MEGA l'identifiant
+                        // d'application (celui de la session restaurée).
+                        void downloadAccount({
+                          id: item.id,
+                          provider: item.provider,
+                          // Identifiant du compte chez le fournisseur : c'est
+                          // celui que le processus principal sait retrouver
+                          // dans son coffre, Google comme MEGA.
+                          accountId: item.remoteAccount ?? item.accountId,
+                          fileId: item.remoteId,
+                          name: item.name,
+                          size: item.size,
+                          dir: state.settings.downloadFolder,
+                        })
                           .catch((cause: Error) => {
                             dispatch({
                               type: 'downloads/progress',

@@ -19,6 +19,7 @@ import {
   Search,
   SearchX,
   Star,
+  Upload,
   Users,
   X,
 } from 'lucide-react';
@@ -56,6 +57,7 @@ import {
 } from '../lib/format';
 import { getChildren } from '../lib/tree';
 import { cloudFolder, downloadSubPath } from '../lib/organize';
+import { downloadAccount, onMegaUpload, uploadToMega } from '../lib/cloud';
 import { driveFolderUrl } from '../lib/driveLinks';
 import { Meter, TypeIcon } from '../components/visuals';
 import { createDownload } from '../lib/downloads';
@@ -125,6 +127,18 @@ export function Files() {
   }, [railQuery, state.accounts]);
 
   const sharedView = state.explorer.view === 'shared';
+  // Progression des envois MEGA : une bulle au départ, une à l'arrivée, une en
+  // cas d'échec. Rien de périodique — seulement les événements du transfert.
+  useEffect(() => {
+    return onMegaUpload((event) => {
+      if (event.status === 'done') {
+        toast.push(`« ${event.name} » envoyé sur MEGA`);
+      } else if (event.status === 'error') {
+        toast.push(`Envoi de « ${event.name} » impossible : ${event.message ?? 'erreur inconnue'}`);
+      }
+    });
+  }, [toast]);
+
   const remoteFolder = useRemoteFolder(remoteId, path, remote && !sharedView);
   // Les fichiers partagés ne sont dans aucun dossier de l'utilisateur : ils
   // viennent d'une requête dédiée (sharedWithMe), pas du parcours de la racine.
@@ -142,6 +156,8 @@ export function Files() {
   const remoteQuery = query.trim().length >= 2 ? query : '';
   const remoteSearchState = useRemoteSearch(remoteId, remoteQuery, remote);
   const reloadRemote = useReloadRemote();
+  /** Envoi MEGA en cours : le bouton le dit au lieu de rester muet. */
+  const [envoiEnCours, setEnvoiEnCours] = useState(false);
 
   const children = useMemo(() => {
     if (!account) return [];
@@ -388,7 +404,9 @@ export function Files() {
     const bridge = getBridge();
     if (!bridge) return;
     for (const request of requests) {
-      void bridge.google.download(request).catch((cause: Error) => {
+      // Le fournisseur est déduit du compte : Google et MEGA partagent la même
+      // file, la même progression et les mêmes reprises.
+      void downloadAccount(request).catch((cause: Error) => {
         dispatch({
           type: 'downloads/progress',
           updates: [
@@ -451,6 +469,7 @@ export function Files() {
     launchDownloads(
       items.map((item, index) => ({
         id: item.id,
+        provider: source.provider,
         accountId: googleId,
         fileId: plan.files[index].fileId,
         name: item.name.split('/').pop() ?? item.name,
@@ -522,6 +541,7 @@ export function Files() {
       launchDownloads(
         items.map((item) => ({
           id: item.id,
+          provider: source.provider,
           accountId: googleId,
           fileId: item.remoteId as string,
           name: item.name,
@@ -839,6 +859,35 @@ export function Files() {
                     >
                       <ExternalLink size={12} />
                       Ouvrir dans Drive
+                    </button>
+                  ) : null}
+                  {account.provider === 'mega' && !sharedView && !searchMode ? (
+                    <button
+                      type="button"
+                      className="btn btn--sm"
+                      title="Choisir un fichier sur cet ordinateur et l’envoyer dans ce dossier MEGA"
+                      onClick={() => {
+                        setEnvoiEnCours(true);
+                        void uploadToMega(account.id, driveFolderId(path) === 'root' ? '' : driveFolderId(path))
+                          .then((resultat) => {
+                            if (!resultat.sent) return;
+                            // Le contenu du dossier vient de changer : on le relit.
+                            reloadRemote(remoteId, path);
+                            toast.push(
+                              `${resultat.sent} fichier${resultat.sent > 1 ? 's' : ''} envoyé${
+                                resultat.sent > 1 ? 's' : ''
+                              } sur MEGA`,
+                            );
+                          })
+                          .catch((cause: Error) => {
+                            toast.push(cause.message || 'Envoi vers MEGA impossible');
+                          })
+                          .finally(() => setEnvoiEnCours(false));
+                      }}
+                      disabled={envoiEnCours}
+                    >
+                      <Upload size={12} />
+                      {envoiEnCours ? 'Envoi…' : 'Envoyer sur MEGA'}
                     </button>
                   ) : null}
                   <span className="selection-bar__hint">

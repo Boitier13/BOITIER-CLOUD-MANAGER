@@ -14,6 +14,12 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import type { FileNode } from '../data/catalog';
 import { getBridge, type GoogleFile } from './bridge';
+import {
+  listFolder,
+  recentAccount,
+  searchAccount,
+  sharedAccount,
+} from './cloud';
 import { GOOGLE_ROOT, toNode } from './google';
 
 export interface FolderState {
@@ -121,7 +127,7 @@ class RemoteCatalog {
     this.states.set(key, { nodes: [], status: 'loading' });
     this.publish();
     try {
-      const files = await client.google.list(accountId, driveFolderId(path));
+      const files = await listFolder(accountId, driveFolderId(path));
       this.states.set(key, { nodes: files.map(toNode), status: 'ready' });
     } catch (cause) {
       this.states.set(key, {
@@ -147,7 +153,7 @@ class RemoteCatalog {
     this.states.set(key, { nodes: [], status: 'loading' });
     this.publish();
     try {
-      const files = await client.google.shared(accountId);
+      const files = await sharedAccount(accountId);
       this.states.set(key, { nodes: files.map(toNode), status: 'ready' });
     } catch (cause) {
       this.states.set(key, {
@@ -180,7 +186,7 @@ class RemoteCatalog {
     this.states.set(key, { nodes: [], status: 'loading' });
     this.publish();
     try {
-      const files = await client.google.recent(accountId, { days: 90, limit: 200 });
+      const files = await recentAccount(accountId, { days: 90, limit: 200 });
       this.states.set(key, { nodes: files.map(toNode), status: 'ready' });
     } catch (cause) {
       this.states.set(key, {
@@ -207,7 +213,7 @@ class RemoteCatalog {
     this.states.set(key, { nodes: [], status: 'loading' });
     this.publish();
     try {
-      const files = await client.google.search(accountId, query.trim());
+      const files = await searchAccount(accountId, query.trim());
       this.states.set(key, { nodes: files.map(toNode), status: 'ready' });
     } catch (cause) {
       this.states.set(key, {

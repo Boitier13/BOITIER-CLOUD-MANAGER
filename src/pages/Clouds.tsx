@@ -15,6 +15,8 @@ import { PROVIDERS, type Account, type AccountStatus, type ProviderId } from '..
 import { KeyRound, LockKeyhole, TriangleAlert, Unplug } from 'lucide-react';
 import { useStore, type Route } from '../store';
 import { GoogleConnectDialog, GoogleSetupDialog } from '../components/GoogleDialogs';
+import { MegaConnectDialog } from '../components/MegaDialogs';
+import { useMegaAccountSync } from '../hooks/useMega';
 import { useGoogleAccountSync, useGoogleClientStatus } from '../hooks/useGoogle';
 import { getBridge, isDesktop } from '../lib/bridge';
 import { isRealAccount, realAccountId } from '../lib/google';
@@ -46,6 +48,7 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | AccountStatus>('all');
   const [dialog, setDialog] = useState<
+    | { kind: 'megaConnect' }
     | { kind: 'googleSetup' }
     | { kind: 'googleConnect'; reconnect?: boolean }
     | { kind: 'rename'; account: Account }
@@ -54,6 +57,8 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
   >(null);
 
   const googleClient = useGoogleClientStatus();
+  // Comptes MEGA déjà connus du processus principal (sessions restaurées).
+  useMegaAccountSync();
   const applyGoogleAccount = useGoogleAccountSync();
   const desktop = isDesktop();
 
@@ -116,17 +121,24 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
           <h1 className="page-title">{def.name}</h1>
           <p className="page-subtitle">
             {realAccounts.length
-              ? `${formatDecimal(realAccounts.length)} compte${
-                  realAccounts.length > 1 ? 's' : ''
-                } Google connecté${realAccounts.length > 1 ? 's' : ''} en lecture seule — ` +
-                'aucune modification n’est possible depuis cette application.'
-              : 'Aucun compte connecté. Vos fichiers restent chez Google : l’application ne lit que ce que vous l’autorisez.'}
+              ? provider === 'mega'
+                ? `${formatDecimal(realAccounts.length)} compte${
+                    realAccounts.length > 1 ? 's' : ''
+                  } MEGA connecté${realAccounts.length > 1 ? 's' : ''} — lecture, téléchargement et envoi, ` +
+                  'sans suppression ni déplacement.'
+                : `${formatDecimal(realAccounts.length)} compte${
+                    realAccounts.length > 1 ? 's' : ''
+                  } Google connecté${realAccounts.length > 1 ? 's' : ''} en lecture seule — ` +
+                  'aucune modification n’est possible depuis cette application.'
+              : provider === 'mega'
+                ? 'Aucun compte connecté. Vos fichiers restent chez MEGA : le mot de passe sert à ouvrir la session et n’est jamais enregistré.'
+                : 'Aucun compte connecté. Vos fichiers restent chez Google : l’application ne lit que ce que vous l’autorisez.'}
           </p>
         </div>
         <div className="page-head__actions">
           {desktop ? (
             <>
-              {googleClient.status?.configured ? (
+              {provider === 'gdrive' && googleClient.status?.configured ? (
                 <button
                   type="button"
                   className="btn btn--ghost"
@@ -137,22 +149,33 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                   Configurer
                 </button>
               ) : null}
-              <button
-                type="button"
-                className="btn btn--primary"
-                onClick={() =>
-                  setDialog(
-                    googleClient.status?.configured
-                      ? { kind: 'googleConnect' }
-                      : { kind: 'googleSetup' },
-                  )
-                }
-              >
-                <Plus size={14} strokeWidth={2.4} />
-                {googleClient.status?.configured
-                  ? 'Connecter un compte Google'
-                  : 'Configurer Google Drive'}
-              </button>
+              {provider === 'mega' ? (
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() => setDialog({ kind: 'megaConnect' })}
+                >
+                  <Plus size={14} strokeWidth={2.4} />
+                  Connecter un compte MEGA
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() =>
+                    setDialog(
+                      googleClient.status?.configured
+                        ? { kind: 'googleConnect' }
+                        : { kind: 'googleSetup' },
+                    )
+                  }
+                >
+                  <Plus size={14} strokeWidth={2.4} />
+                  {googleClient.status?.configured
+                    ? 'Connecter un compte Google'
+                    : 'Configurer Google Drive'}
+                </button>
+              )}
             </>
           ) : (
             <button
@@ -463,11 +486,19 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
         }}
       >
         {realAccounts.length ? (
-          <>
-            <LockKeyhole size={11} /> Accès en lecture seule : aucun fichier ne peut être
-            supprimé, déplacé ni modifié depuis cette application. Aucun jeton ne circule
-            dans l’interface.
-          </>
+          provider === 'mega' ? (
+            <>
+              <LockKeyhole size={11} /> Aucune suppression ni déplacement depuis cette
+              application. Le mot de passe MEGA n’est jamais conservé : seule la session est
+              enregistrée, chiffrée par Windows.
+            </>
+          ) : (
+            <>
+              <LockKeyhole size={11} /> Accès en lecture seule : aucun fichier ne peut être
+              supprimé, déplacé ni modifié depuis cette application. Aucun jeton ne circule
+              dans l’interface.
+            </>
+          )
         ) : (
           <>
             <CircleSlash size={11} /> Aucun compte connecté : l’application n’a accès à
@@ -484,6 +515,16 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
             await googleClient.reload();
             toast.push('Client OAuth Google enregistré', 'ok');
             setDialog(status.configured ? { kind: 'googleConnect' } : null);
+          }}
+        />
+      ) : null}
+
+      {dialog?.kind === 'megaConnect' ? (
+        <MegaConnectDialog
+          onClose={() => setDialog(null)}
+          onConnected={(nom) => {
+            setDialog(null);
+            toast.push(`Compte MEGA ${nom} connecté`, 'ok');
           }}
         />
       ) : null}
@@ -525,6 +566,14 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
           onClose={() => setDialog(null)}
           onConfirm={(reassign) => {
             if (reassign) dispatch({ type: 'explorer/chooseAccount', accountId: reassign });
+            // Une session MEGA doit aussi être fermée côté processus principal :
+            // sinon le compte reste connecté sur le disque après sa suppression.
+            if (dialog.account.provider === 'mega') {
+              const cible = dialog.account;
+              void getBridge()
+                ?.mega?.disconnect(cible.megaId ?? '')
+                .catch(() => undefined);
+            }
             dispatch({ type: 'account/remove', id: dialog.account.id });
             setDialog(null);
             toast.push(`Compte ${dialog.account.name} supprimé`, 'warn');
