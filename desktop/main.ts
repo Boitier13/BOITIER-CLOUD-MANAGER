@@ -7,13 +7,23 @@
  * vivent ici.
  */
 
-import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  Notification,
+  safeStorage,
+  shell,
+} from 'electron';
 import { join } from 'node:path';
 import { registerIpc, emitDownload, emitUpdate, channels } from './api.ts';
 import { traceMiseAJour, Updater } from './updater.ts';
 import { loadEnvFile, readGoogleConfig } from './config.ts';
 import { initLog, log, logPath as currentLogPath, sinceStart } from './log.ts';
 import { resolveDataDir, resolvePreload, resolveRendererDir } from './paths.ts';
+import type { DownloadEvent } from './google/downloads.ts';
 import { Vault } from './google/vault.ts';
 import { GoogleService } from './google/service.ts';
 import { endpointsFromEnv } from './google/endpoints.ts';
@@ -80,6 +90,51 @@ function revealWindow(): void {
   if (win.isMinimized()) win.restore();
   if (!win.isVisible()) win.show();
   win.focus();
+}
+
+/**
+ * Prévient le système qu'un transfert est terminé.
+ *
+ * Silence si la fenêtre est au premier plan : l'utilisateur regarde déjà
+ * l'écran, une bulle serait du bruit. Silence aussi quand la plateforme ne
+ * propose pas de notifications.
+ */
+function notifierTransfert(event: DownloadEvent): void {
+  if (!Notification.isSupported()) return;
+  const premiere = windows.find((target) => !target.isDestroyed());
+  if (premiere && premiere.isFocused()) return;
+
+  const nom = event.name?.trim() || 'Fichier';
+  const reussi = event.status === 'done';
+  const corps = reussi
+    ? `Enregistré (${formatMo(event.size)})`
+    : event.message ?? 'Le téléchargement a échoué.';
+
+  try {
+    const bulle = new Notification({
+      title: reussi ? `Téléchargé : ${nom}` : `Échec : ${nom}`,
+      body: corps,
+    });
+    // Cliquer la bulle ramène la fenêtre : c'est ce qu'on attend d'une alerte.
+    bulle.on('click', () => {
+      const cible = windows.find((target) => !target.isDestroyed());
+      if (!cible) return;
+      if (cible.isMinimized()) cible.restore();
+      cible.show();
+      cible.focus();
+    });
+    bulle.show();
+  } catch (cause) {
+    log(`notification impossible : ${(cause as Error).message}`);
+  }
+}
+
+/** Taille lisible, sans dépendre du formateur de l'interface. */
+function formatMo(octets: number): string {
+  const mo = Math.max(0, Number(octets) || 0) / (1024 * 1024);
+  if (mo >= 1024) return `${(mo / 1024).toFixed(1).replace('.', ',')} Go`;
+  if (mo >= 1) return `${mo.toFixed(mo >= 10 ? 0 : 1).replace('.', ',')} Mo`;
+  return `${Math.max(1, Math.round(mo * 1024))} Ko`;
 }
 
 function createWindow(): BrowserWindow {
@@ -297,6 +352,12 @@ function boot(): void {
     downloadsDir: async () => app.getPath('downloads'),
     emitDownload: (event) => {
       for (const target of windows) if (!target.isDestroyed()) emitDownload(target, event);
+      // Notification système à la fin du transfert — et à la fin seulement.
+      // Un appel par paquet saturerait le centre de notifications, donc une
+      // seule alerte par transfert, sur un état terminal.
+      if (event.status === 'done' || event.status === 'error') {
+        notifierTransfert(event);
+      }
     },
     endpoints: endpointsFromEnv(),
     ...(config.clientId ? { clientId: config.clientId } : {}),

@@ -3,8 +3,13 @@
  *
  * Écrit dans un fichier `.part` puis renomme à la fin : un transfert
  * interrompu ne laisse jamais de fichier tronqué présenté comme complet.
- * La pause annule le flux réseau ; la reprise repart du début (Drive ne
- * garantit pas de plage `Range` sur `alt=media`).
+ *
+ * **La pause conserve le fichier partiel**, et la reprise demande à Drive la
+ * suite exacte avec `Range: bytes=<n>-`. C'est ce qui évite de retélécharger
+ * 148 Mo parce qu'une connexion a sauté à 90 %. Si Drive ignorait la plage
+ * (réponse `200` au lieu de `206`), le partiel est **remplacé** et non
+ * complété : ajouter le fichier entier à la suite produirait un fichier
+ * corrompu de taille double.
  */
 
 import { once } from 'node:events';
@@ -19,6 +24,8 @@ export type DownloadStatus = 'running' | 'paused' | 'done' | 'error';
 
 export interface DownloadEvent {
   id: string;
+  /** Nom du fichier : la notification système doit pouvoir le nommer. */
+  name?: string;
   status: DownloadStatus;
   received: number;
   size: number;
@@ -49,6 +56,10 @@ interface Job {
   paused: boolean;
   /** Le flux s'est tu trop longtemps : l'abandon vient de nous, pas de Google. */
   stalled: boolean;
+  /** Chemin du fichier partiel, conservé entre une pause et une reprise. */
+  partPath?: string;
+  /** Chemin final, calculé une seule fois (les « (1) » ne doivent pas changer). */
+  finalPath?: string;
 }
 
 /**
@@ -86,6 +97,16 @@ export function safeFileName(name: string): string {
     .replace(/^\.+/, '')
     .trim();
   return cleaned.slice(0, 180) || 'fichier';
+}
+
+/** Taille d'un fichier, ou 0 s'il n'existe pas encore. */
+async function taillePartiel(path: string): Promise<number> {
+  try {
+    const info = await stat(path);
+    return Number.isFinite(info.size) && info.size > 0 ? info.size : 0;
+  } catch {
+    return 0;
+  }
 }
 
 /** Ajoute « (1) », « (2) »… plutôt que d'écraser un fichier existant. */
@@ -137,6 +158,15 @@ export class DownloadManager {
   }
 
   async start(request: DownloadRequest, token: string): Promise<void> {
+    // Même identifiant qu'un transfert suspendu ou en échec : c'est une reprise,
+    // pas un nouveau téléchargement. Sans cela, « Réessayer » repartait de zéro
+    // dans un second fichier, en laissant le partiel orphelin sur le disque.
+    const existant = this.jobs.get(request.id);
+    if (existant && (existant.status === 'paused' || existant.status === 'error')) {
+      log(`transfert ${request.id} : reprise demandée (${existant.status})`);
+      if (await this.resume(request.id, token)) return;
+    }
+
     const job: Job = {
       request,
       controller: new AbortController(),
@@ -166,14 +196,22 @@ export class DownloadManager {
     job.controller.abort();
   }
 
+  /**
+   * Reprend là où le transfert s'est arrêté.
+   *
+   * Accepté aussi après un échec réseau : le fichier partiel est encore là, et
+   * l'utilisateur qui clique « Reprendre » ne s'attend pas à repayer 90 % du
+   * téléchargement. Le nombre d'octets déjà reçus n'est pas remis à zéro : il
+   * sera recalculé sur la taille réelle du partiel au moment de repartir.
+   */
   async resume(id: string, token: string): Promise<boolean> {
     const job = this.jobs.get(id);
-    if (!job || job.status !== 'paused') return false;
+    if (!job || (job.status !== 'paused' && job.status !== 'error')) return false;
     job.paused = false;
+    job.stalled = false;
     job.status = 'running';
-    job.received = 0;
     job.controller = new AbortController();
-    this.emit({ id, status: 'running', received: 0, size: job.size, speed: 0 });
+    this.emit({ id, status: 'running', received: job.received, size: job.size, speed: 0 });
     void this.run(job, token);
     return true;
   }
@@ -184,6 +222,8 @@ export class DownloadManager {
     job.paused = false;
     job.controller.abort();
     this.jobs.delete(id);
+    // Seule l'annulation efface le partiel : une pause doit permettre de reprendre.
+    if (job.partPath) void rm(job.partPath, { force: true }).catch(() => undefined);
   }
 
   /** Abandonne le transfert si le flux reste muet plus de `stallMs`. */
@@ -206,11 +246,16 @@ export class DownloadManager {
     // l'erreur doit atteindre l'interface. Elle en sortait auparavant avant le
     // `try` — la ligne restait alors « En cours » à 0 %, sans aucun message.
     try {
-      const dir = relativeDir(request.dir || (await this.fallbackDir()), request.subPath);
-      log(`transfert ${request.id} : dossier ${dir}`);
-      await mkdir(dir, { recursive: true });
-      const finalPath = await uniquePath(dir, request.name);
-      partPath = `${finalPath}.part`;
+      if (!job.partPath || !job.finalPath) {
+        const dir = relativeDir(request.dir || (await this.fallbackDir()), request.subPath);
+        log(`transfert ${request.id} : dossier ${dir}`);
+        await mkdir(dir, { recursive: true });
+        const finalPath = await uniquePath(dir, request.name);
+        job.finalPath = finalPath;
+        job.partPath = `${finalPath}.part`;
+      }
+      partPath = job.partPath;
+      const finalPath = job.finalPath;
 
       // Documents Google natifs (Docs, Sheets…) : pas de flux binaire direct.
       const meta = await readFileMeta(this.endpoints, token, request.fileId, job.controller.signal);
@@ -221,11 +266,40 @@ export class DownloadManager {
         );
       }
 
-      const media = await openMedia(this.endpoints, token, request.fileId, job.controller.signal);
-      if (!job.size) job.size = media.size ?? meta.size;
-      log(`transfert ${request.id} : flux ouvert, ${job.size} o annoncés`);
+      // Octets réellement présents sur le disque : c'est la vérité, pas le
+      // compteur en mémoire — une fermeture brutale laisserait un partiel plus
+      // court que ce que l'interface croyait avoir reçu.
+      const deja = await taillePartiel(partPath);
+      if (deja > 0) log(`transfert ${request.id} : reprise à ${deja} o`);
 
-      const sink = createWriteStream(partPath);
+      const media = await openMedia(
+        this.endpoints,
+        token,
+        request.fileId,
+        job.controller.signal,
+        deja,
+      );
+      if (!job.size) job.size = media.size ?? meta.size;
+
+      // Drive a ignoré la plage : le partiel est remplacé, jamais complété.
+      const reprend = media.resumed && media.start > 0;
+      job.received = reprend ? media.start : 0;
+      if (deja > 0 && !reprend) {
+        log(`transfert ${request.id} : plage refusée, reprise depuis le début`);
+      }
+      log(
+        `transfert ${request.id} : flux ouvert, ${job.size} o annoncés` +
+          (reprend ? ` (reprise à ${job.received} o)` : ''),
+      );
+      this.emit({
+        id: request.id,
+        status: 'running',
+        received: job.received,
+        size: job.size,
+        speed: 0,
+      });
+
+      const sink = createWriteStream(partPath, { flags: reprend ? 'a' : 'w' });
       const reader = media.body.getReader();
       const startedAt = Date.now();
       let lastEmit = 0;
@@ -260,11 +334,14 @@ export class DownloadManager {
       });
 
       await rename(partPath, finalPath);
+      // Plus de partiel : une annulation tardive ne doit pas viser un chemin mort.
+      job.partPath = undefined;
       job.status = 'done';
       log(`transfert ${request.id} : terminé (${job.received} o) → ${finalPath}`);
       const seconds = Math.max((Date.now() - startedAt) / 1000, 0.001);
       this.emit({
         id: request.id,
+        name: request.name,
         status: 'done',
         received: job.received,
         size: job.size || job.received,
@@ -275,7 +352,9 @@ export class DownloadManager {
       const aborted =
         (cause as Error).name === 'AbortError' ||
         (cause as { code?: string }).code === 'ABORT_ERR';
-      await rm(partPath, { force: true }).catch(() => undefined);
+      // Le partiel n'est **pas** supprimé ici : une pause doit pouvoir reprendre,
+      // et un échec réseau aussi — l'utilisateur ne doit pas repayer les octets
+      // déjà reçus. Seule l'annulation efface le fichier.
 
       if (!job.stalled && !aborted) {
         log(`transfert ${request.id} : échec — ${(cause as Error).message}`);
@@ -297,6 +376,7 @@ export class DownloadManager {
         job.status = 'error';
         this.emit({
           id: request.id,
+          name: request.name,
           status: 'error',
           received: job.received,
           size: job.size,
@@ -324,6 +404,7 @@ export class DownloadManager {
       job.status = 'error';
       this.emit({
         id: request.id,
+        name: request.name,
         status: 'error',
         received: job.received,
         size: job.size,

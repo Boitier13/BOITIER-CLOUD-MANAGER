@@ -81,7 +81,7 @@ l’application utilise PKCE (S256) + `state`.
 | Mode *Testing* : reconnexion hebdomadaire | Google expire les jetons au bout de **7 jours** tant que l’application reste en *Testing*. **Une seule action gratuite supprime cette limite pour toujours** : cf. la section suivante. Avec plusieurs comptes, cette contrainte se paie une fois par compte et par semaine. |
 | Écran « Google n’a pas vérifié cette application » | Normal pour un projet personnel non vérifié : *Paramètres avancés → Continuer*. **Publier l’application ne change rien à cet écran** : il apparaît déjà aujourd’hui, et il réapparaît une fois après la publication. |
 | Documents Google natifs | Docs, Sheets et Slides n’ont pas de fichier binaire : ils doivent être exportés depuis Google Drive. L’application l’indique clairement. |
-| Pause et reprise | Une pause annule le flux réseau et supprime le fichier partiel ; la reprise repart du début. |
+| Pause et reprise | Une pause arrête le flux et **conserve le fichier partiel** ; la reprise demande à Drive la suite (`Range`) et repart de l’octet reçu. Seule l’annulation efface ce qui a été reçu. Si le serveur ignore la plage, le partiel est remplacé — jamais allongé. |
 | Comptes professionnels | Un administrateur Google Workspace peut interdire les applications tierces. |
 
 ### Plusieurs comptes Gmail, et les alias
@@ -317,16 +317,18 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 127 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 132 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
-                          # flux des récents, pause, révocation à la
-                          # déconnexion, démarrage (journal, instance unique,
+                          # flux des récents, pause, reprise à l'octet reçu,
+                          # révocation à la déconnexion, démarrage (journal,
+                          # instance unique,
                           # écran de démarrage, chemin d'un résultat,
                           # recherche à deux portées, mise à jour
                           # automatique, trace avant chargement, verrou
-                          # patient, défilement, traces de mise à jour) —
+                          # patient, défilement, traces de mise à jour,
+                          # notification de fin de transfert) —
                           # sans réseau, faux Google
 npm run verify:interface  # les écrans sans compte, avec un compte simulé,
                           # avec neuf comptes, et la recherche à deux portées

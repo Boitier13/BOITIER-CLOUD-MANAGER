@@ -103,7 +103,8 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
           <h1 className="page-title">Téléchargements</h1>
           <p className="page-subtitle">
             Les fichiers Google Drive sont réellement enregistrés sur ce disque. Une pause
-            interrompt le flux et supprime le fichier partiel : la reprise repart du début.
+            conserve le fichier partiel : la reprise reprend à l’octet près, sans rien
+            retélécharger. Seule l’annulation efface ce qui a déjà été reçu.
           </p>
         </div>
         <div className="page-head__actions">
@@ -377,9 +378,9 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
                       onClick={() => {
                         const bridge = getBridge();
                         if (!bridge || !item.remoteId) return;
-                        // « Réessayer » relance un vrai transfert : reprendre un
-                        // travail que le processus principal ne connaît plus ne
-                        // faisait rien du tout.
+                        // « Réessayer » relance le transfert sur le même
+                        // identifiant : le processus principal retrouve le
+                        // fichier partiel et reprend à l'octet reçu.
                         dispatch({
                           type: 'downloads/progress',
                           updates: [

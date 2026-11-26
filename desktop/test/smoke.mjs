@@ -633,8 +633,19 @@ try {
     final.message ?? 'aucune erreur émise',
   );
   check(
-    'veilleur : aucun fichier partiel ne reste sur le disque',
-    !(await exists(join(dir, 'v.mp4'))) && !(await exists(join(dir, 'v.mp4.part'))),
+    'veilleur : aucun fichier complet n’est présenté après un échec',
+    !(await exists(join(dir, 'v.mp4'))),
+  );
+  // Le partiel est **conservé** après un échec : la reprise s'appuie dessus.
+  // Il ne disparaît qu'à l'annulation ou après un transfert réussi.
+  // Rien n'est jeté : ce qui est sur le disque correspond exactement à ce qui
+  // a été reçu (ici 0 octet — un flux muet n'a rien livré). La section 26
+  // vérifie le cas où des octets existent réellement.
+  const surDisque = await stat(join(dir, 'v.mp4.part')).then((info) => info.size).catch(() => 0);
+  check(
+    'veilleur : aucun octet reçu n’est jeté (base de reprise intacte)',
+    surDisque === (final.received ?? 0),
+    `${surDisque} o sur le disque pour ${final.received ?? 0} o reçus`,
   );
   server.close();
   await rm(dir, { recursive: true, force: true }).catch(() => undefined);
@@ -1149,6 +1160,38 @@ try {
   );
 }
 
+/* --- 27. Fin de transfert : une notification, jamais une bulle parasite -- */
+{
+  const { readFile: lire } = await import('node:fs/promises');
+  const principal = await lire(new URL('../main.ts', import.meta.url), 'utf8');
+  const emissions = principal.slice(principal.indexOf('emitDownload: (event) =>'));
+  const corps = emissions.slice(0, emissions.indexOf('endpoints:'));
+
+  check(
+    'notification : Windows est prévenu en fin de transfert',
+    /import \{[^}]*Notification[^}]*\} from 'electron'/.test(principal) &&
+      /new Notification\(\{/.test(principal) &&
+      /Notification\.isSupported\(\)/.test(principal),
+    'aucune notification système',
+  );
+  check(
+    'notification : seulement pour un transfert terminé ou échoué',
+    /status === 'done' \|\| event\.status === 'error'/.test(principal) &&
+      /notifierTransfert\(event\)/.test(corps),
+    'bulle à chaque point de progression',
+  );
+  check(
+    'notification : silence quand la fenêtre est au premier plan',
+    /premiere\.isFocused\(\)\) return;/.test(principal),
+    'bulle alors que l’utilisateur regarde l’écran',
+  );
+  check(
+    'notification : le clic ramène l’application',
+    /bulle\.on\('click'/.test(principal) && /win\.focus\(\)/.test(principal),
+    'bulle sans effet au clic',
+  );
+}
+
 const passed = results.filter((result) => result.ok).length;
 console.log(`\n${passed}/${results.length} vérifications réussies.`);
 if (failures) {
@@ -1186,6 +1229,44 @@ async function silentStreamServer() {
     res.end(JSON.stringify({ id: 'f', name: 'v.mp4', mimeType: 'video/mp4', size: '1048576' }));
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return server;
+}
+
+/**
+ * Serveur qui sert un fichier par tranches, avec ou sans plage `Range`.
+ *
+ * `ranges` conserve les en-têtes reçus : c'est la preuve qu'une reprise a
+ * réellement demandé la suite, et non retéléchargé le fichier entier.
+ */
+async function rangeServer({ total = 200_000, chunk = 20_000, delay = 20, ignoreRange = false } = {}) {
+  const { createServer } = await import('node:http');
+  const ranges = [];
+  const server = createServer(async (req, res) => {
+    const url = new URL(req.url, 'http://x');
+    if (url.searchParams.get('alt') === 'media') {
+      const entete = req.headers.range;
+      if (entete) ranges.push(entete);
+      const demande = ignoreRange ? null : /^bytes=(\d+)-/.exec(entete ?? '');
+      const debut = demande ? Number(demande[1]) : 0;
+      const corps = Buffer.alloc(total - debut, 0x42);
+      res.writeHead(debut > 0 ? 206 : 200, {
+        'content-type': 'video/mp4',
+        'content-length': String(corps.length),
+        ...(debut > 0 ? { 'content-range': `bytes ${debut}-${total - 1}/${total}` } : {}),
+      });
+      for (let i = 0; i < corps.length; i += chunk) {
+        if (res.destroyed || res.writableEnded) return;
+        res.write(corps.subarray(i, i + chunk));
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+      res.end();
+      return;
+    }
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ id: 'f', name: 'v.mp4', mimeType: 'video/mp4', size: String(total) }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  server.ranges = ranges;
   return server;
 }
 
