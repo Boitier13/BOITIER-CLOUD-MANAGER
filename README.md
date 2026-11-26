@@ -317,7 +317,7 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 110 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 113 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
@@ -326,7 +326,8 @@ npm run desktop:test      # 110 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # écran de démarrage, chemin d'un résultat,
                           # recherche à deux portées, mise à jour
                           # automatique, trace avant chargement, verrou
-                          # patient, défilement) — sans réseau, faux Google
+                          # patient, défilement, traces de mise à jour) —
+                          # sans réseau, faux Google
 npm run verify:interface  # les écrans sans compte, avec un compte simulé,
                           # avec neuf comptes, et la recherche à deux portées
 npm run desktop:paths     # la fenêtre charge dist/ en file://, et possède ses
@@ -445,6 +446,25 @@ l'interface : la vérification se fait en arrière-plan.
 n'installe jamais une version que personne n'a demandée. L'installeur s'affiche
 ensuite comme lors d'une installation habituelle, pour que rien ne se produise
 en silence.
+
+**Ce que le journal montre.** `demarrage.log` (dossier de données de
+l'application, ajout seul, rotation à 64 Ko) reçoit chaque étape :
+
+```
+mise à jour : première vérification dans 12 s
+mise à jour : vérification demandée
+mise à jour : checking 0.22.4
+mise à jour : available 0.22.4
+mise à jour : downloading 0.22.4
+mise à jour : ready 0.22.4
+mise à jour : installation demandée 0.22.4
+mise à jour : installeur lancé, fermeture de l’application
+```
+
+La ligne `installation demandée` est la seule preuve du clic : les états se
+lisent déjà, mais pas l'intention. Si l'installeur refuse de partir, la ligne
+`installeur impossible — …` et un message dans l'écran le disent, au lieu d'un
+bouton qui semble n'avoir aucun effet.
 
 **Ce que l'écran montre.** « À jour — version 0.22.3 vérifiée à 16 h 14 » :
 l'heure compte, sans elle on ne distingue pas une vérification faite à
