@@ -1017,12 +1017,15 @@ try {
 {
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
-  const { pathToFileURL } = await import('node:url');
+  // `fileURLToPath` et non `.pathname` : sous Windows, `.pathname` donne
+  // « /C:/… », qu'aucun outil ne sait ouvrir. C'est ce qui a fait échouer la
+  // publication de la 0.22.6 alors que tout passait sous Linux.
+  const { fileURLToPath, pathToFileURL } = await import('node:url');
   const { build } = await import('esbuild');
 
   const sortie = join(tmpdir(), `boitier-downloads-${process.pid}.mjs`);
   await build({
-    entryPoints: [new URL('../../src/lib/downloads.ts', import.meta.url).pathname],
+    entryPoints: [fileURLToPath(new URL('../../src/lib/downloads.ts', import.meta.url))],
     bundle: true,
     format: 'esm',
     platform: 'node',
