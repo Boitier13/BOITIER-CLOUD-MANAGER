@@ -14,6 +14,8 @@ export type GoogleAccountInfo = {
   usedBytes: number;
   quotaBytes: number;
   status: 'connected' | 'expired';
+  /** Date du dernier consentement Google (absente = autorisation antérieure). */
+  authorizedAt?: string;
   /** Le compte était déjà connecté : la connexion l'a mis à jour. */
   alreadyConnected?: boolean;
 };

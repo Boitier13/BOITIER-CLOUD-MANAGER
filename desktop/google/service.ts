@@ -41,6 +41,8 @@ export type AccountView = {
   usedBytes: number;
   quotaBytes: number;
   status: 'connected' | 'expired';
+  /** Date du dernier consentement Google (voir `StoredAccount`). */
+  authorizedAt?: string;
   /** Vrai si ce compte était déjà connecté : la connexion l'a mis à jour. */
   alreadyConnected?: boolean;
 };
@@ -177,6 +179,9 @@ export class GoogleService {
       // La date de première connexion est conservée : elle sert à ordonner les
       // comptes dans l'interface.
       createdAt: existing?.createdAt ?? now,
+      // À chaque consentement, la date est réécrite : c'est elle qui dit si le
+      // jeton est récent.
+      authorizedAt: now,
       tokens: {
         accessToken: tokens.accessToken,
         expiresAt: tokens.expiresAt,
@@ -318,6 +323,7 @@ function toView(account: StoredAccount): AccountView {
     usedBytes: account.usedBytes,
     quotaBytes: account.quotaBytes,
     status: account.status,
+    ...(account.authorizedAt ? { authorizedAt: account.authorizedAt } : {}),
   };
 }
 

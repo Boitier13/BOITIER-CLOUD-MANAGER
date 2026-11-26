@@ -143,6 +143,14 @@ Le dossier de destination n'est plus une liste de chemins inventés
    qu'aucun processus ne le pilotait. Au démarrage il est désormais déclaré
    interrompu, avec un bouton de relance qui redemande un vrai transfert.
 
+### Savoir quelles autorisations sont durables
+
+Chaque compte porte la **date de son dernier consentement Google**, affichée sous
+son adresse. Un compte **sans date** a été autorisé avant que l'application ne
+l'enregistre : son jeton date de la période de test et expirera au bout de sept
+jours. Un bandeau compte ces comptes, et le bouton ↻ de la ligne les renouvelle
+— après quoi la date apparaît et le bandeau disparaît.
+
 ### Où va le fichier
 
 Chaque ligne de la file affiche le **dossier de destination réel**, précédé d'une
