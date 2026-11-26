@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('boitier', {
     folder: () => invoke('google:folder'),
     chooseFolder: () => invoke('desktop:choose-folder'),
     openFolder: (path) => invoke('desktop:open-folder', path),
+    openDirectory: (path) => invoke('desktop:open-directory', path),
     openExternal: (url) => invoke('desktop:open-external', url),
     onDownload: (listener) => {
       const handler = (_event, payload) => {

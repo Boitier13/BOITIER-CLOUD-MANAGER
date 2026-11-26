@@ -120,13 +120,16 @@ export interface BoitierBridge {
     resume(id: string, accountId: string): Promise<boolean>;
     cancel(id: string): Promise<void>;
     refresh(accountId: string): Promise<GoogleAccountInfo | null>;
-    folder(): Promise<string>;
+    /** Dossier du système utilisé par défaut (peut manquer côté aperçu). */
+    folder?(): Promise<string>;
     /** Boîte de dialogue du système : dossier de destination choisi. */
     chooseFolder?(): Promise<string | null>;
     onDownload(listener: (event: GoogleDownloadEvent) => void): () => void;
     /** Révèle un fichier dans l'explorateur Windows. */
     openFolder?(path: string): Promise<void>;
     openExternal?(url: string): Promise<boolean>;
+    /** Ouvre un dossier dans l'explorateur de fichiers. */
+    openDirectory?(path: string): Promise<boolean>;
   };
 }
 

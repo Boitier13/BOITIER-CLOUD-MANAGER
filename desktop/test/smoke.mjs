@@ -484,6 +484,19 @@ try {
   );
 }
 
+/* --- 11bis-ter. Dossier parent d'un fichier ------------------------------- */
+{
+  const { parentDir } = await import('../../src/lib/transfers.ts');
+  check(
+    'chemin : le dossier parent est reconnu sous Windows et sous Linux',
+    parentDir('C:\\Users\\Saturnin\\Downloads\\film.mp4') ===
+      'C:\\Users\\Saturnin\\Downloads' &&
+      parentDir('/home/saturnin/Vidéos/film.mp4') === '/home/saturnin/Vidéos' &&
+      parentDir('C:\\Users\\Saturnin\\Downloads\\') === 'C:\\Users\\Saturnin',
+    parentDir('C:\\Users\\Saturnin\\Downloads\\film.mp4'),
+  );
+}
+
 /* --- 11quater. Dossiers inventés et transferts fantômes -------------------- */
 {
   const { isLegacyDownloadFolder, interruptStaleDownloads } = await import(

@@ -590,6 +590,7 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
         search: async () => [],
         shared: async () => [],
         recent: async () => [],
+        folder: async () => 'C:\\Users\\Saturnin\\Downloads',
         // Le processus principal refuse : la file doit le dire, pas rester à 0 %.
         download: async () => {
           throw new Error('Espace insuffisant sur le disque.');
@@ -620,6 +621,19 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
     // Le libellé « En cours » existe aussi comme filtre : on regarde la ligne
     // elle-même, pas la page entière.
     const ligne = echec.doc.querySelector('.download-row')?.textContent ?? '';
+    const dest = echec.doc.querySelector('.download-row__dest')?.textContent ?? '';
+    check(
+      'destination : le chemin réel du dossier apparaît devant la barre',
+      dest.trim() === 'C:\\Users\\Saturnin\\Downloads',
+      dest.trim() || 'aucun chemin',
+    );
+    check(
+      'destination : l’en-tête nomme le dossier réel, pas « dossier système »',
+      (echec.doc.querySelector('.badge--path')?.textContent ?? '').includes(
+        'C:\\Users\\Saturnin\\Downloads',
+      ),
+      (echec.doc.querySelector('.badge--path')?.textContent ?? '').slice(0, 60) || 'absent',
+    );
     check(
       'échec : le transfert n’est pas présenté comme en cours',
       /Échec/.test(ligne) && !/En cours/.test(ligne),

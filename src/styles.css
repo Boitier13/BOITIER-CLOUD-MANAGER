@@ -3793,6 +3793,70 @@ tr.is-folder .cell-name__text {
 }
 
 /* Chemin réel d'un document Google (non téléchargeable). */
+/* Destination d'un transfert : le chemin se lit en entier, il passe à la ligne
+   au lieu d'être coupé. Cliquer ouvre le dossier dans l'explorateur. */
+.download-row__dest {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 3px 0 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-4);
+  text-align: left;
+  cursor: pointer;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.download-row__dest svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--text-4);
+}
+
+.download-row__dest span {
+  overflow-wrap: anywhere;
+}
+
+.download-row__dest:hover {
+  color: var(--text-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.download-row__dest:hover svg {
+  color: var(--text-2);
+}
+
+/* Pastille « Dossier cible » : chemin complet, jamais tronqué. */
+.badge--path {
+  height: auto;
+  min-height: 20px;
+  padding: 3px 9px;
+  border: 0;
+  font-weight: 500;
+  color: var(--text-4);
+  cursor: pointer;
+  white-space: normal;
+  text-align: left;
+  max-width: min(430px, 46vw);
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+.badge--path:hover {
+  color: var(--text-2);
+}
+
+.badge--path svg {
+  flex: none;
+}
+
 .download-row__note {
   display: inline-flex;
   align-items: center;

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowDownToLine,
   Check,
@@ -18,6 +18,7 @@ import { formatBytes, formatDecimal, formatSpeed, percent } from '../lib/format'
 import { formatEta, statusLabels, type DownloadStatus } from '../lib/downloads';
 import { Meter, ProviderMark, TypeIcon } from '../components/visuals';
 import { getBridge } from '../lib/bridge';
+import { parentDir } from '../lib/transfers';
 import { useToast } from '../components/toast';
 
 const STATUS_BADGE: Record<DownloadStatus, string> = {
@@ -41,6 +42,32 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
   const { state, dispatch } = useStore();
   const toast = useToast();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]['id']>('all');
+  /**
+   * Dossier du système, quand l'utilisateur n'en a pas choisi un.
+   *
+   * « dossier système » ne dit pas où le fichier atterrit : le chemin réel est
+   * demandé une fois au processus principal et affiché tel quel.
+   */
+  const [systemFolder, setSystemFolder] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    void getBridge()
+      ?.google.folder?.()
+      .then((folder) => {
+        if (active) setSystemFolder(folder || '');
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  /** Dossier où ce transfert est (ou sera) écrit. */
+  const targetFolder = (item: { savedPath?: string }): string =>
+    (item.savedPath ? parentDir(item.savedPath) : '') ||
+    state.settings.downloadFolder ||
+    systemFolder;
 
   const counts = useMemo(() => {
     const map: Record<string, number> = { all: state.downloads.length };
@@ -179,11 +206,21 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
           ))}
         </div>
         <div className="filter-bar__spacer" />
-        <span className="badge">
-          Dossier cible · <b style={{ color: 'var(--text-2)', fontWeight: 500 }}>
-            {state.settings.downloadFolder.split('\\').pop() || 'dossier système'}
+        <button
+          type="button"
+          className="badge badge--path"
+          title="Ouvrir le dossier de destination"
+          onClick={() => {
+            const folder = state.settings.downloadFolder || systemFolder;
+            if (folder) void getBridge()?.google.openDirectory?.(folder);
+          }}
+        >
+          <FolderOpen size={11} />
+          Dossier cible ·
+          <b style={{ color: 'var(--text-2)', fontWeight: 500 }}>
+            {state.settings.downloadFolder || systemFolder || 'dossier système'}
           </b>
-        </span>
+        </button>
       </div>
 
       <div className="panel">
@@ -241,6 +278,19 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
                       <TriangleAlert size={11} />
                       {item.error}
                     </div>
+                  ) : null}
+                  {targetFolder(item) ? (
+                    <button
+                      type="button"
+                      className="download-row__dest"
+                      title={`Ouvrir ${targetFolder(item)}`}
+                      onClick={() => {
+                        void getBridge()?.google.openDirectory?.(targetFolder(item));
+                      }}
+                    >
+                      <FolderOpen size={12} />
+                      <span>{targetFolder(item)}</span>
+                    </button>
                   ) : null}
                   <div
                     className={`download-row__progress${

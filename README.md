@@ -143,6 +143,16 @@ Le dossier de destination n'est plus une liste de chemins inventés
    qu'aucun processus ne le pilotait. Au démarrage il est désormais déclaré
    interrompu, avec un bouton de relance qui redemande un vrai transfert.
 
+### Où va le fichier
+
+Chaque ligne de la file affiche le **dossier de destination réel**, précédé d'une
+icône de dossier : le chemin complet, jamais tronqué, qui passe à la ligne si
+besoin. Un clic l'ouvre dans l'explorateur. La pastille « Dossier cible » en
+haut de l'écran donne le même chemin, au lieu du vague « dossier système ».
+
+Pour un transfert terminé, c'est le dossier du fichier réellement écrit qui est
+affiché ; pour un transfert en cours ou en échec, celui visé.
+
 ### Téléverser : ce que l'application ne fait pas
 
 L'application demande une seule autorisation, `drive.readonly` : elle ne peut
