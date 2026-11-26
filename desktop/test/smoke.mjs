@@ -813,6 +813,7 @@ try {
   const api = await lire(new URL('../api.ts', import.meta.url), 'utf8');
   const preload = await lire(new URL('../preload.cjs', import.meta.url), 'utf8');
   const bundle = await lire(new URL('../dist/main.cjs', import.meta.url), 'utf8');
+  const principal = await lire(new URL('../main.ts', import.meta.url), 'utf8');
 
   const publish = (pkg.build?.publish ?? [])[0] ?? {};
   check(
@@ -866,6 +867,21 @@ try {
     'mise à jour : rien ne s’exécute hors d’une installation réelle',
     /if \(!app\.isPackaged \|\| this\.wired\) return;/.test(updater),
   );
+  // Journal d'un essai réel : chaque vérification était écrite deux fois (notre
+  // `check()` et l'événement de la bibliothèque), et la progression à chaque
+  // paquet. Une ligne par état réellement différent.
+  check(
+    'mise à jour : une seule ligne de journal par état réel',
+    /export function traceMiseAJour/.test(updater) &&
+      /if \(trace !== derniereTrace\) \{/.test(principal) &&
+      /import \{ traceMiseAJour, Updater \} from '\.\/updater\.ts';/.test(principal),
+    'doublons possibles',
+  );
+  check(
+    'mise à jour : la progression est journalisée par paliers de 10 %',
+    /Math\.floor\(borne \/ 10\) \* 10/.test(updater),
+    'journal de progression à chaque paquet',
+  );
   check(
     'mise à jour : les trois canaux sont déclarés et enregistrés',
     /updateState: 'update:state'/.test(api) &&
@@ -913,6 +929,7 @@ try {
   const build = await lire(new URL('../build.mjs', import.meta.url), 'utf8');
   const main = await lire(new URL('../main.ts', import.meta.url), 'utf8');
   const updater = await lire(new URL('../updater.ts', import.meta.url), 'utf8');
+  const logSource = await lire(new URL('../log.ts', import.meta.url), 'utf8');
 
   check(
     'démarrage : le point d’entrée ouvre le journal avant le code applicatif',
@@ -926,6 +943,12 @@ try {
     /process\.on\('uncaughtException'/.test(boot) &&
       /dialog\.showErrorBox\(/.test(boot) &&
       /échec \(\$\{origin\}\)/.test(boot),
+  );
+  check(
+    'démarrage : chaque étape porte son temps depuis le lancement',
+    /export function sinceStart\(\): number/.test(logSource ?? '') &&
+      (main.match(/\+\$\{sinceStart\(\)\} ms/g) ?? []).length >= 4,
+    'temps absent des étapes',
   );
   check(
     'démarrage : le verrou d’instance est retenté avant d’abandonner',

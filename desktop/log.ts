@@ -18,6 +18,18 @@ import { join } from 'node:path';
 
 const MAX_BYTES = 64 * 1024;
 
+/**
+ * Instant du chargement de ce module, c'est-à-dire du démarrage du processus
+ * à quelques millisecondes près : `log.ts` est le premier import de `boot.ts`,
+ * avant Electron et avant le code applicatif.
+ */
+const LANCEMENT = performance.now();
+
+/** Millisecondes écoulées depuis le début du processus. */
+export function sinceStart(): number {
+  return Math.round(performance.now() - LANCEMENT);
+}
+
 let filePath: string | null = null;
 
 /** Prépare le journal et renvoie son chemin (ou `null` si le disque refuse). */
