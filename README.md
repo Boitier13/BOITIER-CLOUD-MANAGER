@@ -132,6 +132,25 @@ Le dossier de destination n'est plus une liste de chemins inventés
 (`D:\Médias\…`) : vide, il désigne le dossier du système, et le bouton
 **Choisir…** ouvre la boîte de dialogue de Windows.
 
+**La cause du 0 % figé** — deux défauts se cumulaient :
+
+1. la préparation (création du dossier, choix du nom libre) se faisait **hors**
+   du bloc de gestion d'erreur. Un chemin impossible y levait une exception qui
+   s'évaporait : aucun message, aucun événement, la ligne restait à 0 % pour
+   toujours. Elle est désormais dans le `try`, avec un motif lisible
+   (« Dossier introuvable : … Choisissez un autre dossier dans Paramètres. ») ;
+2. un transfert restauré du stockage local restait marqué « en cours » alors
+   qu'aucun processus ne le pilotait. Au démarrage il est désormais déclaré
+   interrompu, avec un bouton de relance qui redemande un vrai transfert.
+
+### Téléverser : ce que l'application ne fait pas
+
+L'application demande une seule autorisation, `drive.readonly` : elle ne peut
+techniquement rien écrire chez Google — ni renommer, ni supprimer, ni envoyer.
+Le bouton **Ouvrir dans Drive** comble le manque sans changer cette promesse :
+il ouvre le dossier consulté dans Google Drive, où le glisser-déposer est prévu
+pour cela. Aucune reconnexion de compte n'est nécessaire.
+
 ### Ce que les chiffres du stockage veulent dire
 
 Deux confusions rendaient l’écran Stockage trompeur ; les deux sont corrigées.

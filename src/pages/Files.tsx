@@ -7,6 +7,7 @@ import {
   ChevronRight,
   ChevronUp,
   Download,
+  ExternalLink,
   Folder,
   FolderDown,
   FolderOpen,
@@ -33,6 +34,7 @@ import { accountMark, shortAddress } from '../lib/accounts';
 import { isRealAccount, realAccountId } from '../lib/google';
 import {
   displaySegment,
+  driveFolderId,
   ID_SEPARATOR,
   useReloadRemote,
   useRemoteFolder,
@@ -53,6 +55,7 @@ import {
   plural,
 } from '../lib/format';
 import { getChildren } from '../lib/tree';
+import { driveFolderUrl } from '../lib/driveLinks';
 import { Meter, TypeIcon } from '../components/visuals';
 import { createDownload } from '../lib/downloads';
 import { FolderDownloadDialog } from '../components/FolderDownloadDialog';
@@ -809,6 +812,21 @@ export function Files() {
                         .join(' · ')}
                 </span>
                 <div className="selection-bar__actions">
+                  {remote && !sharedView && !searchMode ? (
+                    <button
+                      type="button"
+                      className="btn btn--sm"
+                      title="Ouvrir ce dossier dans Google Drive, pour y déposer des fichiers"
+                      onClick={() => {
+                        void getBridge()?.google.openExternal?.(
+                          driveFolderUrl(driveFolderId(path)),
+                        );
+                      }}
+                    >
+                      <ExternalLink size={12} />
+                      Ouvrir dans Drive
+                    </button>
+                  ) : null}
                   <span className="selection-bar__hint">
                     <MousePointerClick size={11} />
                     Double-clic pour ouvrir

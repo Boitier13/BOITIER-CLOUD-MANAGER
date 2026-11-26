@@ -43,7 +43,7 @@ check(
 );
 
 /* --- Parcours guidé ----------------------------------------------------- */
-async function parcours({ label, bridge }) {
+async function parcours({ label, bridge, storage }) {
   const errors = [];
   const vc = new VirtualConsole();
   vc.on('jsdomError', (error) => errors.push(String(error.message)));
@@ -62,6 +62,8 @@ async function parcours({ label, bridge }) {
   });
   window.Element.prototype.scrollIntoView = function () {};
   if (bridge) window.boitier = bridge;
+  // État enregistré par une session précédente (démarrage à froid).
+  if (storage) window.localStorage.setItem(storage.key, JSON.stringify(storage.value));
 
   window.eval(js);
   await new Promise((r) => setTimeout(r, 700));
@@ -623,6 +625,100 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
       /Échec/.test(ligne) && !/En cours/.test(ligne),
       ligne.slice(0, 70).trim() || 'aucune ligne',
     );
+  }
+}
+
+/* --- 11bis. Une ligne « en cours » sans transfert ne doit pas mentir ------ */
+{
+  let relance = 0;
+  const fantome = await parcours({
+    label: 'transfert fantôme',
+    storage: {
+      key: 'boitier-cloud-manager:v1',
+      value: {
+        version: 1,
+        accounts: [
+          {
+            id: 'g-1',
+            googleId: 'g-1',
+            source: 'google',
+            provider: 'gdrive',
+            name: 'Boitier',
+            email: 'boitierecup@gmail.com',
+            address: 'boitierecup@gmail.com',
+            usedBytes: 1,
+            quotaBytes: 100,
+            favorite: false,
+            connectedAt: '2026-11-01T10:00:00.000Z',
+          },
+        ],
+        favorites: [],
+        downloads: [
+          {
+            id: 'vieux',
+            name: 'Conference.mp4',
+            type: 'video',
+            size: 93 * 1024 ** 2,
+            received: 0,
+            speed: 0,
+            baseSpeed: 0,
+            status: 'active',
+            provider: 'gdrive',
+            accountId: 'g-1',
+            accountName: 'Boitier',
+            path: [],
+            addedAt: '2026-11-25T00:00:00.000Z',
+            remoteId: 'v1',
+            remoteAccount: 'g-1',
+          },
+        ],
+        // Dossier inventé d'une ancienne version : il doit être oublié.
+        settings: { downloadFolder: 'D:\\Médias\\Téléchargements' },
+        explorer: { accountId: 'g-1', path: [] },
+      },
+    },
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      google: {
+        status: async () => ({ configured: true, source: 'env' }),
+        accounts: async () => [
+          {
+            accountId: 'g-1',
+            name: 'Boitier',
+            email: 'boitierecup@gmail.com',
+            usedBytes: 1,
+            quotaBytes: 100,
+            status: 'connected',
+          },
+        ],
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+        download: async () => {
+          relance += 1;
+        },
+      },
+    },
+  });
+
+  const toDownloads = [...fantome.doc.querySelectorAll('.nav-item')].find((button) =>
+    (button.textContent ?? '').includes('Téléchargements'),
+  );
+  if (toDownloads) await fantome.click(toDownloads);
+  const ligne = fantome.doc.querySelector('.download-row')?.textContent ?? '';
+  check(
+    'fantôme : la ligne héritée est déclarée interrompue, pas « En cours »',
+    /Échec/.test(ligne) && !/En cours/.test(ligne),
+    ligne.slice(0, 80).trim() || 'aucune ligne',
+  );
+  const retry = fantome.doc.querySelector('[aria-label="Réessayer le téléchargement"]');
+  check('fantôme : un bouton de relance est proposé', Boolean(retry));
+  if (retry) {
+    await fantome.click(retry);
+    check('fantôme : la relance demande un vrai transfert', relance === 1, String(relance));
   }
 }
 

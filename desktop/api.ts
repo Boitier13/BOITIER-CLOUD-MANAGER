@@ -6,6 +6,7 @@
 
 import { ipcMain, shell, type BrowserWindow, dialog } from 'electron';
 import type { GoogleService } from './google/service.ts';
+import { isAllowedExternalUrl } from '../src/lib/driveLinks.ts';
 import type { DownloadEvent } from './google/downloads.ts';
 
 export const channels = {
@@ -34,7 +35,7 @@ export const channels = {
   ready: 'desktop:renderer-ready',
 } as const;
 
-const CONSOLE_LINKS = /^https:\/\/(console\.cloud\.google\.com|developers\.google\.com)\//;
+
 
 let registered = false;
 
@@ -116,10 +117,11 @@ export function registerIpc(_win: BrowserWindow, service: GoogleService): void {
     return result.canceled || !result.filePaths.length ? null : result.filePaths[0];
   });
 
-  // Seuls les liens de configuration Google partent vers le navigateur.
+  // Seuls les liens de configuration Google et de Google Drive partent vers le
+  // navigateur. Tout le reste est refusé.
   handle(channels.openExternal, async (url: string) => {
     const target = String(url);
-    if (!CONSOLE_LINKS.test(target)) return false;
+    if (!isAllowedExternalUrl(target)) return false;
     await shell.openExternal(target);
     return true;
   });

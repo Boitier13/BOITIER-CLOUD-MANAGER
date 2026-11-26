@@ -323,7 +323,47 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
                       title="Réessayer"
                       aria-label="Réessayer le téléchargement"
                       onClick={() => {
-                        dispatch({ type: 'downloads/resume', id: item.id });
+                        const bridge = getBridge();
+                        if (!bridge || !item.remoteId) return;
+                        // « Réessayer » relance un vrai transfert : reprendre un
+                        // travail que le processus principal ne connaît plus ne
+                        // faisait rien du tout.
+                        dispatch({
+                          type: 'downloads/progress',
+                          updates: [
+                            {
+                              id: item.id,
+                              status: 'running',
+                              received: 0,
+                              size: item.size,
+                              speed: 0,
+                            },
+                          ],
+                        });
+                        void bridge.google
+                          .download({
+                            id: item.id,
+                            accountId: item.remoteAccount ?? '',
+                            fileId: item.remoteId,
+                            name: item.name,
+                            size: item.size,
+                            dir: state.settings.downloadFolder,
+                          })
+                          .catch((cause: Error) => {
+                            dispatch({
+                              type: 'downloads/progress',
+                              updates: [
+                                {
+                                  id: item.id,
+                                  status: 'error',
+                                  received: 0,
+                                  size: item.size,
+                                  speed: 0,
+                                  message: cause?.message || 'Téléchargement impossible',
+                                },
+                              ],
+                            });
+                          });
                         toast.push(`Nouvelle tentative pour ${item.name}`);
                       }}
                     >
