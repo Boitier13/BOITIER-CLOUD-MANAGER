@@ -736,6 +736,62 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   }
 }
 
+/* --- 11ter. Le réglage du dossier est lié au dossier réel ------------------ */
+{
+  const cheminSysteme = 'C:\\Users\\Saturnin\\Downloads';
+  const reglages = await parcours({
+    label: 'dossier de destination',
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      google: {
+        status: async () => ({ configured: true, source: 'env' }),
+        accounts: async () => [],
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+        folder: async () => cheminSysteme,
+        chooseFolder: async () => 'D:\\Vidéos\\Cloud',
+      },
+    },
+  });
+
+  const toSettings = [...reglages.doc.querySelectorAll('.nav-item')].find((button) =>
+    (button.textContent ?? '').includes('Paramètres'),
+  );
+  if (toSettings) await reglages.click(toSettings);
+
+  const chip = () => reglages.doc.querySelector('.path-chip')?.textContent?.trim() ?? '';
+  check(
+    'réglages : le dossier système réel est affiché, pas un libellé',
+    chip() === cheminSysteme,
+    chip() || 'vide',
+  );
+
+  const choose = [...reglages.doc.querySelectorAll('button')].find((button) =>
+    (button.textContent ?? '').includes('Choisir…'),
+  );
+  if (choose) await reglages.click(choose);
+  check(
+    'réglages : le dossier choisi devient la destination',
+    chip() === 'D:\\Vidéos\\Cloud',
+    chip() || 'vide',
+  );
+
+  const retour = [...reglages.doc.querySelectorAll('button')].find(
+    (button) => (button.textContent ?? '').trim() === 'Système',
+  );
+  check('réglages : un retour au dossier système est proposé', Boolean(retour));
+  if (retour) await reglages.click(retour);
+  check(
+    'réglages : le retour rend le dossier du système',
+    chip() === cheminSysteme,
+    chip() || 'vide',
+  );
+}
+
 console.log(
   failures === 0
     ? '\nInterface vérifiée : état vide maîtrisé, compte réel affiché, aucun décor.'

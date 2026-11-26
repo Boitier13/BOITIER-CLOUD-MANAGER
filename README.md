@@ -153,6 +153,11 @@ haut de l'écran donne le même chemin, au lieu du vague « dossier système ».
 Pour un transfert terminé, c'est le dossier du fichier réellement écrit qui est
 affiché ; pour un transfert en cours ou en échec, celui visé.
 
+Les **Paramètres** montrent le même chemin, et non un libellé : c'est lui qui
+décide de la destination. Le bouton **Choisir…** ouvre la boîte de dialogue de
+Windows ; **Système** ramène au dossier par défaut. Un clic sur le chemin
+l'ouvre dans l'explorateur.
+
 ### Téléverser : ce que l'application ne fait pas
 
 L'application demande une seule autorisation, `drive.readonly` : elle ne peut
