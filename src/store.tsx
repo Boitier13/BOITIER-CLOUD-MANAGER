@@ -45,7 +45,14 @@ export interface Favorite {
 
 export interface Settings {
   theme: 'dark' | 'light';
-  density: 'confort' | 'compact';
+  /**
+   * Facteur d'agrandissement de l'interface (1 = 100 %).
+   *
+   * Appliqué au zoom de la fenêtre, donc à tout — texte, icônes, marges — et
+   * conservé d'une session à l'autre. C'est ce qui manquait : Ctrl+« + »
+   * s'oubliait à chaque redémarrage.
+   */
+  textScale: number;
   downloadFolder: string;
   concurrent: number;
   confirmDelete: boolean;
@@ -130,7 +137,8 @@ const STORAGE_KEY = 'boitier-cloud-manager:v1';
 
 const DEFAULT_SETTINGS: Settings = {
   theme: 'dark',
-  density: 'confort',
+  // 110 % par défaut : les petites tailles de l'interface restaient justes.
+  textScale: 1.1,
   // Vide = dossier de téléchargements du système (résolu par le processus
   // principal). Un chemin Windows en dur ne valait que pour une machine.
   downloadFolder: '',
@@ -662,13 +670,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return stop;
   }, []);
 
-  // Thème + densité appliqués à la racine du document.
+  // Thème appliqué à la racine du document.
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.theme = state.settings.theme;
-    root.dataset.density = state.settings.density;
     root.style.colorScheme = state.settings.theme;
-  }, [state.settings.theme, state.settings.density]);
+  }, [state.settings.theme]);
+
+  // Taille du texte : zoom de la fenêtre côté application Windows, repli CSS
+  // dans l'aperçu navigateur. Sans cela, le réglage serait perdu à la fermeture.
+  useEffect(() => {
+    const scale = state.settings.textScale;
+    const bridge = getBridge();
+    if (bridge?.setZoom) {
+      void bridge.setZoom(scale).catch(() => undefined);
+      return;
+    }
+    document.documentElement.style.zoom = String(scale);
+  }, [state.settings.textScale]);
 
   // Sauvegarde locale différée (aucun serveur) : la simulation met à jour la
   // file en continu, on évite donc d'écrire dans le stockage à chaque tick.

@@ -184,24 +184,28 @@ export function Settings() {
           </div>
           <div className="settings-row">
             <div className="settings-row__text">
-              <div className="settings-row__label">Densité d’affichage</div>
+              <div className="settings-row__label">Taille du texte</div>
               <div className="settings-row__desc">
-                Compact resserre les listes pour afficher davantage de fichiers.
+                Agrandit toute l’interface. Le réglage est conservé au redémarrage.
               </div>
             </div>
             <div className="settings-row__control">
               <div className="segmented">
                 {(
                   [
-                    ['confort', 'Confort'],
-                    ['compact', 'Compact'],
+                    [1, '100 %'],
+                    [1.1, '110 %'],
+                    [1.2, '120 %'],
+                    [1.3, '130 %'],
                   ] as const
                 ).map(([value, label]) => (
                   <button
                     key={value}
                     type="button"
-                    className={`segmented__item${settings.density === value ? ' is-active' : ''}`}
-                    onClick={() => patch({ density: value })}
+                    className={`segmented__item${
+                      Math.abs(settings.textScale - value) < 0.001 ? ' is-active' : ''
+                    }`}
+                    onClick={() => patch({ textScale: value })}
                   >
                     {label}
                   </button>

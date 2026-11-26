@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('boitier', {
    * alors une fois, puis prévient l'utilisateur.
    */
   ready: () => invoke('desktop:renderer-ready'),
+  setZoom: (factor) => invoke('desktop:set-zoom', factor),
   google: {
     status: () => invoke('google:status'),
     setClient: (clientId, clientSecret) => invoke('google:set-client', clientId, clientSecret),

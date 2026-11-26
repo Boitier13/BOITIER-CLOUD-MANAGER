@@ -95,6 +95,8 @@ export interface BoitierBridge {
    * navigateur : le pont entier l'est aussi.
    */
   ready?: () => Promise<unknown>;
+  /** Applique le facteur de zoom de la fenêtre (taille du texte). */
+  setZoom?: (factor: number) => Promise<unknown>;
   google: {
     status(): Promise<GoogleClientStatus>;
     setClient(clientId: string, clientSecret: string): Promise<GoogleClientStatus>;

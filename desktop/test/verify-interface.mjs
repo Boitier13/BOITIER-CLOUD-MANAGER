@@ -104,7 +104,7 @@ async function parcours({ label, bridge, storage }) {
     after[name] = text();
   }
 
-  return { text, doc, after, click };
+  return { text, doc, after, click, window };
 }
 
 /* --- 2. État de départ : aucun compte ----------------------------------- */
@@ -905,6 +905,70 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
     /1 compte porte une autorisation antérieure/i.test(texte),
     (texte.match(/\d+ comptes? porte[^.]*/) ?? ['aucun bandeau'])[0],
   );
+}
+
+/* --- 11sexies. Taille du texte et densité retirée ------------------------- */
+{
+  const zooms = [];
+  const reglagesTexte = await parcours({
+    label: 'taille du texte',
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      setZoom: async (factor) => {
+        zooms.push(factor);
+        return true;
+      },
+      google: {
+        status: async () => ({ configured: true, source: 'env' }),
+        accounts: async () => [],
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+      },
+    },
+  });
+
+  const toSettings = [...reglagesTexte.doc.querySelectorAll('.nav-item')].find((button) =>
+    (button.textContent ?? '').includes('Paramètres'),
+  );
+  if (toSettings) await reglagesTexte.click(toSettings);
+
+  const texte = reglagesTexte.doc.body.textContent ?? '';
+  check(
+    'réglages : la densité d’affichage a disparu',
+    !/Densité d’affichage/i.test(texte),
+  );
+  check('réglages : la taille du texte est réglable', /Taille du texte/i.test(texte));
+  check(
+    'réglages : le zoom par défaut dépasse 100 %',
+    zooms.length > 0 && zooms[0] > 1,
+    zooms.join(', ') || 'aucun appel',
+  );
+
+  const bouton130 = [...reglagesTexte.doc.querySelectorAll('button')].find(
+    (button) => (button.textContent ?? '').trim() === '130 %',
+  );
+  check('réglages : quatre paliers sont proposés', Boolean(bouton130));
+  if (bouton130) {
+    await reglagesTexte.click(bouton130);
+    check(
+      'réglages : le palier 130 % est appliqué à la fenêtre',
+      zooms.at(-1) === 1.3,
+      zooms.join(', '),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    const saved = JSON.parse(
+      reglagesTexte.window.localStorage.getItem('boitier-cloud-manager:v1') ?? '{}',
+    );
+    check(
+      'réglages : le palier est conservé pour la prochaine session',
+      Math.abs((saved?.settings?.textScale ?? 0) - 1.3) < 0.001,
+      String(saved?.settings?.textScale),
+    );
+  }
 }
 
 console.log(

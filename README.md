@@ -143,6 +143,18 @@ Le dossier de destination n'est plus une liste de chemins inventés
    qu'aucun processus ne le pilotait. Au démarrage il est désormais déclaré
    interrompu, avec un bouton de relance qui redemande un vrai transfert.
 
+### Thème clair, taille du texte
+
+Le thème clair suit une palette froide — fond `#f5f7fb`, surfaces blanches,
+accent bleu `#2f6bff`, sélection de navigation en bleu pâle. La profondeur vient
+des bordures, pas des ombres.
+
+**Taille du texte** (Paramètres) : quatre paliers, 100 à 130 %, appliqués au zoom
+natif de la fenêtre — donc au texte, aux icônes et aux marges à la fois. Le
+choix est conservé d'une session à l'autre ; par défaut 110 %. L'ancien réglage
+« Densité d'affichage » a été retiré : il ne modifiait que deux ou trois listes
+et donnait l'impression de ne rien faire.
+
 ### Savoir quelles autorisations sont durables
 
 Chaque compte porte la **date de son dernier consentement Google**, affichée sous
