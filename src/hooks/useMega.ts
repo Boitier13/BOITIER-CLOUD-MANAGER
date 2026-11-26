@@ -58,12 +58,19 @@ export function useMegaAccountSync(): void {
       .accounts()
       .then((comptes) => {
         if (!vivant) return;
-        for (const info of comptes) {
-          const existant = state.accounts.find(
-            (compte) => compte.megaId === info.accountId || compte.email === info.email,
-          );
-          dispatch({ type: 'account/upsert', account: toMegaAccount(info, existant) });
-        }
+        // Une seule action pour tous les comptes : onze comptes MEGA donnaient
+        // onze rendus successifs au montage de l'écran.
+        dispatch({
+          type: 'account/addMany',
+          accounts: comptes.map((info) =>
+            toMegaAccount(
+              info,
+              state.accounts.find(
+                (compte) => compte.megaId === info.accountId || compte.email === info.email,
+              ),
+            ),
+          ),
+        });
       })
       .catch(() => undefined);
     return () => {

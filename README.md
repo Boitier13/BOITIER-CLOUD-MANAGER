@@ -297,6 +297,27 @@ Aucun jeton n'y figure. C'est le seul moyen de trancher entre « l'affichage a
 perdu les comptes » (ils reviennent au lancement suivant) et « le disque les a
 perdus » (il faut les reconnecter).
 
+### Quand la lecture du coffre échoue, elle le dit et elle réessaie
+
+Un coffre qui contient neuf comptes mais un écran qui en montre deux : c'est
+arrivé, et c'est resté invisible parce que l'appel échouait sans un mot. La
+lecture est désormais :
+
+- **réessayée** cinq fois au démarrage (immédiat, puis 0,4 s, 1,2 s, 2,5 s, 5 s) ;
+- **relancée au retour de la fenêtre** — une lecture, jamais de réveil
+  périodique ;
+- **tracée** dans le journal, y compris le nombre de comptes réellement
+  affichés :
+
+```
+interface : comptes : lecture du coffre échouée (…canal pas encore prêt) · essai 1
+interface : comptes : coffre relu au 2ᵉ essai · 9 reçu(s)
+interface : comptes : 9 compte(s) Google à l'écran
+```
+
+Et dans `Paramètres → Données locales`, le bouton **Réafficher** relit le coffre
+et rétablit la liste immédiatement, sans redémarrer.
+
 ### Un compte ne disparaît que si on le déconnecte
 
 La liste des comptes n'est plus recalculée par soustraction : la synchronisation
@@ -416,7 +437,7 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 165 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 174 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,

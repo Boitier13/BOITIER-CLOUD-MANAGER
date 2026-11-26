@@ -50,6 +50,7 @@ export const channels = {
   freeze: 'desktop:freeze',
   /** Aller-retour minimal : mesure la réactivité du processus principal. */
   ping: 'desktop:ping',
+  note: 'desktop:note',
   /** Repère de temps du démarrage, vu depuis l'interface. */
   timing: 'desktop:timing',
   /** Ouvre le journal de démarrage dans l'éditeur du système. */
@@ -233,6 +234,24 @@ export function registerIpc(
     const texte = String(libelle ?? '').slice(0, 80).trim();
     if (!texte) return;
     log(`interface : ${texte} · +${sinceStart()} ms`);
+  });
+
+  // Notes de l'interface vers le journal.
+  //
+  // Une synchronisation qui échoue était invisible : le compte manquait à
+  // l'écran sans la moindre trace, et il fallait deviner. Ces quelques lignes
+  // rendent l'échec lisible. Elles sont bornées : un journal illisible ne sert
+  // à rien.
+  let notesEmises = 0;
+  ipcMain.on(channels.note, (_event, message: unknown) => {
+    if (notesEmises >= 40) return;
+    const texte = String(message ?? '')
+      .replace(/\s+/g, ' ')
+      .slice(0, 160)
+      .trim();
+    if (!texte) return;
+    notesEmises += 1;
+    log(`interface : ${texte}`);
   });
 
   // Réactivité du processus principal : l'interface mesure l'aller-retour.

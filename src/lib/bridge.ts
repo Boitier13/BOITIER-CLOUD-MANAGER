@@ -173,6 +173,8 @@ export interface BoitierBridge {
   reportTiming?: (libelle: string) => void;
   /** Aller-retour minimal vers le processus principal (mesure de réactivité). */
   ping?: () => Promise<boolean>;
+  /** Écrit une ligne de diagnostic dans le journal de démarrage (borné). */
+  note?: (message: string) => void;
   /** Ouvre le journal de démarrage ; renvoie son chemin, ou `null`. */
   openLog?: () => Promise<string | null>;
   /** Mises à jour automatiques (absent dans un navigateur). */

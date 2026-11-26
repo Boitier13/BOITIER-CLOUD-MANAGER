@@ -55,6 +55,11 @@ async function parcours({ label, bridge, storage }) {
   const errors = [];
   const vc = new VirtualConsole();
   vc.on('jsdomError', (error) => errors.push(String(error.message)));
+  // Diagnostic ponctuel : `BOITIER_DEBUG=1` affiche les erreurs React, qui
+  // passent par `console.error` et non par `jsdomError`.
+  if (process.env.BOITIER_DEBUG) {
+    vc.on('error', (...args) => console.log(`   [${label}] console.error :`, ...args));
+  }
 
   const dom = new JSDOM(html, {
     url: 'http://localhost:4173/',
@@ -1542,6 +1547,223 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
     'accords : « 0 favori » au singulier, comme partout ailleurs',
     /0 favori(?!s)/.test(corps) && !/0 favoris/.test(corps),
     corps.match(/[0-9] favoris?/)?.[0] ?? 'mention absente',
+  );
+}
+
+/* --- 12. Neuf comptes au coffre, deux à l'écran : ils doivent revenir ----- */
+//
+// Incident réel : le coffre chiffré contenait bien 9 comptes
+// (`coffre : 9 compte(s) Google relu(s)`), mais l'écran n'en montrait que 2, et
+// la synchronisation du démarrage ne les rétablissait pas. On rejoue donc
+// exactement cette situation : un état local appauvri et onze comptes MEGA, en
+// face d'un coffre qui en contient neuf.
+{
+  const neuf = [
+    ['g-1', 'boitierecup@gmail.com'],
+    ['g-2', 'firstboitier1@gmail.com'],
+    ['g-3', 'firstboitier1+2@gmail.com'],
+    ['g-4', 'firstboitier1+3@gmail.com'],
+    ['g-5', 'firstboitier2@gmail.com'],
+    ['g-6', 'firstboitier3@gmail.com'],
+    ['g-7', 'boitierfirst7@gmail.com'],
+    ['g-8', 'saturninyoukpo8@gmail.com'],
+    ['g-9', 'saturninyoukpo13@gmail.com'],
+  ].map(([accountId, email]) => ({
+    accountId,
+    name: email.split('@')[0],
+    email,
+    usedBytes: 10,
+    quotaBytes: 100,
+    status: 'connected',
+  }));
+
+  const survivants = neuf.slice(0, 2).map((info) => ({
+    id: `gdrive-real-${info.accountId}`,
+    googleId: info.accountId,
+    source: 'google',
+    provider: 'gdrive',
+    name: info.name,
+    email: info.email,
+    usedBytes: info.usedBytes,
+    quotaBytes: info.quotaBytes,
+    status: 'connected',
+    createdAt: '2026-11-01T10:00:00.000Z',
+    seed: 7,
+    localTree: false,
+  }));
+
+  const megas = Array.from({ length: 11 }, (_, index) => ({
+    id: `mega-real-m${index}`,
+    megaId: `m${index}`,
+    source: 'mega',
+    provider: 'mega',
+    name: `mega${index}`,
+    email: `mega${index}@exemple.com`,
+    usedBytes: 1,
+    quotaBytes: 20,
+    status: 'connected',
+    createdAt: '2026-11-01T10:00:00.000Z',
+    seed: 11,
+    localTree: false,
+  }));
+
+  const restauration = await parcours({
+    label: 'coffre à 9, écran à 2',
+    storage: {
+      key: 'boitier-cloud-manager:v1',
+      value: {
+        version: 1,
+        accounts: [...survivants, ...megas],
+        favorites: [],
+        downloads: [],
+        settings: {},
+        explorer: { accountId: survivants[0].id, path: [] },
+      },
+    },
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      google: {
+        status: async () => ({ configured: true, source: 'env' }),
+        accounts: async () => neuf,
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+        list: async () => [],
+      },
+      mega: {
+        accounts: async () => [],
+        onUpload: () => () => {},
+      },
+    },
+  });
+
+  const pageGoogle = restauration.after['Google Drive'];
+  const lignes = (pageGoogle.match(/[a-z0-9.+-]+@(gmail|exemple)\.com/gi) ?? []).length;
+  check(
+    'comptes : les neuf comptes du coffre reviennent à l’écran',
+    neuf.every((info) => pageGoogle.includes(info.email)),
+    `${new Set(pageGoogle.match(/[a-z0-9.+-]+@gmail\.com/gi) ?? []).size} adresse(s) Gmail affichée(s)`,
+  );
+  check(
+    'comptes : les comptes MEGA survivent à cette synchronisation'.replace('  ', ' '),
+    (restauration.doc.querySelector('.cloud-item--mega, .cloud-item')?.textContent ?? '').length > 0,
+  );
+  check(
+    'comptes : l’écran Google annonce neuf comptes',
+    /9 comptes/.test(pageGoogle),
+    pageGoogle.match(/\d+ comptes? connectés?/)?.[0] ?? 'compteur absent',
+  );
+}
+
+/* --- 13. Un premier appel en échec ne doit pas laisser l'écran en l'état -- */
+//
+// C'est la situation observée chez l'utilisateur : le coffre contient neuf
+// comptes, mais la lecture échoue au démarrage. Sans réessai, l'écran reste sur
+// l'état enregistré — deux comptes — et rien ne le signale.
+{
+  const neuf = [
+    ['g-1', 'boitierecup@gmail.com'],
+    ['g-2', 'firstboitier1@gmail.com'],
+    ['g-3', 'firstboitier2@gmail.com'],
+    ['g-4', 'firstboitier3@gmail.com'],
+    ['g-5', 'boitierfirst7@gmail.com'],
+    ['g-6', 'boitierfirst8@gmail.com'],
+    ['g-7', 'boitierfirst82@gmail.com'],
+    ['g-8', 'saturninyoukpo8@gmail.com'],
+    ['g-9', 'saturninyoukpo13@gmail.com'],
+  ].map(([accountId, email]) => ({
+    accountId,
+    name: email.split('@')[0],
+    email,
+    usedBytes: 10,
+    quotaBytes: 100,
+    status: 'connected',
+  }));
+
+  const notes = [];
+  let appels = 0;
+  const reprise = await parcours({
+    label: 'coffre joignable au second essai',
+    storage: {
+      key: 'boitier-cloud-manager:v1',
+      value: {
+        version: 1,
+        accounts: [
+          {
+            id: 'gdrive-real-g-1',
+            googleId: 'g-1',
+            source: 'google',
+            provider: 'gdrive',
+            name: 'boitierecup',
+            email: 'boitierecup@gmail.com',
+            usedBytes: 10,
+            quotaBytes: 100,
+            status: 'connected',
+            createdAt: '2026-11-01T10:00:00.000Z',
+            seed: 7,
+            localTree: false,
+          },
+        ],
+        favorites: [],
+        downloads: [],
+        settings: {},
+        explorer: { accountId: 'gdrive-real-g-1', path: [] },
+      },
+    },
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      note: (message) => notes.push(message),
+      google: {
+        status: async () => ({ configured: true, source: 'env' }),
+        accounts: async () => {
+          appels += 1;
+          if (appels === 1) throw new Error('canal pas encore prêt');
+          return neuf;
+        },
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+      },
+      mega: { accounts: async () => [], onUpload: () => () => {} },
+    },
+  });
+
+  check(
+    'comptes : une lecture en échec est retentée automatiquement',
+    appels >= 2,
+    `${appels} appel(s)`,
+  );
+  check(
+    'comptes : après réessai, les neuf comptes sont à l’écran',
+    neuf.every((info) => reprise.after['Google Drive'].includes(info.email)) &&
+      /9 comptes/.test(reprise.after['Google Drive']),
+    reprise.after['Google Drive'].match(/\d+ comptes? connectés?/)?.[0] ?? 'compteur absent',
+  );
+  check(
+    'comptes : l’échec de lecture laisse une trace dans le journal',
+    notes.some((message) => /lecture du coffre échouée/.test(message)),
+    notes[0] ?? 'aucune note',
+  );
+  check(
+    'comptes : le nombre de comptes affichés est noté',
+    notes.some((message) => /compte\(s\) Google à l'écran/.test(message)),
+    notes.join(' | ').slice(0, 90),
+  );
+
+  const parametres = reprise.doc;
+  const boutonReafficher = [...parametres.querySelectorAll('button')].find(
+    (button) => (button.textContent ?? '').trim() === 'Réafficher',
+  );
+  check(
+    'paramètres : un bouton permet de rétablir les comptes du coffre',
+    Boolean(boutonReafficher),
+    boutonReafficher ? 'présent' : 'absent',
   );
 }
 

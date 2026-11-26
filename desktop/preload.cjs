@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld('boitier', {
   reportTiming: (libelle) => ipcRenderer.send('desktop:timing', libelle),
   /** Aller-retour minimal : l'interface mesure la réactivité du processus principal. */
   ping: () => invoke('desktop:ping'),
+  note: (message) => ipcRenderer.send('desktop:note', message),
   /** Ouvre le journal de démarrage : plus besoin de retrouver le chemin à la main. */
   openLog: () => invoke('desktop:open-log'),
   google: {

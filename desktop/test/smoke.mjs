@@ -1607,6 +1607,77 @@ try {
     'coffre non révoqué à la suppression',
   );
 
+  // 8. La synchronisation réessaie, se note, et se rétablit.
+  const sourceStoreSync = await readFile(join(racine, 'src/store.tsx'), 'utf8');
+  check(
+    'comptes : la synchronisation réessaie après un échec',
+    /const delais = \[0, 400, 1200, 2500, 5000\]/.test(sourceStoreSync),
+    'aucun réessai',
+  );
+  check(
+    'comptes : une lecture manquée laisse une ligne dans le journal',
+    /lecture du coffre échouée/.test(sourceStoreSync) &&
+      /compte\(s\) Google à l'écran/.test(sourceStoreSync),
+    'aucune trace du nombre affiché',
+  );
+  const blocSync = sourceStoreSync.slice(
+    sourceStoreSync.indexOf('const tenter = async'),
+    sourceStoreSync.indexOf("}, []);", sourceStoreSync.indexOf('const tenter = async')),
+  );
+  check(
+    'comptes : le retour de la fenêtre relance une lecture, sans réveil périodique',
+    /addEventListener\('visibilitychange', auRetour\)/.test(blocSync) &&
+      !/setInterval/.test(blocSync),
+    'relance mal câblée',
+  );
+
+  const sourceGoogle = await readFile(join(racine, 'src/lib/google.ts'), 'utf8');
+  check(
+    'comptes : la lecture du coffre lève au lieu de renvoyer une liste vide',
+    /export async function syncGoogleAccounts/.test(sourceGoogle) &&
+      /throw new Error\('pont indisponible'\)/.test(sourceGoogle),
+    'échec encore silencieux',
+  );
+
+  const sourceMegaHook = await readFile(join(racine, 'src/hooks/useMega.ts'), 'utf8');
+  check(
+    'MEGA : les onze comptes arrivent en une seule action',
+    /type: 'account\/addMany'/.test(sourceMegaHook),
+    'encore un dispatch par compte',
+  );
+
+  // 9. La sentinelle utilise une horloge monotone.
+  const sentinelle = await readFile(join(racine, 'src/hooks/useFreezeWatchdog.ts'), 'utf8');
+  check(
+    'figements : horloge monotone (les sauts d’heure ne comptent plus)',
+    /performance\.now\(\) \+ PERIODE_MS/.test(sentinelle) && !/Date\.now\(\) \+ PERIODE_MS/.test(sentinelle),
+    'horloge murale encore utilisée',
+  );
+
+  // 10. Un pont incomplet ne casse plus l'interface.
+  const sourceCloud = await readFile(join(racine, 'src/lib/cloud.ts'), 'utf8');
+  check(
+    'pont : une méthode MEGA absente ne fait plus tomber l’écran',
+    /typeof bridge\?\.mega\?\.onUpload !== 'function'/.test(sourceCloud),
+    'appel non protégé',
+  );
+
+  // 11. Le canal de notes est déclaré, exposé et journalisé.
+  const apiSource = await readFile(join(racine, 'desktop/api.ts'), 'utf8');
+  const preloadSource = await readFile(join(racine, 'desktop/preload.cjs'), 'utf8');
+  check(
+    'journal : l’interface peut écrire une ligne de diagnostic',
+    /note: 'desktop:note'/.test(apiSource) &&
+      apiSource.includes('ipcMain.on(channels.note') &&
+      /note: \(message\) => ipcRenderer.send\('desktop:note'/.test(preloadSource),
+    'canal absent',
+  );
+  check(
+    'journal : les notes de l’interface sont bornées',
+    /notesEmises >= 40/.test(apiSource),
+    'aucune borne',
+  );
+
   await rm(fichier, { recursive: true, force: true }).catch(() => undefined);
 }
 

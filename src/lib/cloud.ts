@@ -180,6 +180,8 @@ export async function uploadToMega(
 /** Suit la progression des téléversements MEGA. */
 export function onMegaUpload(listener: (event: MegaUploadEvent) => void): () => void {
   const bridge = getBridge();
-  if (!bridge?.mega) return () => undefined;
+  // Un pont incomplet ne doit jamais emporter l'interface : une méthode absente
+  // signifie « aucun événement à suivre », pas « écran interrompu ».
+  if (typeof bridge?.mega?.onUpload !== 'function') return () => undefined;
   return bridge.mega.onUpload(listener);
 }
