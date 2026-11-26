@@ -492,6 +492,27 @@ try {
   );
 }
 
+/* --- 11bis-bis. Thème clair : plus de tons chauds ------------------------- */
+try {
+  const { readFile: lire } = await import('node:fs/promises');
+  const css = await lire(new URL('../../src/styles.css', import.meta.url), 'utf8');
+  const debut = css.indexOf(":root[data-theme='light'] {");
+  const bloc = css.slice(debut, css.indexOf('}', debut));
+  check(
+    'thème clair : accent bleu, fond froid',
+    bloc.includes('--accent: #2f6bff') && bloc.includes('--bg: #f5f7fb'),
+    bloc.slice(0, 60).replace(/\s+/g, ' '),
+  );
+  check(
+    'thème clair : aucun ton chaud ne subsiste dans les fonds',
+    !/--(bg|panel|rail-bg): #f(3f1ec|bfaf7|6f4ef)/.test(bloc),
+    (bloc.match(/--bg: #[0-9a-f]{6}/) ?? ['absent'])[0],
+  );
+} catch (cause) {
+  failures += 1;
+  console.error('Thème clair : lecture impossible', cause);
+}
+
 /* --- 11bis-ter. Dossier parent d'un fichier ------------------------------- */
 {
   const { parentDir } = await import('../../src/lib/transfers.ts');

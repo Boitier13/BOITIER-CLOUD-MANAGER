@@ -34,6 +34,8 @@ export const channels = {
   openDirectory: 'desktop:open-directory',
   /** Signal de vie : émis par l'interface dès qu'elle est interactive. */
   ready: 'desktop:renderer-ready',
+  /** Facteur de zoom de la fenêtre (taille du texte choisie). */
+  setZoom: 'desktop:set-zoom',
 } as const;
 
 
@@ -127,6 +129,14 @@ export function registerIpc(_win: BrowserWindow, service: GoogleService): void {
     return true;
   });
   // Ouvre un dossier dans l'explorateur (pas seulement le sélectionner).
+  // Taille du texte : zoom natif de la fenêtre, conservé par l'interface.
+  handle(channels.setZoom, (factor: number) => {
+    if (!_win) return false;
+    const value = Math.min(2, Math.max(0.8, Number(factor) || 1));
+    _win.webContents.setZoomFactor(value);
+    return true;
+  });
+
   handle(channels.openDirectory, async (path: string) => {
     const target = String(path ?? '').trim();
     if (!target) return false;
