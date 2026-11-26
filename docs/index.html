@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BOITIER CLOUD MANAGER — vos comptes Google Drive, réunis sur Windows</title>
+    <meta
+      name="description"
+      content="Application Windows locale pour consulter et télécharger les fichiers de plusieurs comptes Google Drive, en lecture seule, sans serveur intermédiaire."
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="mark"><span>BC</span></div>
+        <div class="brand">
+          BOITIER
+          <small>CLOUD MANAGER</small>
+        </div>
+      </header>
+
+      <h1>Vos comptes Google Drive, réunis dans une seule fenêtre Windows.</h1>
+
+      <p class="lede">
+        Application de bureau pour ordinateur personnel. Elle affiche l’espace de
+        tous vos comptes Google Drive, permet de parcourir leurs dossiers et
+        d’enregistrer des fichiers sur votre disque — sans passer par un site
+        web, et sans aucun serveur intermédiaire.
+      </p>
+
+      <div class="card">
+        <h2>Ce que l’application fait</h2>
+        <ul>
+          <li>affiche chaque compte avec son espace utilisé et son quota ;</li>
+          <li>parcourt les dossiers, recherche un fichier, montre les partages ;</li>
+          <li>télécharge un fichier ou un dossier entier, en indiquant le dossier d’arrivée ;</li>
+          <li>regroupe les fichiers récents de tous les comptes sur un seul écran.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>Ce qu’elle ne fait pas</h2>
+        <ul>
+          <li>elle <strong>n’écrit jamais</strong> dans vos Drive : l’autorisation demandée à Google est strictement en lecture seule ;</li>
+          <li>elle ne conserve aucun mot de passe Google ;</li>
+          <li>elle n’envoie aucune donnée à un tiers : les échanges vont de votre ordinateur directement à Google.</li>
+        </ul>
+      </div>
+
+      <h2>Comment elle fonctionne</h2>
+      <p>
+        L’application se connecte à Google avec la procédure officielle
+        (autorisation OAuth 2.0). Google remet un jeton d’accès, chiffré par
+        Windows sur votre disque <code>%APPDATA%</code>. Ce jeton peut être
+        révoqué à tout moment, depuis l’application ou depuis votre compte
+        Google.
+      </p>
+      <p>
+        Le détail de ce traitement figure dans la
+        <a href="confidentialite.html">politique de confidentialité</a>.
+      </p>
+
+      <h2>Où la trouver</h2>
+      <p>
+        L’application est distribuée sur la page des versions du projet :
+        <a href="https://github.com/Boitier13/BOITIER-CLOUD-MANAGER/releases/latest"
+          >github.com/Boitier13/BOITIER-CLOUD-MANAGER</a
+        >. Aucun compte à créer, aucun abonnement.
+      </p>
+
+      <nav class="pages">
+        <a href="confidentialite.html">Politique de confidentialité</a>
+        <a href="https://github.com/Boitier13/BOITIER-CLOUD-MANAGER">Code du projet</a>
+      </nav>
+
+      <footer>
+        BOITIER CLOUD MANAGER — application personnelle pour Windows. Ce site ne
+        dépose aucun témoin de connexion et ne mesure pas ses visites.
+      </footer>
+    </main>
+  </body>
+</html>

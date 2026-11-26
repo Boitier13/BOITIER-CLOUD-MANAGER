@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Politique de confidentialité — BOITIER CLOUD MANAGER</title>
+    <meta
+      name="description"
+      content="Quelles données BOITIER CLOUD MANAGER consulte, où elles sont conservées, et comment les supprimer."
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="mark"><span>BC</span></div>
+        <div class="brand">
+          BOITIER
+          <small>CLOUD MANAGER</small>
+        </div>
+      </header>
+
+      <h1>Politique de confidentialité</h1>
+      <p class="lede">
+        BOITIER CLOUD MANAGER est une application de bureau pour Windows. Elle
+        n’a pas de serveur : votre ordinateur parle directement à Google, et rien
+        ne transite par nous.
+      </p>
+
+      <h2>1. Données consultées</h2>
+      <p>
+        Après votre autorisation, l’application lit auprès de Google les
+        informations suivantes, et seulement celles-là :
+      </p>
+      <dl>
+        <dt>Identité du compte</dt>
+        <dd>Nom affiché, adresse électronique, photo de profil si elle existe.</dd>
+        <dt>Espace de stockage</dt>
+        <dd>Volume utilisé, quota total, répartition par type de fichier.</dd>
+        <dt>Fichiers et dossiers</dt>
+        <dd>
+          Nom, type, taille, date de modification, identifiant — pour afficher
+          l’arborescence de votre Drive.
+        </dd>
+      </dl>
+      <p>
+        L’application <strong>ne lit jamais le contenu</strong> d’un document
+        Google (Docs, Sheets, Slides) et ne peut ni modifier, ni renommer, ni
+        supprimer, ni envoyer quoi que ce soit.
+      </p>
+
+      <h2>2. Autorisation demandée</h2>
+      <p>
+        Une seule : <code>https://www.googleapis.com/auth/drive.readonly</code>.
+        Elle autorise la consultation des fichiers et l’enregistrement d’une
+        copie sur votre disque. Toute écriture chez Google est refusée par
+        Google lui-même, pas seulement par l’application.
+      </p>
+
+      <h2>3. Ce qui est conservé sur votre ordinateur</h2>
+      <ul>
+        <li>
+          <strong>Les jetons d’accès</strong>, dans
+          <code>%APPDATA%\BOITIER CLOUD MANAGER\google-accounts.enc</code>,
+          chiffrés par Windows (Data Protection API). Sans votre session
+          Windows, ce fichier est illisible.
+        </li>
+        <li>
+          <strong>Vos préférences</strong> et la liste de vos comptes, dans le
+          stockage local de l’application.
+        </li>
+        <li>
+          <strong>Un journal de démarrage</strong> (version lancée, résultat du
+          chargement), sans aucune donnée personnelle.
+        </li>
+      </ul>
+
+      <h2>4. Ce qui n’est jamais fait</h2>
+      <ul>
+        <li>aucune donnée envoyée à nos serveurs — nous n’en avons pas ;</li>
+        <li>aucune mesure d’audience, aucun traçage, aucune publicité ;</li>
+        <li>aucun mot de passe Google demandé ni conservé ;</li>
+        <li>aucune revente ni transmission à un tiers, sous aucune forme.</li>
+      </ul>
+
+      <h2>5. Vos droits, en pratique</h2>
+      <dl>
+        <dt>Retirer un compte</dt>
+        <dd>
+          Dans l’application, la suppression d’un compte révoque le jeton auprès
+          de Google et efface son entrée chiffrée.
+        </dd>
+        <dt>Tout effacer</dt>
+        <dd>
+          Supprimer le dossier
+          <code>%APPDATA%\BOITIER CLOUD MANAGER</code> efface comptes, jetons et
+          préférences. Les fichiers déjà téléchargés restent où vous les avez
+          enregistrés.
+        </dd>
+        <dt>Révoquer depuis Google</dt>
+        <dd>
+          Page <em>Sécurité</em> de votre compte Google, rubrique « Applications
+          tierces ayant accès au compte ».
+        </dd>
+      </dl>
+
+      <h2>6. Durée de conservation</h2>
+      <p>
+        Les données restent sur votre ordinateur tant que l’application est
+        installée et que vous ne retirez pas les comptes. Aucune copie n’existe
+        ailleurs.
+      </p>
+
+      <h2>7. Contact</h2>
+      <p>
+        Pour toute question ou pour signaler un problème :
+        <a href="https://github.com/Boitier13/BOITIER-CLOUD-MANAGER/issues"
+          >la page des signalements du projet</a
+        >.
+      </p>
+
+      <p style="color: var(--ink-3); font-size: 13px; margin-top: 26px">
+        Dernière mise à jour : 26 novembre 2026.
+      </p>
+
+      <nav class="pages">
+        <a href="index.html">Présentation</a>
+        <a href="https://github.com/Boitier13/BOITIER-CLOUD-MANAGER">Code du projet</a>
+      </nav>
+
+      <footer>
+        BOITIER CLOUD MANAGER — application personnelle pour Windows. Ce site ne
+        dépose aucun témoin de connexion et ne mesure pas ses visites.
+      </footer>
+    </main>
+  </body>
+</html>

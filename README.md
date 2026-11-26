@@ -226,6 +226,16 @@ Une page GitHub Pages convient parfaitement : c’est gratuit, public, et le
 domaine est vérifiable. Renseigner les trois champs dans **Branding**, enregistrer,
 puis revenir sur **Audience** pour publier.
 
+Les deux pages sont dans le dépôt, sous `docs/`, et publiées par GitHub Pages :
+
+- accueil : `https://boitier13.github.io/BOITIER-CLOUD-MANAGER/`
+- confidentialité : `https://boitier13.github.io/BOITIER-CLOUD-MANAGER/confidentialite.html`
+
+**Réserve honnête** : `github.io` figure sur la liste publique des suffixes. Google
+refuse parfois d’y voir un domaine vérifiable — le champ **Domaines autorisés**
+rejette alors la valeur. Dans ce cas seulement, un nom de domaine propre (10 à
+15 € par an) lève le blocage. À essayer avec `github.io` d’abord : c’est gratuit.
+
 #### Ce que la publication ne demande pas
 
 - **Aucun paiement.** La vérification des périmètres restreints (dont
