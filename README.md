@@ -295,12 +295,13 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 55 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 75 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
                           # flux des récents, pause, révocation à la
-                          # déconnexion — sans réseau, avec un faux Google local
+                          # déconnexion, démarrage (journal, instance unique,
+                          # écran d'attente) — sans réseau, faux Google local
 npm run verify:interface  # six écrans sans compte puis avec un compte simulé
 npm run desktop:paths     # la fenêtre charge dist/ en file://, et possède ses
                           # garde-fous de démarrage (signal de vie, délai, journal)
@@ -364,6 +365,32 @@ En cas de défaut, le journal suffit à savoir ce qui s'est passé — plus beso
 deviner. Les échecs de chargement (`did-fail-load`) et les arrêts du processus
 d'affichage sont également interceptés et expliqués, au lieu de laisser une
 fenêtre vide.
+
+### Lenteur et « l'application ne s'ouvre pas »
+
+Le journal a montré deux choses distinctes, mesurées sur dix-sept lancements :
+
+| Situation | Durée avant la fenêtre |
+| --- | --- |
+| lancement ordinaire | **0,7 s** |
+| premier lancement après installation | **4 à 14 s** |
+
+Le second cas est Windows lui-même : l'antivirus analyse un exécutable qu'il
+n'a jamais vu. Aucun code ne peut accélérer cela — mais l'application peut
+**montrer qu'elle démarre** au lieu de laisser l'écran vide :
+
+- **écran d'attente** affiché en quelques dizaines de millisecondes
+  (une fenêtre sans cadre : marque, « Préparation de vos comptes… », fine barre
+  de progression), refermé dès que l'interface est interactive ;
+- **fond de fenêtre** aux couleurs du thème clair : plus d'aplat sombre devant
+  une interface claire ;
+- **journal ouvert avant le contrôle d'instance unique** : un lancement refusé
+  laisse désormais une ligne (`une instance est déjà ouverte…`) au lieu de
+  sortir en silence ;
+- **second clic sur l'icône** : la fenêtre existante est restaurée, ramenée au
+  premier plan et focalisée, au lieu de ne rien faire.
+
+Ces quatre points sont verrouillés par six contrôles automatiques.
 
 La version affichée dans **Paramètres → À propos** est lue dans `package.json`
 au moment de la compilation : elle ne peut plus annoncer un numéro périmé.
