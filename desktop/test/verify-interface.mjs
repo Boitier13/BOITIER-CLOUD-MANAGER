@@ -559,6 +559,7 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
 
 /* --- 11. Un transfert refusé doit s'afficher comme un échec -------------- */
 {
+  const requetes = [];
   const echec = await parcours({
     label: 'téléchargement refusé',
     bridge: {
@@ -592,7 +593,8 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
         recent: async () => [],
         folder: async () => 'C:\\Users\\Saturnin\\Downloads',
         // Le processus principal refuse : la file doit le dire, pas rester à 0 %.
-        download: async () => {
+        download: async (request) => {
+          requetes.push(request);
           throw new Error('Espace insuffisant sur le disque.');
         },
       },
@@ -622,10 +624,17 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
     // elle-même, pas la page entière.
     const ligne = echec.doc.querySelector('.download-row')?.textContent ?? '';
     const dest = echec.doc.querySelector('.download-row__dest')?.textContent ?? '';
+    // Une vidéo doit être rangée dans « Google Drive\Vidéos » : le chemin
+    // affiché doit donc être celui-là, pas le simple dossier de base.
     check(
       'destination : le chemin réel du dossier apparaît devant la barre',
-      dest.trim() === 'C:\\Users\\Saturnin\\Downloads',
+      dest.trim() === 'C:\\Users\\Saturnin\\Downloads\\Google Drive\\Vidéos',
       dest.trim() || 'aucun chemin',
+    );
+    check(
+      'destination : le rangement par cloud et par type est demandé au pont',
+      requetes[0]?.subPath === 'Google Drive/Vidéos',
+      String(requetes[0]?.subPath),
     );
     check(
       'destination : l’en-tête nomme le dossier réel, pas « dossier système »',
@@ -846,10 +855,10 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   }
 }
 
-/* --- 11quinquies. Âge de l'autorisation Google ---------------------------- */
+/* --- 11quinquies. Plus aucune mention d'autorisation à renouveler -------- */
 {
-  const autorisations = await parcours({
-    label: 'autorisations',
+  const sansBandeau = await parcours({
+    label: 'autorisations renouvelées',
     bridge: {
       platform: 'win32',
       ready: async () => true,
@@ -872,6 +881,7 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
             usedBytes: 1,
             quotaBytes: 100,
             status: 'connected',
+            authorizedAt: '2026-11-26T10:00:00.000Z',
           },
         ],
         onDownload: () => () => {},
@@ -883,27 +893,20 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
     },
   });
 
-  const toClouds = [...autorisations.doc.querySelectorAll('.nav-item, .cloud-item')].find(
+  const toClouds = [...sansBandeau.doc.querySelectorAll('.nav-item, .cloud-item')].find(
     (button) => (button.textContent ?? '').includes('Google Drive'),
   );
-  if (toClouds) await autorisations.click(toClouds);
+  if (toClouds) await sansBandeau.click(toClouds);
 
-  const texte = autorisations.doc.body.textContent ?? '';
+  const texte = sansBandeau.doc.body.textContent ?? '';
   check(
-    'autorisations : la date de consentement est affichée',
-    /Autorisation du 26 nov\. 2026/i.test(texte),
-    (texte.match(/Autorisation du [^.]+/) ?? ['absente'])[0],
-  );
-  const aRenouveler = [...autorisations.doc.querySelectorAll('.account-row__auth--todo')];
-  check(
-    'autorisations : le compte sans date est signalé à renouveler',
-    aRenouveler.length === 1,
-    String(aRenouveler.length),
+    'autorisations : plus de bandeau de rappel',
+    !/autorisation antérieure/i.test(texte) && !/expirera au bout de sept jours/i.test(texte),
   );
   check(
-    'autorisations : un seul compte est annoncé à renouveler',
-    /1 compte porte une autorisation antérieure/i.test(texte),
-    (texte.match(/\d+ comptes? porte[^.]*/) ?? ['aucun bandeau'])[0],
+    'autorisations : plus de mention « à renouveler » sur les lignes',
+    !/Autorisation à renouveler/i.test(texte) &&
+      sansBandeau.doc.querySelectorAll('.account-row__auth').length === 0,
   );
 }
 

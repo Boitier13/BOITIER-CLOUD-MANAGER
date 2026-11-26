@@ -55,6 +55,7 @@ import {
   plural,
 } from '../lib/format';
 import { getChildren } from '../lib/tree';
+import { cloudFolder, downloadSubPath } from '../lib/organize';
 import { driveFolderUrl } from '../lib/driveLinks';
 import { Meter, TypeIcon } from '../components/visuals';
 import { createDownload } from '../lib/downloads';
@@ -420,8 +421,13 @@ export function Files() {
       return;
     }
     const stamp = Date.now();
+    // Un dossier entier conserve son arborescence, sous le nom du cloud.
+    const root = state.settings.organizeDownloads ? cloudFolder(source.provider) : '';
     const items = plan.files.map((file, index) => {
       const name = file.path.split('/').pop() ?? file.path;
+      const subPath = [root, folderName, ...file.path.split('/').slice(0, -1)]
+        .filter(Boolean)
+        .join('/');
       return createDownload({
         id: `${file.fileId}-${stamp}-${index}`,
         name: file.path,
@@ -434,6 +440,7 @@ export function Files() {
         seed: name.length * 7 + file.size,
         remoteId: file.fileId,
         remoteAccount: googleId,
+        ...(subPath ? { subPath } : {}),
       });
     });
 
@@ -450,9 +457,7 @@ export function Files() {
         size: plan.files[index].size,
         dir: state.settings.downloadFolder,
         // Le dossier choisi devient la racine du lot sur le disque.
-        subPath: [folderName, ...plan.files[index].path.split('/').slice(0, -1)]
-          .filter(Boolean)
-          .join('/'),
+        ...(items[index].subPath ? { subPath: items[index].subPath } : {}),
       })),
     );
     const total = plan.totalBytes;
@@ -480,8 +485,15 @@ export function Files() {
     }
     const real = isRealAccount(source);
     const googleId = real ? realAccountId(source) : undefined;
-    const items = downloadable.map((node) =>
-      createDownload({
+    const items = downloadable.map((node) => {
+      // Rangement `…\Google Drive\Vidéos` : le type du fichier décide du
+      // sous-dossier, le cloud du premier niveau.
+      const subPath = downloadSubPath(
+        source.provider,
+        node.type,
+        state.settings.organizeDownloads,
+      );
+      return createDownload({
         id: `${node.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         name: node.name,
         type: node.type,
@@ -492,8 +504,9 @@ export function Files() {
         path: [...basePath, node.name],
         seed: node.name.length * 7 + node.size,
         ...(real && googleId ? { remoteId: node.id, remoteAccount: googleId } : {}),
-      }),
-    );
+        ...(subPath ? { subPath } : {}),
+      });
+    });
 
     // Le transfert est confié au processus principal, qui écrit réellement sur
     // le disque et renvoie la progression. Sans « pont » (aperçu navigateur),
@@ -514,6 +527,7 @@ export function Files() {
           name: item.name,
           size: sizes.get(item.remoteId as string) ?? 0,
           dir: state.settings.downloadFolder,
+          ...(item.subPath ? { subPath: item.subPath } : {}),
         })),
       );
     }

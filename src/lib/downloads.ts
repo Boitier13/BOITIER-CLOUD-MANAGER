@@ -29,6 +29,8 @@ export interface DownloadItem {
   error?: string;
   /** Emplacement réel du fichier une fois terminé. */
   savedPath?: string;
+  /** Sous-dossier de rangement relatif au dossier de base. */
+  subPath?: string;
 }
 
 export function simulatedSpeed(size: number, seed: number): number {
@@ -49,6 +51,8 @@ interface CreateArgs {
   seed: number;
   remoteId?: string;
   remoteAccount?: string;
+  /** Sous-dossier de rangement (`Google Drive/Vidéos`). */
+  subPath?: string;
 }
 
 export function createDownload(args: CreateArgs): DownloadItem {
@@ -68,6 +72,7 @@ export function createDownload(args: CreateArgs): DownloadItem {
     addedAt: new Date().toISOString(),
     ...(args.remoteId ? { remoteId: args.remoteId } : {}),
     ...(args.remoteAccount ? { remoteAccount: args.remoteAccount } : {}),
+    ...(args.subPath ? { subPath: args.subPath } : {}),
   };
 }
 

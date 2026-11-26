@@ -155,13 +155,19 @@ choix est conservé d'une session à l'autre ; par défaut 110 %. L'ancien régl
 « Densité d'affichage » a été retiré : il ne modifiait que deux ou trois listes
 et donnait l'impression de ne rien faire.
 
-### Savoir quelles autorisations sont durables
+### Rangement des téléchargements
 
-Chaque compte porte la **date de son dernier consentement Google**, affichée sous
-son adresse. Un compte **sans date** a été autorisé avant que l'application ne
-l'enregistre : son jeton date de la période de test et expirera au bout de sept
-jours. Un bandeau compte ces comptes, et le bouton ↻ de la ligne les renouvelle
-— après quoi la date apparaît et le bandeau disparaît.
+Chaque fichier est rangé par cloud puis par nature, sous le dossier de base :
+
+```
+C:\Users\…\Downloads\Google Drive\Vidéos
+C:\Users\…\Downloads\Google Drive\Documents
+```
+
+Vidéos, Audio, Images, Documents, Archives, Sous-titres, Autres. Un dossier
+téléchargé en entier conserve son arborescence, sous le nom du cloud. Le
+réglage **Ranger par cloud et par type** (Paramètres, actif par défaut) permet
+de revenir à un dossier unique.
 
 ### Où va le fichier
 
