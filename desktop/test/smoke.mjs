@@ -531,6 +531,11 @@ try {
     bloc.slice(0, 60).replace(/\s+/g, ' '),
   );
   check(
+    'groupes de comptes : passage à la ligne, espacement serré',
+    /\.segmented--wrap \{[^}]*flex-wrap: wrap/s.test(css) &&
+      /\.segmented--wrap \{[^}]*row-gap: 4px/s.test(css),
+  );
+  check(
     'thème clair : aucun ton chaud ne subsiste dans les fonds',
     !/--(bg|panel|rail-bg): #f(3f1ec|bfaf7|6f4ef)/.test(bloc),
     (bloc.match(/--bg: #[0-9a-f]{6}/) ?? ['absent'])[0],

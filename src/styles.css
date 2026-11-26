@@ -1722,6 +1722,28 @@ a {
   margin-bottom: 12px;
 }
 
+/* Un groupe de comptes en clair : plutôt que de défiler horizontalement (un
+   compte finissait hors de vue), les onglets passent à la ligne suivante. Les
+   libellés restent d'un seul tenant ; l'espacement vertical est serré pour que
+   les deux rangées se lisent comme une seule liste. */
+.segmented--wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  width: 100%;
+  max-width: 100%;
+  overflow: visible;
+  row-gap: 4px;
+  column-gap: 2px;
+}
+
+.segmented--wrap .segmented__item {
+  flex: 0 0 auto;
+  height: 26px;
+  padding: 0 9px;
+  line-height: 1.1;
+}
+
 .filter-bar__spacer {
   flex: 1;
 }

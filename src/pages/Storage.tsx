@@ -146,7 +146,7 @@ export function Storage({ onNavigate }: { onNavigate: (route: Route) => void }) 
 
       {accounts.length > 1 ? (
         <div className="filter-bar">
-          <div className="segmented" role="group" aria-label="Compte mesuré">
+          <div className="segmented segmented--wrap" role="group" aria-label="Compte mesuré">
             {accounts.map((item) => (
               <button
                 key={item.id}
