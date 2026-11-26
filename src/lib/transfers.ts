@@ -44,3 +44,17 @@ export function interruptStaleDownloads<
       : item,
   );
 }
+
+/**
+ * Dossier contenant un fichier, quel que soit le séparateur.
+ *
+ * Windows renvoie `C:\Users\X\Downloads\fichier.mp4`, les essais sous Linux
+ * `/tmp/x/fichier.mp4` : les deux doivent donner le dossier, jamais la racine
+ * ni une chaîne vide.
+ */
+export function parentDir(path: string): string {
+  const clean = path.trim().replace(/[\\/]+$/, '');
+  const cut = Math.max(clean.lastIndexOf('/'), clean.lastIndexOf('\\'));
+  if (cut <= 0) return '';
+  return clean.slice(0, cut);
+}

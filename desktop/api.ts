@@ -31,6 +31,7 @@ export const channels = {
   event: 'google:download-event',
   openExternal: 'desktop:open-external',
   openFolder: 'desktop:open-folder',
+  openDirectory: 'desktop:open-directory',
   /** Signal de vie : émis par l'interface dès qu'elle est interactive. */
   ready: 'desktop:renderer-ready',
 } as const;
@@ -124,6 +125,13 @@ export function registerIpc(_win: BrowserWindow, service: GoogleService): void {
     if (!isAllowedExternalUrl(target)) return false;
     await shell.openExternal(target);
     return true;
+  });
+  // Ouvre un dossier dans l'explorateur (pas seulement le sélectionner).
+  handle(channels.openDirectory, async (path: string) => {
+    const target = String(path ?? '').trim();
+    if (!target) return false;
+    const failure = await shell.openPath(target);
+    return failure === '';
   });
   handle(channels.openFolder, async (path: string) => {
     const target = String(path);
