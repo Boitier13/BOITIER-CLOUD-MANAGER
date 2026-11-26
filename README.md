@@ -317,7 +317,7 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 116 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 124 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
@@ -519,6 +519,30 @@ symptôme — rien à l'écran, aucune trace :
 Le journal `%APPDATA%\BOITIER CLOUD MANAGER\demarrage.log` contient donc, pour
 chaque lancement : `processus démarré`, les tentatives de verrou, `fenêtre
 affichée`, `interface prête`, puis les étapes de mise à jour.
+
+### Une file vide ne doit réveiller personne
+
+Défaut signalé : « l'application se fige beaucoup, elle est devenue instable ».
+
+La cause tenait en une ligne : `advanceDownloads` construisait **un tableau neuf
+à chaque appel**, et l'application l'appelait toutes les 900 ms. Un tableau
+neuf, c'est un nouvel état global : toute l'interface repeinte et le stockage
+local réécrit — indéfiniment, même quand aucun transfert n'avançait. Le
+minuteur ne s'arrêtait jamais dès qu'un seul transfert, **même terminé**,
+figurait dans la liste.
+
+Trois corrections, chacune vérifiée par un contrôle :
+
+| Avant | Après |
+| --- | --- |
+| tableau neuf à chaque tick | **même référence** quand rien ne change → aucun rendu |
+| minuteur permanent (900 ms) | minuteur **uniquement** s'il reste un transfert à faire avancer |
+| stockage réécrit à chaque point de progression | écriture sur changement **structurel** seulement |
+
+S'y ajoute une sentinelle : un minuteur de 500 ms dans l'interface. En cas de
+blocage, il reprend en retard, et l'écart est écrit dans le journal —
+`interface figée 2,3 s`. Ce défaut-là ne laissait aucune trace ; le suivant en
+laissera une.
 
 ### Chaque étape du démarrage porte son temps
 

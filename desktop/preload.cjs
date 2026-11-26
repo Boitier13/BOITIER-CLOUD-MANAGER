@@ -32,6 +32,11 @@ contextBridge.exposeInMainWorld('boitier', {
     },
   },
   setZoom: (factor) => invoke('desktop:set-zoom', factor),
+  /**
+   * Signale un figement de l'interface, en millisecondes. Purement
+   * diagnostique : le processus principal l'écrit dans le journal de démarrage.
+   */
+  reportFreeze: (retard) => ipcRenderer.send('desktop:freeze', retard),
   google: {
     status: () => invoke('google:status'),
     setClient: (clientId, clientSecret) => invoke('google:set-client', clientId, clientSecret),

@@ -9,6 +9,7 @@ import type { GoogleService } from './google/service.ts';
 import { isAllowedExternalUrl } from '../src/lib/driveLinks.ts';
 import type { DownloadEvent } from './google/downloads.ts';
 import type { UpdateState, Updater } from './updater.ts';
+import { log } from './log.ts';
 
 export const channels = {
   status: 'google:status',
@@ -39,6 +40,11 @@ export const channels = {
   ready: 'desktop:renderer-ready',
   /** Facteur de zoom de la fenêtre (taille du texte choisie). */
   setZoom: 'desktop:set-zoom',
+  /**
+   * Signalement d'un figement de l'interface (millisecondes perdues).
+   * L'interface ne peut pas écrire dans le journal : elle le dit ici.
+   */
+  freeze: 'desktop:freeze',
   /** Mises à jour : état, vérification, installation. */
   updateState: 'update:state',
   updateCheck: 'update:check',
@@ -115,6 +121,14 @@ export function registerIpc(_win: BrowserWindow, service: GoogleService, updater
   // Mises à jour. `state` est une lecture sans effet de bord ; `check` et
   // `install` sont les deux seules actions, et l'installation exige qu'une
   // version ait été préalablement téléchargée.
+  // Figement signalé par l'interface : une ligne de journal, pas de correction.
+  // Sans cela, « ça se fige » ne laisse aucune trace exploitable.
+  ipcMain.on(channels.freeze, (_event, retard: number) => {
+    const perdu = Math.round(Number(retard) || 0);
+    if (perdu < 1000) return;
+    log(`interface figée ${(perdu / 1000).toFixed(1)} s`);
+  });
+
   handle(channels.updateState, () => updater.snapshot());
   handle(channels.updateCheck, () => updater.check());
   handle(channels.updateInstall, () => updater.install());

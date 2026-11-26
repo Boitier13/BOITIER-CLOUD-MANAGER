@@ -308,12 +308,22 @@ function boot(): void {
   // arrive par paquets. L'interface, elle, reçoit tout : c'est le journal qui
   // doit rester lisible.
   let derniereTrace = '';
+  // L'interface n'a pas besoin de chaque point de progression : quatre par
+  // seconde suffisent à une barre fluide, et un événement par paquet saturait
+  // le canal IPC puis le rendu.
+  let dernierEnvoi = 0;
+  let dernierStatut = '';
   updater = new Updater((state) => {
     const trace = traceMiseAJour(state);
     if (trace !== derniereTrace) {
       derniereTrace = trace;
       log(trace);
     }
+    const maintenant = Date.now();
+    const changementDEtat = state.status !== dernierStatut;
+    if (!changementDEtat && maintenant - dernierEnvoi < 250) return;
+    dernierEnvoi = maintenant;
+    dernierStatut = state.status;
     for (const target of windows) if (!target.isDestroyed()) emitUpdate(target, state);
   });
   registerIpc(win, service, updater);
