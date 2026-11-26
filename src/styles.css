@@ -1753,6 +1753,20 @@ a {
   line-height: 1.1;
 }
 
+/* Un groupe par fournisseur dans « Stockage » : vingt pastilles mêlant Google
+   Drive et MEGA ne disaient plus quel compte appartenait à quel service. */
+.storage-group {
+  margin-bottom: 14px;
+}
+
+.storage-group__head {
+  margin-top: 4px;
+}
+
+.storage-group__head .badge {
+  flex-shrink: 0;
+}
+
 .filter-bar__spacer {
   flex: 1;
 }

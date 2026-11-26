@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { HardDrive, Loader2, RefreshCw, TriangleAlert } from 'lucide-react';
-import { PROVIDERS } from '../data/catalog';
+import { PROVIDER_IDS, PROVIDERS } from '../data/catalog';
 import { useStore, type Route } from '../store';
 import { getBridge, type GoogleStorageUsage } from '../lib/bridge';
 import { isRealAccount, realAccountId } from '../lib/google';
@@ -105,8 +105,9 @@ export function Storage({ onNavigate }: { onNavigate: (route: Route) => void }) 
             </span>
             <p className="empty__title">Aucun compte à mesurer</p>
             <p className="empty__text">
-              Le stockage affiché ici vient de Google lui-même. Connectez un compte
-              pour voir son quota réel et la place occupée par vos fichiers.
+              Le quota affiché ici vient de chaque fournisseur lui-même. Connectez
+              un compte pour voir son espace réel et la place occupée par vos
+              fichiers.
             </p>
             <div className="empty__actions">
               <button
@@ -132,6 +133,24 @@ export function Storage({ onNavigate }: { onNavigate: (route: Route) => void }) 
   );
   const largest = Math.max(...measured.map((category) => category.bytes), 1);
 
+  /**
+   * Comptes regroupés par fournisseur.
+   *
+   * Ils étaient présentés en une seule liste : vingt pastilles mêlant Google
+   * Drive et MEGA, où l'on ne savait plus quel compte appartenait à quel
+   * service. La liste suit `PROVIDER_IDS` : ajouter Shadow Drive ou TeraBox
+   * suffit à faire apparaître leur groupe, sans toucher à cet écran.
+   */
+  const groupes = PROVIDER_IDS.map((id) => {
+    const comptes = accounts.filter((item) => item.provider === id);
+    return {
+      provider: PROVIDERS[id],
+      comptes,
+      used: comptes.reduce((sum, item) => sum + item.usedBytes, 0),
+      quota: comptes.reduce((sum, item) => sum + item.quotaBytes, 0),
+    };
+  }).filter((groupe) => groupe.comptes.length > 0);
+
   return (
     <div className="page">
       <div className="page-head">
@@ -139,49 +158,70 @@ export function Storage({ onNavigate }: { onNavigate: (route: Route) => void }) 
           <div className="page-eyebrow">Espace disque</div>
           <h1 className="page-title">Stockage</h1>
           <p className="page-subtitle">
-            Le quota vient de Google. La répartition par type ne compte que les
-            fichiers dont vous êtes propriétaire : ceux qu’on partage avec vous
-            n’occupent pas votre espace.
+            Chaque fournisseur est mesuré séparément : son quota vient de lui, et
+            la répartition par type n’existe que là où il la publie.
           </p>
         </div>
         <div className="page-head__actions">
-          <span className="badge">
+          <span className="badge" title="Tous les fournisseurs réunis">
             <HardDrive size={11} />
-            {formatBytes(totals.used)} sur {formatBytes(totals.quota)}
+            Total {formatBytes(totals.used)} sur {formatBytes(totals.quota)}
           </span>
         </div>
       </div>
 
-      {accounts.length > 1 ? (
-        <div className="filter-bar">
-          <div className="segmented segmented--wrap" role="group" aria-label="Compte mesuré">
-            {accounts.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={`segmented__item${item.id === account?.id ? ' is-active' : ''}`}
-                onClick={() => {
-                  setSelectedId(item.id);
-                  setUsage(null);
-                  measuredFor.current = '';
-                }}
-              >
-                {item.name}
-              </button>
-            ))}
+      {groupes.map((groupe) => (
+        <section className="storage-group" key={groupe.provider.id}>
+          <div className="section-head storage-group__head">
+            <h2 className="section-title">
+              <ProviderMark provider={groupe.provider.id} size="sm" />
+              {groupe.provider.name}
+            </h2>
+            <span className="badge">
+              {formatDecimal(groupe.comptes.length)} compte
+              {groupe.comptes.length > 1 ? 's' : ''} · {formatBytes(groupe.used)} sur{' '}
+              {formatBytes(groupe.quota)}
+            </span>
           </div>
-        </div>
-      ) : null}
+          <div className="filter-bar">
+            <div
+              className="segmented segmented--wrap"
+              role="group"
+              aria-label={`Compte ${groupe.provider.name} mesuré`}
+            >
+              {groupe.comptes.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  // Deux comptes peuvent porter le même nom (une adresse
+                  // « +N » sur Google, la même chez MEGA) : l'adresse lève le
+                  // doute.
+                  title={`${item.name} — ${item.email}`}
+                  className={`segmented__item${item.id === account?.id ? ' is-active' : ''}`}
+                  onClick={() => {
+                    setSelectedId(item.id);
+                    setUsage(null);
+                    measuredFor.current = '';
+                  }}
+                >
+                  {item.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+      ))}
 
-      {!isRealAccount(account) || !googleId ? (
+      {!isRealAccount(account) ? (
         <div className="panel">
           <div className="empty">
             <span className="empty__icon">
               <HardDrive size={18} />
             </span>
-            <p className="empty__title">Compte sans mesure disponible</p>
+            <p className="empty__title">Compte sans quota connu</p>
             <p className="empty__text">
-              Seul un compte Google connecté expose un quota réel.
+              Ce compte n’est pas relié à un fournisseur : son espace ne peut pas
+              être mesuré.
             </p>
           </div>
         </div>
@@ -206,7 +246,7 @@ export function Storage({ onNavigate }: { onNavigate: (route: Route) => void }) 
                 disabled={loading}
                 onClick={() => {
                   measuredFor.current = '';
-                  measure(googleId, true);
+                  measure(googleId ?? '', true);
                   toast.push('Nouvelle mesure du stockage');
                 }}
               >
@@ -239,6 +279,8 @@ export function Storage({ onNavigate }: { onNavigate: (route: Route) => void }) 
             </div>
           </div>
 
+          {account.provider === 'gdrive' ? (
+          <>
           <div className="section-head" style={{ marginTop: 22 }}>
             <h2 className="section-title">Répartition par type</h2>
             {incomplete ? (
@@ -265,7 +307,7 @@ export function Storage({ onNavigate }: { onNavigate: (route: Route) => void }) 
                   className="btn btn--sm"
                   onClick={() => {
                     measuredFor.current = '';
-                    measure(googleId, true);
+                    measure(googleId ?? '', true);
                   }}
                 >
                   <RefreshCw size={12} />
@@ -334,6 +376,26 @@ export function Storage({ onNavigate }: { onNavigate: (route: Route) => void }) 
               ? 'Compte volumineux : certaines sommes sont plafonnées. Le signe ≥ indique un minimum.'
               : 'Les tailles proviennent des métadonnées Drive, limitées à vos propres fichiers : un fichier partagé par quelqu’un d’autre ne consomme pas votre quota. Les documents Google natifs (Docs, Sheets, Slides) n’exposent pas de taille : ils apparaissent dans le reste du quota.'}
           </p>
+          </>
+          ) : (
+            // MEGA ne publie pas la nature des fichiers : afficher des lignes à
+            // 0 o laisserait croire que le compte est vide. On s'arrête au
+            // quota, qui est réel, et on le dit.
+            <div className="panel" style={{ marginTop: 18 }}>
+              <div className="empty">
+                <span className="empty__icon">
+                  <HardDrive size={18} />
+                </span>
+                <p className="empty__title">Le quota, sans détail par type</p>
+                <p className="empty__text">
+                  {PROVIDERS[account.provider].name} ne communique pas la nature des
+                  fichiers stockés : seuls l’espace utilisé et le total sont connus,
+                  et ils viennent du compte lui-même. Le détail par type est mesuré
+                  pour les comptes Google Drive.
+                </p>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

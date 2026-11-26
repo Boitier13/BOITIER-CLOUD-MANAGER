@@ -1904,6 +1904,120 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   );
 }
 
+/* --- 15. Stockage : un groupe par fournisseur ----------------------------- */
+//
+// Incident réel : vingt pastilles mêlant Google Drive et MEGA dans une seule
+// liste, et un compte MEGA sélectionné affichait « Seul un compte Google
+// connecté expose un quota réel » — alors que son quota est parfaitement connu.
+{
+  const google = [
+    { id: 'gdrive-real-g1', googleId: 'g1', email: 'boitierecup@gmail.com' },
+    { id: 'gdrive-real-g2', googleId: 'g2', email: 'firstboitier1@gmail.com' },
+  ].map((compte, index) => ({
+    ...compte,
+    source: 'google',
+    provider: 'gdrive',
+    name: compte.email.split('@')[0],
+    usedBytes: 4 * 1024 ** 3,
+    quotaBytes: 15 * 1024 ** 3,
+    status: 'connected',
+    createdAt: '2026-11-01T10:00:00.000Z',
+    seed: 7 + index,
+    localTree: false,
+  }));
+
+  const mega = [
+    { id: 'mega-real-m1', megaId: 'm1', email: 'firstboitier1@gmail.com' },
+    { id: 'mega-real-m2', megaId: 'm2', email: 'boitierfirst7@gmail.com' },
+  ].map((compte, index) => ({
+    ...compte,
+    source: 'mega',
+    provider: 'mega',
+    name: compte.email.split('@')[0],
+    usedBytes: 18 * 1024 ** 3,
+    quotaBytes: 20 * 1024 ** 3,
+    status: 'connected',
+    createdAt: '2026-11-01T10:00:00.000Z',
+    seed: 11 + index,
+    localTree: false,
+  }));
+
+  const stockage = await parcours({
+    label: 'stockage séparé',
+    storage: {
+      key: 'boitier-cloud-manager:v1',
+      value: {
+        version: 1,
+        accounts: [...google, ...mega],
+        favorites: [],
+        downloads: [],
+        settings: {},
+        explorer: { accountId: google[0].id, path: [] },
+      },
+    },
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      google: {
+        status: async () => ({ configured: true, source: 'env' }),
+        accounts: async () => [],
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+        storage: async () => ({ usedBytes: 0, categories: [] }),
+      },
+      mega: { accounts: async () => [], onUpload: () => () => {}, list: async () => [] },
+    },
+  });
+
+  const versStockage = [...stockage.doc.querySelectorAll('.nav-item')].find((button) =>
+    (button.textContent ?? '').includes('Stockage'),
+  );
+  if (versStockage) await stockage.click(versStockage);
+
+  const groupes = [...stockage.doc.querySelectorAll('.storage-group')].map((element) =>
+    (element.textContent ?? '').replace(/\s+/g, ' ').trim(),
+  );
+  check(
+    'stockage : les comptes sont groupés par fournisseur',
+    groupes.length === 2 &&
+      /Google Drive/.test(groupes[0]) &&
+      /MEGA/.test(groupes[1]),
+    `${groupes.length} groupe(s) : ${groupes.map((groupe) => groupe.slice(0, 40)).join(' | ')}`,
+  );
+  check(
+    'stockage : chaque groupe annonce son propre total',
+    /2 comptes/.test(groupes[0] ?? '') &&
+      /2 comptes/.test(groupes[1] ?? '') &&
+      /8,0 Go/.test(groupes[0] ?? '') &&
+      /36,0 Go/.test(groupes[1] ?? ''),
+    `${groupes[0]?.slice(0, 60)} / ${groupes[1]?.slice(0, 60)}`,
+  );
+
+  // Sélection d'un compte MEGA : le quota est réel, le texte ne doit plus dire
+  // le contraire.
+  const pastilleMega = [...stockage.doc.querySelectorAll('.segmented__item')].find(
+    (button) => (button.textContent ?? '').includes('boitierfirst7'),
+  );
+  check('stockage : une pastille MEGA est proposée', Boolean(pastilleMega));
+  if (pastilleMega) await stockage.click(pastilleMega);
+  const corps = stockage.doc.body.textContent ?? '';
+  check(
+    'stockage : un compte MEGA affiche son quota, pas un refus',
+    !/Seul un compte Google connecté expose un quota réel/.test(corps) &&
+      !/Compte sans mesure disponible/.test(corps) &&
+      /18,0 Go/.test(corps),
+    corps.match(/Seul un compte Google[^.]*\./)?.[0] ?? 'texte correct',
+  );
+  check(
+    'stockage : l’absence de détail par type est expliquée, pas affichée à zéro',
+    /sans détail par type/.test(corps),
+    'explication absente',
+  );
+}
+
 console.log(
   failures === 0
     ? '\nInterface vérifiée : état vide maîtrisé, compte réel affiché, aucun décor.'

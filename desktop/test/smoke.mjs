@@ -1685,6 +1685,34 @@ try {
     );
   }
 
+  // 7ter. Stockage : les groupes suivent le registre des fournisseurs.
+  {
+    const sourceStockage = await readFile(join(racine, 'src/pages/Storage.tsx'), 'utf8');
+    check(
+      'stockage : les groupes viennent du registre, pas d’une liste en dur',
+      /PROVIDER_IDS\.map\(/.test(sourceStockage) &&
+        !/'gdrive'.*'mega'|'mega'.*'gdrive'/.test(sourceStockage),
+      'groupement codé en dur',
+    );
+    check(
+      'stockage : un compte non-Google n’est plus déclaré sans quota',
+      !/Seul un compte Google connecté expose un quota réel/.test(sourceStockage),
+      'ancien message encore présent',
+    );
+    check(
+      'stockage : l’absence de détail par type est expliquée',
+      /sans détail par type/.test(sourceStockage),
+      'explication absente',
+    );
+    const catalog = await readFile(join(racine, 'src/data/catalog.ts'), 'utf8');
+    check(
+      'fournisseurs : le registre reste le seul point d’ajout',
+      /export const PROVIDER_IDS: ProviderId\[\]/.test(catalog) &&
+        /export const PROVIDERS: Record<ProviderId, Provider>/.test(catalog),
+      'registre introuvable',
+    );
+  }
+
   // 8. La synchronisation réessaie, se note, et se rétablit.
   const sourceStoreSync = await readFile(join(racine, 'src/store.tsx'), 'utf8');
   check(
