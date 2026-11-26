@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Check,
   FolderCog,
+  FolderOpen,
   KeyRound,
   Info,
   Minus,
@@ -28,6 +29,21 @@ export function Settings() {
   const { state, dispatch } = useStore();
   const toast = useToast();
   const [resetOpen, setResetOpen] = useState(false);
+  /** Chemin réel du dossier système : sans lui, ce réglage reste abstrait. */
+  const [systemFolder, setSystemFolder] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    void getBridge()
+      ?.google.folder?.()
+      .then((folder) => {
+        if (active) setSystemFolder(folder || '');
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
   const { status: googleStatus } = useGoogleClientStatus();
   const { settings } = state;
 
@@ -207,16 +223,27 @@ export function Settings() {
                 Emplacement réel des fichiers téléchargés depuis Google Drive.
               </div>
             </div>
-            <div className="settings-row__control">
-              <input
-                className="input"
-                value={settings.downloadFolder}
-                onChange={(event) => patch({ downloadFolder: event.target.value })}
-                style={{ maxWidth: 260 }}
-                placeholder={SYSTEM_FOLDER_LABEL}
-                aria-label="Dossier de téléchargement par défaut"
-                spellCheck={false}
-              />
+            <div className="settings-row__control settings-row__control--path">
+              {/* Le chemin réel, pas un libellé : c'est lui qui décide où les
+                  fichiers atterrissent, et il doit se lire en entier. */}
+              <button
+                type="button"
+                className="path-chip"
+                title={
+                  settings.downloadFolder
+                    ? `Ouvrir ${settings.downloadFolder}`
+                    : 'Ouvrir le dossier du système'
+                }
+                onClick={() => {
+                  const folder = settings.downloadFolder || systemFolder;
+                  if (folder) void getBridge()?.google.openDirectory?.(folder);
+                }}
+              >
+                <FolderOpen size={12} />
+                <span>
+                  {settings.downloadFolder || systemFolder || SYSTEM_FOLDER_LABEL}
+                </span>
+              </button>
               <button
                 type="button"
                 className="btn btn--sm"
@@ -231,6 +258,19 @@ export function Settings() {
                 <FolderCog size={12} />
                 Choisir…
               </button>
+              {settings.downloadFolder ? (
+                <button
+                  type="button"
+                  className="btn btn--sm"
+                  title="Revenir au dossier du système"
+                  onClick={() => {
+                    patch({ downloadFolder: '' });
+                    toast.push('Retour au dossier du système', 'ok');
+                  }}
+                >
+                  Système
+                </button>
+              ) : null}
             </div>
           </div>
           <div className="settings-row">

@@ -2914,6 +2914,47 @@ tr.is-folder .cell-name__text {
   gap: 8px;
 }
 
+/* Colonne « chemin » : le dossier s'étire et passe à la ligne, sans coupure. */
+.settings-row__control--path {
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
+  max-width: 430px;
+}
+
+.path-chip {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: 7px;
+  border: 1px solid var(--line-soft);
+  background: var(--hover);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+}
+
+.path-chip span {
+  overflow-wrap: anywhere;
+}
+
+.path-chip svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-4);
+}
+
+.path-chip:hover {
+  border-color: var(--line);
+  color: var(--text-1);
+}
+
 .settings-row__control--wide {
   width: 330px;
 }
