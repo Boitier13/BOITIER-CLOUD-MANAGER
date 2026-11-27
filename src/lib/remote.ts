@@ -25,6 +25,7 @@ import { GOOGLE_ROOT, toNode } from './google';
 import { messageLisible } from './errors';
 import { marquerPhase } from './trace';
 import { SerialQueue } from './serialQueue';
+import { appendUniqueNodes } from './uniqueNodes';
 
 export interface FolderState {
   nodes: FileNode[];
@@ -291,7 +292,9 @@ export function remoteTree(
 ): FileNode[] {
   const root: FileNode[] = [];
   const folders = new Map<string, FileNode[]>();
+  const idsParDossier = new Map<FileNode[], Set<string>>();
   folders.set('', root);
+  idsParDossier.set(root, new Set());
 
   const ensure = (path: string[]): FileNode[] => {
     const key = path.join('/');
@@ -308,26 +311,23 @@ export function remoteTree(
       children: [],
     };
     parent.push(node);
+    idsParDossier.get(parent)?.add(node.id);
     const list = node.children as FileNode[];
+    idsParDossier.set(list, new Set());
     folders.set(key, list);
     return list;
   };
 
   const shared = options.includeShared ? remoteCatalog.get(sharedKey(accountId)) : undefined;
   if (shared && shared.status === 'ready') {
-    for (const node of shared.nodes) {
-      if (!root.some((item) => item.id === node.id)) root.push(node);
-    }
+    appendUniqueNodes(root, shared.nodes, idsParDossier.get(root)!);
   }
 
   for (const path of remoteCatalog.loadedPaths(accountId)) {
     const parent = ensure(path);
     const state = remoteCatalog.get(folderKey(accountId, path));
     if (!state || state.status !== 'ready') continue;
-    for (const node of state.nodes) {
-      const target = parent.find((item) => item.id === node.id);
-      if (!target) parent.push(node);
-    }
+    appendUniqueNodes(parent, state.nodes, idsParDossier.get(parent)!);
   }
   return root;
 }

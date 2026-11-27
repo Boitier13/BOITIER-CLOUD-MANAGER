@@ -61,6 +61,7 @@ import { joinFolder } from '../lib/downloadFolder';
 import { useSystemFolder } from '../lib/systemFolder';
 import { downloadAccount, onMegaUpload, uploadToMega } from '../lib/cloud';
 import { driveFolderUrl } from '../lib/driveLinks';
+import { chrono } from '../lib/trace';
 import { Meter, TypeIcon } from '../components/visuals';
 import { createDownload } from '../lib/downloads';
 import { FolderDownloadDialog } from '../components/FolderDownloadDialog';
@@ -76,6 +77,10 @@ import {
   type SortKey,
   type TypeFilter,
 } from './explorer/Bits';
+
+// Éviter de construire des milliers de lignes DOM en une seule fois.
+const LIGNES_PAR_PAGE = 100;
+const triNoms = new Intl.Collator('fr', { numeric: true, sensitivity: 'base' });
 
 export function Files() {
   const { state, dispatch } = useStore();
@@ -98,6 +103,7 @@ export function Files() {
    */
   const remoteId = account && isRealAccount(account) ? realAccountId(account) ?? null : null;
   const [query, setQuery] = useState('');
+  const [pageLignes, setPageLignes] = useState(0);
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({
     key: 'name',
     dir: 'asc',
@@ -206,6 +212,7 @@ export function Files() {
           accountId: account.id,
         }));
     }
+    const signatures = new Set<string>();
     return catalog.entries
       .filter((entry) => normalize(entry.node.name).includes(q))
       .filter((entry) => {
@@ -216,17 +223,15 @@ export function Files() {
       .sort(
         (a, b) =>
           a.path.length - b.path.length ||
-          a.node.name.localeCompare(b.node.name, 'fr', { numeric: true }),
+          triNoms.compare(a.node.name, b.node.name),
       )
       // Un même fichier existe sur plusieurs comptes : on met en avant la
       // première occurrence et on évite les répétitions exactes de chemin.
-      .filter((entry, index, list) => {
+      .filter((entry) => {
         const signature = `${entry.node.name}|${entry.path.join('/')}`;
-        return (
-          list.findIndex(
-            (other) => `${other.node.name}|${other.path.join('/')}` === signature,
-          ) === index
-        );
+        if (signatures.has(signature)) return false;
+        signatures.add(signature);
+        return true;
       })
       .slice(0, 80)
       .map((entry) => ({
@@ -240,21 +245,7 @@ export function Files() {
   // En vue partagée, la saisie filtre la liste affichée plutôt que d'interroger
   // tout le compte : on ne montre pas des résultats qui ne sont pas partagés.
   const searchMode = !sharedView && normalize(query.trim()).length >= 2;
-  const rows: {
-    node: FileNode;
-    path: string[];
-    depth: number;
-    accountId: string;
-  }[] = searchMode
-    ? searchResults
-    : children.map((node) => ({
-        node,
-        path: [...path, remote && node.children ? `${node.name}${ID_SEPARATOR}${node.id}` : node.name],
-        depth: path.length,
-        accountId: state.explorer.accountId,
-      }));
-
-  const visible = useMemo(() => {
+  const visible = useMemo(() => chrono('tri du dossier', () => {
     const q = normalize(query.trim());
     const filtered = children.filter((node) => {
       if (q && !normalize(node.name).includes(q)) return false;
@@ -283,12 +274,27 @@ export function Files() {
           return a.type.localeCompare(b.type) * direction;
         default:
           return (
-            a.name.localeCompare(b.name, 'fr', { numeric: true, sensitivity: 'base' }) *
+            triNoms.compare(a.name, b.name) *
             direction
           );
       }
     });
-  }, [children, query, sort, typeFilter]);
+  }), [children, query, sort, typeFilter]);
+
+  const rows = useMemo(() => searchMode
+    ? searchResults
+    : visible.map((node) => ({
+        node,
+        path: [...path, remote && node.children ? `${node.name}${ID_SEPARATOR}${node.id}` : node.name],
+        depth: path.length,
+        accountId: state.explorer.accountId,
+      })), [searchMode, searchResults, visible, path, remote, state.explorer.accountId]);
+
+  const pageActuelle = Math.min(pageLignes, Math.max(0, Math.ceil(rows.length / LIGNES_PAR_PAGE) - 1));
+  const debutPage = pageActuelle * LIGNES_PAR_PAGE;
+  useEffect(() => {
+    setPageLignes(0);
+  }, [state.explorer.accountId, path.join('/'), query, sort.key, sort.dir, typeFilter, sharedView]);
 
   // Garde le compte actif visible dans la colonne de gauche.
   useEffect(() => {
@@ -884,7 +890,7 @@ export function Files() {
                         .join(' · ')}
                 </span>
                 <div className="selection-bar__actions">
-                  {remote && !sharedView && !searchMode ? (
+                  {remote && account.provider === 'gdrive' && !sharedView && !searchMode ? (
                     <button
                       type="button"
                       className="btn btn--sm"
@@ -906,7 +912,7 @@ export function Files() {
                       title="Choisir un fichier sur cet ordinateur et l’envoyer dans ce dossier MEGA"
                       onClick={() => {
                         setEnvoiEnCours(true);
-                        void uploadToMega(account.id, driveFolderId(path) === 'root' ? '' : driveFolderId(path))
+                        void uploadToMega(remoteId as string, driveFolderId(path) === 'root' ? '' : driveFolderId(path))
                           .then((resultat) => {
                             if (!resultat.sent) return;
                             // Le contenu du dossier vient de changer : on le relit.
@@ -1055,7 +1061,7 @@ export function Files() {
               <div className="filetable-error">
                 <CloudOff size={20} />
                 <p className="filetable-error__title">
-                  {sharedView ? 'Fichiers partagés injoignables' : `${provider.name} est injoignable`}
+                  {sharedView ? 'Fichiers partagés injoignables' : /bloqu[ée]/i.test(activeState.error ?? '') ? `${provider.name} : compte bloqué` : `${provider.name} est injoignable`}
                 </p>
                 <p className="filetable-error__text">{activeState.error}</p>
                 <button
@@ -1128,6 +1134,7 @@ export function Files() {
                 ) : null}
               </div>
             ) : (
+              <>
               <table className="filetable">
                 <thead>
                   <tr>
@@ -1140,7 +1147,7 @@ export function Files() {
                             allSelected ? new Set() : new Set(rows.map((row) => row.node.id)),
                           )
                         }
-                        label="Tout sélectionner"
+                        label="Tout sélectionner (tous les résultats)"
                       />
                     </th>
                     <th
@@ -1218,7 +1225,7 @@ export function Files() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(({ node, path: rowPath, depth, accountId: rowAccountId }) => {
+                  {rows.slice(debutPage, debutPage + LIGNES_PAR_PAGE).map(({ node, path: rowPath, depth, accountId: rowAccountId }) => {
                     const isSelected = selected.has(node.id);
                     const nodePath = rowPath;
                     const rowAccount =
@@ -1404,6 +1411,20 @@ export function Files() {
                   })}
                 </tbody>
               </table>
+              {rows.length > LIGNES_PAR_PAGE ? (
+                <div className="empty__actions" style={{ padding: 12 }}>
+                  <button type="button" className="btn btn--sm" disabled={pageActuelle === 0}
+                    onClick={() => setPageLignes((n) => Math.max(0, n - 1))}>
+                    Précédent
+                  </button>
+                  <span>{formatDecimal(debutPage + 1)}–{formatDecimal(Math.min(debutPage + LIGNES_PAR_PAGE, rows.length))} sur {formatDecimal(rows.length)}</span>
+                  <button type="button" className="btn btn--sm" disabled={debutPage + LIGNES_PAR_PAGE >= rows.length}
+                    onClick={() => setPageLignes(pageActuelle + 1)}>
+                    Suivant
+                  </button>
+                </div>
+              ) : null}
+              </>
             )}
           </div>
 

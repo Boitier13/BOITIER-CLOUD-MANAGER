@@ -95,9 +95,13 @@ export class MegaService {
       const dossier = folderId ? storage.files[folderId] : storage.root;
       if (!dossier) throw new Error('dossier MEGA introuvable');
       const enfants = dossier.children ?? [];
-      return sortRemoteFiles(
+      const debut = performance.now();
+      const resultat = sortRemoteFiles(
         enfants.map((enfant) => toRemoteFile(enfant, dossier.nodeId ?? (folderId || undefined))),
       );
+      const duree = performance.now() - debut;
+      if (duree >= 120) log(`durée : MEGA préparation dossier ${Math.round(duree)} ms · ${enfants.length} éléments`);
+      return resultat;
     } finally {
       this.session.relacher(accountId);
     }

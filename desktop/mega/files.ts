@@ -97,16 +97,17 @@ export function toRemoteFile(node: MegaNodeLike, parentId?: string): RemoteFile 
 }
 
 /** Tri d'affichage : dossiers d'abord, puis par nom, accents ignorés. */
+const triNomsMega = new Intl.Collator('fr');
+
 export function sortRemoteFiles(files: RemoteFile[]): RemoteFile[] {
-  const cle = (file: RemoteFile) =>
-    file.name
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase();
-  return [...files].sort((a, b) => {
-    if (a.kind !== b.kind) return a.kind === 'folder' ? -1 : 1;
-    return cle(a).localeCompare(cle(b), 'fr');
-  });
+  // Normaliser une fois par fichier, pas à chaque comparaison du tri.
+  return files.map((file) => ({
+    file,
+    cle: file.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(),
+  })).sort((a, b) => {
+    if (a.file.kind !== b.file.kind) return a.file.kind === 'folder' ? -1 : 1;
+    return triNomsMega.compare(a.cle, b.cle);
+  }).map(({ file }) => file);
 }
 
 /**
