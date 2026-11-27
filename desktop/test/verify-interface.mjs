@@ -2395,7 +2395,7 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   );
   check(
     'MEGA bloqué : le blocage est expliqué, en français',
-    /bloque temporairement/i.test(texte) && /patientez/i.test(texte),
+    /compte est bloqué/i.test(texte) && /patientez/i.test(texte),
     texte,
   );
   check(

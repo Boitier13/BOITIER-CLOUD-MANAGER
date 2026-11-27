@@ -117,17 +117,20 @@ export function sortRemoteFiles(files: RemoteFile[]): RemoteFile[] {
  * cette table, l'écran affichait ce texte brut à la place d'une explication.
  */
 const CODES_MEGA: Record<string, number> = {
-  EINTERNAL: 3,
-  EARGS: 4,
-  EAGAIN: 4,
+  EINTERNAL: 1,
+  EARGS: 2,
+  EAGAIN: 3,
+  ERATELIMIT: 4,
   ENOENT: 9,
   EACCESS: 11,
-  EEXPIRED: 15,
+  ESID: 15,
+  EEXPIRED: 8,
   EBLOCKED: 16,
   EOVERQUOTA: 17,
   ETEMPUNAVAIL: 18,
-  ETOOMANY: 19,
-  EOVERQUOTA_ACCOUNT: 24,
+  ETOOMANY: 6,
+  ETOOMANYCONNECTIONS: 19,
+  EGOINGOVERQUOTA: 24,
   EMFAREQUIRED: 26,
 };
 
@@ -153,12 +156,16 @@ export function codeErreurMega(cause: unknown): number {
 export function messageErreurMega(cause: unknown): string {
   const code = codeErreurMega(cause);
   const messages: Record<number, string> = {
+    1: 'MEGA signale une erreur interne, réessayez plus tard',
+    2: 'MEGA a refusé la demande de connexion ou ses paramètres',
     3: 'MEGA est momentanément indisponible, réessayez dans un instant',
     4: 'trop de requêtes envoyées à MEGA, réessayez dans quelques secondes',
-    9: 'adresse ou mot de passe MEGA incorrect',
+    6: 'trop de connexions simultanées vers MEGA',
+    8: 'Le lien de transfert MEGA a expiré : relancez le transfert',
+    9: 'élément ou compte MEGA introuvable : vérifiez l’adresse et le mot de passe si vous vous connectez',
     11: 'accès refusé par MEGA sur cet élément',
     15: 'session MEGA expirée : reconnectez ce compte',
-    16: 'MEGA bloque temporairement ce compte (trop de connexions) : patientez quelques minutes',
+    16: 'MEGA indique que ce compte est bloqué : patientez avant de réessayer. Si le blocage persiste, contactez l’assistance MEGA.',
     17: 'quota de transfert MEGA épuisé pour aujourd’hui',
     18: 'MEGA est temporairement indisponible, réessayez plus tard',
     19: 'trop de connexions simultanées vers MEGA',
@@ -167,7 +174,11 @@ export function messageErreurMega(cause: unknown): string {
   };
   if (code && messages[code]) return messages[code];
   const brut = (cause as Error | null)?.message ?? '';
-  return brut || 'MEGA n’a pas répondu';
+  if (/invalid credentials|wrong password/i.test(brut)) return 'Adresse ou mot de passe MEGA incorrect : vérifiez-les et réessayez.';
+  if (/account version not supported/i.test(brut)) return 'Cette version de compte MEGA n’est pas prise en charge par la bibliothèque de connexion.';
+  if (/fetch failed|ENOTFOUND|ECONNRESET|ETIMEDOUT|network/i.test(brut)) return 'Connexion à MEGA impossible : vérifiez votre réseau et réessayez.';
+  if (/^fichier MEGA introuvable$/i.test(brut)) return brut;
+  return 'L’opération MEGA a échoué pour une raison inconnue. Consultez le journal de démarrage.';
 }
 
 /** Vrai si l'erreur signifie « il faut un code de vérification ». */

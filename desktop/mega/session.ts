@@ -33,10 +33,8 @@ export class DeuxEtapesRequises extends Error {
 /**
  * Durée de la garde après un blocage MEGA (-16).
  *
- * MEGA bloque un compte quand trop de connexions arrivent d'un coup depuis la
- * même adresse. Réessayer pendant la garde ne fait qu'allonger le blocage :
- * trois minutes étaient visiblement trop courtes, le compte retombait bloqué
- * aussitôt. Dix minutes laissent passer la fenêtre côté MEGA.
+ * MEGA indique un blocage sans préciser sa cause ni sa durée. La garde limite
+ * les tentatives automatiques ; elle ne garantit pas que MEGA lèvera le blocage.
  */
 const GARDE_BLOCAGE_MS = 10 * 60_000;
 
@@ -44,18 +42,15 @@ const GARDE_BLOCAGE_MS = 10 * 60_000;
  * Nombre de sessions gardées ouvertes en mémoire.
  *
  * Rouvrir une session MEGA, c'est télécharger **toute** l'arborescence du
- * compte et la garder en mémoire. Avec onze comptes, l'application retenait
- * onze arborescences : la mémoire partait en échange disque, et tout —
- * l'interface comprise — se figeait par à-coups. Deux sessions suffisent :
- * le compte consulté, et le précédent pour les allers-retours.
+ * compte et la garder en mémoire. Limiter les sessions inutilisées réduit la
+ * charge potentielle ; la cause exacte des figements reste à mesurer.
  */
 const MAX_SESSIONS_OUVERTES = 2;
 
 /**
  * Pause entre deux restaurations de session.
  *
- * Onze comptes relus à la suite, sans respirer, suffisent à déclencher le
- * blocage anti-abus de MEGA : chaque restauration est donc espacée.
+ * Espacer les restaurations limite les rafales de requêtes vers MEGA.
  */
 const PAUSE_ENTRE_SESSIONS_MS = 400;
 
@@ -72,9 +67,8 @@ export class MegaSession {
   /**
    * Comptes bloqués par MEGA (`-16`), avec la date de fin de la garde.
    *
-   * Réessayer pendant le blocage ne fait qu'allonger celui-ci. On attend donc
-   * quelques minutes avant de retenter, et l'interface affiche une raison
-   * lisible en attendant.
+   * Évite les tentatives automatiques répétées ; la durée du blocage chez MEGA
+   * est inconnue.
    */
   private readonly bloques = new Map<string, number>();
   /**
@@ -92,8 +86,23 @@ export class MegaSession {
   /** Sessions retenues par un transfert en cours : jamais fermées sous lui. */
   private readonly retenues = new Map<string, number>();
 
-  constructor(vault: MegaVault) {
+  private readonly creerSession: (options: ConstructorParameters<typeof Storage>[0]) => Storage;
+  private readonly restaurerSession: typeof Storage.fromJSON;
+
+  constructor(
+    vault: MegaVault,
+    creerSession: (options: ConstructorParameters<typeof Storage>[0]) => Storage = (options) => new Storage(options),
+    restaurerSession: typeof Storage.fromJSON = (json) => Storage.fromJSON(json),
+  ) {
     this.vault = vault;
+    this.creerSession = creerSession;
+    this.restaurerSession = restaurerSession;
+  }
+
+  /** Libère les ressources locales sans invalider la session sauvegardée chez MEGA. */
+  private fermerLocalement(storage: Storage): void {
+    // Storage.close() envoie « sml » (logout) : ne pas l'utiliser ici !
+    storage.api.close();
   }
 
   /** Comptes connus — sans requête réseau : les mesures sont celles du dernier passage. */
@@ -126,12 +135,26 @@ export class MegaSession {
     password: string,
     secondFactor?: string,
   ): Promise<MegaAccountInfo> {
+    // Ne pas laisser une restauration ancienne remplacer une nouvelle session.
+    const connexion = this.file.catch(() => undefined).then(() =>
+      this.connecter(email, password, secondFactor),
+    );
+    this.file = connexion.catch(() => undefined);
+    return connexion;
+  }
+
+  private async connecter(
+    email: string,
+    password: string,
+    secondFactor?: string,
+  ): Promise<MegaAccountInfo> {
     const adresse = email.trim().toLowerCase();
     if (!adresse || !password) throw new Error('adresse et mot de passe requis');
 
-    let storage: Storage;
+    log('MEGA : connexion demandée');
+    let storage: Storage | undefined;
     try {
-      storage = new Storage({
+      storage = this.creerSession({
         email: adresse,
         password,
         ...(secondFactor ? { secondFactorCode: secondFactor.trim() } : {}),
@@ -146,46 +169,50 @@ export class MegaSession {
       });
       await storage.ready;
     } catch (cause) {
+      if (storage) this.fermerLocalement(storage);
+      const code = codeErreurMega(cause);
+      // Aucun message brut ni identifiant : ils peuvent contenir des secrets.
+      log(`MEGA : connexion échouée · ${code ? `code -${code}` : 'erreur non identifiée'}`);
       if (exigeDeuxEtapes(cause)) throw new DeuxEtapesRequises();
       throw new Error(messageErreurMega(cause));
     }
 
     const id = storage.user || adresse;
     const nom = storage.name || adresse;
-    this.vivantes.set(id, storage);
-    this.expirees.delete(id);
-    this.bloques.delete(id);
-
-    const mesure = await this.mesurer(id, storage);
     const json = storage.toJSON();
-    // On ne conserve que de quoi rouvrir la session : `options` contient les
-    // identifiants de connexion et n'a rien à faire sur le disque.
     const session = { key: json.key, sid: json.sid, name: nom, user: id };
 
-    const anciens = await this.vault.read();
-    const suivant: MegaStoredAccount[] = [
-      ...anciens.filter((compte) => compte.id !== id),
-      {
-        id,
-        email: adresse,
-        name: nom,
-        session,
-        addedAt: new Date().toISOString(),
-        usedBytes: mesure.usedBytes,
-        quotaBytes: mesure.quotaBytes,
-      },
-    ];
-    await this.vault.write(suivant);
-    log(`MEGA : compte ${adresse} connecté (${mesure.usedBytes}/${mesure.quotaBytes} o)`);
-
-    return {
-      accountId: id,
-      name: nom,
-      email: adresse,
-      usedBytes: mesure.usedBytes,
-      quotaBytes: mesure.quotaBytes,
-      status: 'connected',
-    };
+    try {
+      const anciens = await this.vault.read();
+      const ancien = anciens.find((compte) => compte.id === id);
+      await this.vault.write([
+        ...anciens.filter((compte) => compte.id !== id),
+        {
+          id, email: adresse, name: nom, session,
+          addedAt: ancien?.addedAt ?? new Date().toISOString(),
+          usedBytes: ancien?.usedBytes ?? 0,
+          quotaBytes: ancien?.quotaBytes ?? 0,
+        },
+      ]);
+      // Ne pas fermer l'ancienne instance sous un transfert actif. Avec
+      // keepalive désactivé elle sera libérée une fois les opérations finies.
+      const precedente = this.vivantes.get(id);
+      if (precedente && !this.retenues.has(id)) this.fermerLocalement(precedente);
+      this.vivantes.set(id, storage);
+      this.expirees.delete(id);
+      this.bloques.delete(id);
+      this.toucher(id);
+      log('MEGA : connexion enregistrée');
+      return {
+        accountId: id, name: nom, email: adresse,
+        usedBytes: ancien?.usedBytes ?? 0, quotaBytes: ancien?.quotaBytes ?? 0,
+        status: 'connected',
+      };
+    } catch (cause) {
+      this.fermerLocalement(storage);
+      log('MEGA : connexion impossible à enregistrer dans le coffre');
+      throw cause;
+    }
   }
 
   /** Ferme toutes les sessions ouvertes (fermeture de l'application). */
@@ -193,11 +220,7 @@ export class MegaSession {
     const ouvertes = [...this.vivantes.values()];
     this.vivantes.clear();
     for (const storage of ouvertes) {
-      try {
-        await storage.close();
-      } catch {
-        /* déjà fermée côté MEGA */
-      }
+      this.fermerLocalement(storage);
     }
   }
 
@@ -239,16 +262,22 @@ export class MegaSession {
     const garde = this.bloques.get(accountId) ?? 0;
     if (garde > Date.now()) {
       throw new Error(
-        'MEGA bloque temporairement ce compte (trop de connexions) : patientez quelques minutes',
+        'MEGA indique que ce compte est bloqué : patientez avant de réessayer. Si le blocage persiste, contactez l’assistance MEGA.',
       );
     }
 
     // Mise à la file : une session à la fois, et espacées. Onze relectures
-    // d'affilée déclenchent le blocage anti-abus de MEGA : la pause laisse
-    // passer la fenêtre, sans retarder la toute première ouverture.
+    // d'affilée sollicitent fortement MEGA ; la pause évite une rafale,
+    // sans retarder la toute première ouverture.
     const ouverture = this.file
       .catch(() => undefined)
       .then(async () => {
+        // Une reconnexion a pu aboutir pendant l'attente dans la file.
+        const existante = this.vivantes.get(accountId);
+        if (existante) {
+          this.toucher(accountId);
+          return existante;
+        }
         const attente = this.derniereOuverture + PAUSE_ENTRE_SESSIONS_MS - Date.now();
         if (this.derniereOuverture > 0 && attente > 0) {
           await new Promise((resolve) => setTimeout(resolve, attente));
@@ -276,7 +305,10 @@ export class MegaSession {
   relacher(accountId: string): void {
     const reste = (this.retenues.get(accountId) ?? 0) - 1;
     if (reste > 0) this.retenues.set(accountId, reste);
-    else this.retenues.delete(accountId);
+    else {
+      this.retenues.delete(accountId);
+      this.liberer('');
+    }
   }
 
   /** Marque la session comme utilisée à l'instant, puis libère les plus froides. */
@@ -303,7 +335,7 @@ export class MegaSession {
       this.vivantes.delete(id);
       this.usages.delete(id);
       log(`MEGA : session libérée (${this.vivantes.size + 1} ouvertes, plafond ${MAX_SESSIONS_OUVERTES})`);
-      void storage?.close().catch(() => undefined);
+      if (storage) this.fermerLocalement(storage);
     }
   }
 
@@ -311,7 +343,7 @@ export class MegaSession {
     const compte = (await this.vault.read()).find((item) => item.id === accountId);
     if (!compte) throw new Error('compte MEGA inconnu : reconnectez-le');
 
-    const storage = Storage.fromJSON({
+    const storage = this.restaurerSession({
       key: compte.session.key,
       sid: compte.session.sid,
       name: compte.session.name,
@@ -335,16 +367,17 @@ export class MegaSession {
       (storage as unknown as { status: string }).status = 'ready';
       await storage.reload(true);
     } catch (cause) {
+      this.fermerLocalement(storage);
       if (sessionExpiree(cause)) {
         this.expirees.add(accountId);
         throw new Error('session MEGA expirée : reconnectez ce compte');
       }
       if (codeErreurMega(cause) === 16) {
-        // Blocage temporaire côté MEGA : on ne réessaie pas tout de suite.
+        // MEGA indique un blocage : on ne réessaie pas tout de suite.
         // Le code est lu dans le texte quand il n'est pas porté par l'erreur :
         // l'erreur réelle était `EBLOCKED (-16): User blocked`, sans `code`.
         this.bloques.set(accountId, Date.now() + GARDE_BLOCAGE_MS);
-        log(`MEGA : compte ${accountId} temporairement bloqué par MEGA (-16)`);
+        log(`MEGA : compte ${accountId} bloqué par MEGA (-16)`);
       }
       throw new Error(messageErreurMega(cause));
     }
@@ -357,8 +390,9 @@ export class MegaSession {
 
   /** Espace utilisé et total, mis en cache. */
   async mesurer(accountId: string, storageConnu?: Storage): Promise<{ usedBytes: number; quotaBytes: number }> {
-    const storage = storageConnu ?? (await this.storage(accountId));
+    this.retenir(accountId);
     try {
+      const storage = storageConnu ?? (await this.storage(accountId));
       const infos = await storage.getAccountInfo();
       const mesure = {
         usedBytes: Math.max(0, Number(infos.spaceUsed) || 0),
@@ -386,6 +420,8 @@ export class MegaSession {
         this.bloques.set(accountId, Date.now() + GARDE_BLOCAGE_MS);
       }
       throw new Error(messageErreurMega(cause));
+    } finally {
+      this.relacher(accountId);
     }
   }
 }

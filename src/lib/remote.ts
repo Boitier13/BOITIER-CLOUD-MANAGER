@@ -24,6 +24,7 @@ import {
 import { GOOGLE_ROOT, toNode } from './google';
 import { messageLisible } from './errors';
 import { marquerPhase } from './trace';
+import { SerialQueue } from './serialQueue';
 
 export interface FolderState {
   nodes: FileNode[];
@@ -70,8 +71,10 @@ const RECENTS_MEGA_ESPACEMENT_MS = 1_500;
 class RemoteCatalog {
   private states = new Map<string, FolderState>();
   /** Comptes MEGA en attente de lecture des « récents ». */
-  private readonly fileRecents: string[] = [];
-  private minuterieRecents: number | null = null;
+  private readonly fileRecents = new SerialQueue<string>(
+    (compte) => this.fetchRecent(compte, recentKey(compte)),
+    () => new Promise((resolve) => window.setTimeout(resolve, RECENTS_MEGA_ESPACEMENT_MS)),
+  );
   private listeners = new Set<() => void>();
   private snapshot = new Map<string, FolderState>();
   private counter = 0;
@@ -197,25 +200,12 @@ class RemoteCatalog {
     const existing = this.states.get(key);
     if (existing && existing.status !== 'error') return;
     if (providerOf(accountId) === 'mega') {
-      if (!this.fileRecents.includes(accountId)) this.fileRecents.push(accountId);
-      this.pomperRecents();
+      this.states.set(key, { nodes: [], status: 'loading' });
+      this.publish();
+      this.fileRecents.ajouter(accountId);
       return;
     }
     void this.fetchRecent(accountId, key);
-  }
-
-  /** Un compte MEGA à la fois, espacés : voir `loadRecent`. */
-  private pomperRecents(): void {
-    if (this.minuterieRecents || this.fileRecents.length === 0) return;
-    const compte = this.fileRecents.shift() as string;
-    this.minuterieRecents = window.setTimeout(() => {
-      this.minuterieRecents = null;
-      const key = recentKey(compte);
-      const existing = this.states.get(key);
-      // Un autre écran a pu le charger entre-temps.
-      if (!existing || existing.status === 'error') void this.fetchRecent(compte, key);
-      this.pomperRecents();
-    }, RECENTS_MEGA_ESPACEMENT_MS);
   }
 
   private async fetchRecent(accountId: string, key: string): Promise<void> {

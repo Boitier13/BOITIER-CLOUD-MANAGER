@@ -1729,7 +1729,7 @@ try {
     'MEGA : les récents sont lus un compte à la fois, espacés',
     /RECENTS_MEGA_ESPACEMENT_MS/.test(sourceRemote) &&
       /providerOf\(accountId\) === 'mega'/.test(sourceRemote) &&
-      /private pomperRecents\(\)/.test(sourceRemote),
+      /new SerialQueue<string>/.test(sourceRemote),
     'rafale de sessions encore possible',
   );
 
@@ -1737,7 +1737,7 @@ try {
   const message = messageErreurMega(Object.assign(new Error('EBLOCKED'), { code: -16 }));
   check(
     'MEGA : le blocage temporaire est expliqué, pas résumé à un code',
-    /bloque/i.test(message) && /patientez/i.test(message),
+    /bloqué/i.test(message) && /patientez/i.test(message),
     message,
   );
   // L'erreur réellement reçue ne portait aucun `code` : « EBLOCKED (-16) » était
@@ -1750,7 +1750,7 @@ try {
   );
   check(
     'MEGA : un blocage reçu en texte est expliqué en français',
-    /bloque temporairement/i.test(messageErreurMega(sansCode)) &&
+    /compte est bloqué/i.test(messageErreurMega(sansCode)) &&
       !/EBLOCKED|User blocked/.test(messageErreurMega(sansCode)),
     messageErreurMega(sansCode),
   );

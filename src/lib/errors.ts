@@ -18,13 +18,13 @@ const CODES_MEGA: { motif: RegExp; message: string }[] = [
   {
     motif: /EBLOCKED|\(-16\)/,
     message:
-      'MEGA bloque temporairement ce compte (trop de connexions depuis la même adresse) : patientez quelques minutes, puis réessayez.',
+      'MEGA indique que ce compte est bloqué : patientez avant de réessayer. Si le blocage persiste, contactez l’assistance MEGA.',
   },
-  { motif: /EEXPIRED|ESID|\(-15\)/, message: 'Session MEGA expirée : reconnectez ce compte.' },
+  { motif: /ESID|\(-15\)/, message: 'Session MEGA expirée : reconnectez ce compte.' },
   { motif: /EOVERQUOTA|\(-17\)/, message: 'Quota de transfert MEGA épuisé pour aujourd’hui.' },
-  { motif: /ETOOMANY|\(-19\)/, message: 'Trop de connexions simultanées vers MEGA : réessayez dans un instant.' },
+  { motif: /ETOOMANY|\(-6\)|\(-19\)/, message: 'Trop de connexions simultanées vers MEGA : réessayez dans un instant.' },
   { motif: /EMFAREQUIRED|\(-26\)/, message: 'MEGA demande un code de vérification en deux étapes.' },
-  { motif: /EAGAIN|ETEMPUNAVAIL|\(-3\)|\(-4\)/, message: 'MEGA est momentanément indisponible : réessayez dans un instant.' },
+  { motif: /EAGAIN|ERATELIMIT|ETEMPUNAVAIL|\(-3\)|\(-4\)|\(-18\)/, message: 'MEGA est momentanément indisponible : réessayez dans un instant.' },
   { motif: /ENOENT|\(-9\)/, message: 'Élément introuvable dans ce compte : il a peut-être été déplacé ou supprimé.' },
 ];
 
