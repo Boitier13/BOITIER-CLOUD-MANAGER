@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  ArrowDownToLine,
   Check,
   FolderCog,
   FolderOpen,
@@ -562,6 +563,18 @@ export function Settings() {
                   <RefreshCw size={12} />
                   Redémarrer et installer
                 </button>
+              ) : updater.state.status === 'available' ? (
+                // Un clic de plus, et c'est voulu : l'installeur fait près de
+                // 100 Mo, son téléchargement ne doit pas tomber au milieu d'un
+                // travail.
+                <button
+                  type="button"
+                  className="btn btn--sm btn--primary"
+                  onClick={() => void updater.download()}
+                >
+                  <ArrowDownToLine size={12} />
+                  Télécharger {updater.state.version}
+                </button>
               ) : (
                 <button
                   type="button"
@@ -587,9 +600,10 @@ export function Settings() {
           <div className="settings-row">
             <div className="settings-row__text">
               <div className="settings-row__desc">
-                Une nouvelle version se télécharge en arrière-plan et ne s’installe
-                jamais sans votre clic. L’installeur s’affiche, comme lors d’une
-                installation habituelle.
+                Une nouvelle version est seulement signalée : rien n’est téléchargé tant
+                que vous ne cliquez pas sur « Télécharger », et rien ne s’installe sans un
+                second clic. L’installeur s’affiche, comme lors d’une installation
+                habituelle.
               </div>
             </div>
           </div>

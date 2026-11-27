@@ -17,7 +17,7 @@ import { Clouds } from './pages/Clouds';
 import { Files } from './pages/Files';
 import { SearchPage } from './pages/Search';
 import { Profiler } from 'react';
-import { traceRendu } from './lib/trace';
+import { marquerPhase, traceRendu } from './lib/trace';
 import { isRealAccount } from './lib/google';
 import { Storage } from './pages/Storage';
 import { Recent } from './pages/Recent';
@@ -196,7 +196,10 @@ export default function App() {
           */}
           <Profiler
             id={currentRouteKey}
-            onRender={(id, phase, actualDuration) => traceRendu(id, phase, actualDuration)}
+            onRender={(id, phase, actualDuration) => {
+              marquerPhase(`rendu ${id}`);
+              traceRendu(id, phase, actualDuration);
+            }}
           >
             {renderPage()}
           </Profiler>

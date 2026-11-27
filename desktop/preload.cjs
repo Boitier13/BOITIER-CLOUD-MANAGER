@@ -24,6 +24,8 @@ contextBridge.exposeInMainWorld('boitier', {
   updater: {
     state: () => invoke('update:state'),
     check: () => invoke('update:check'),
+    // Le téléchargement est une intention distincte de l'installation.
+    download: () => invoke('update:download'),
     install: () => invoke('update:install'),
     onChange: (listener) => {
       const handler = (_event, state) => listener(state);

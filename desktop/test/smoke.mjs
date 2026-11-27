@@ -1012,11 +1012,26 @@ try {
       /handle\(channels\.updateInstall/.test(api),
   );
   check(
-    'mise à jour : le pont expose l’état, la vérification et l’installation',
+    'mise à jour : le pont expose l’état, la vérification, le téléchargement et l’installation',
     /updater: \{/.test(preload) &&
       /update:state/.test(preload) &&
+      /update:download/.test(preload) &&
       /update:install/.test(preload) &&
       /update:event/.test(preload),
+  );
+  // Le téléchargement d'un installeur de 100 Mo ne doit plus partir tout seul :
+  // c'est lui qui figeait l'application pendant qu'on la consultait.
+  check(
+    'mise à jour : rien ne se télécharge sans un clic',
+    /autoUpdater\.autoDownload = false/.test(updater) && !/autoDownload = true/.test(updater),
+    'téléchargement encore automatique',
+  );
+  check(
+    'mise à jour : le téléchargement a son propre canal',
+    /updateDownload: 'update:download'/.test(api) &&
+      /handle\(channels\.updateDownload/.test(api) &&
+      /async download\(\): Promise<UpdateState>/.test(updater),
+    'canal de téléchargement absent',
   );
   // Le point qui casserait tout en silence : une dépendance laissée externe
   // n'existerait pas dans l'archive (`node_modules` en est exclu).
@@ -1687,6 +1702,36 @@ try {
       /derniereOuverture \+ PAUSE_ENTRE_SESSIONS_MS/.test(sourceSession),
     'aucune pause entre deux comptes',
   );
+  // Onze arborescences MEGA retenues en mémoire faisaient partir la machine en
+  // échange disque : deux sessions suffisent, et un transfert en cours est protégé.
+  check(
+    'MEGA : le nombre de sessions ouvertes est plafonné',
+    /MAX_SESSIONS_OUVERTES = 2/.test(sourceSession) &&
+      /this\.vivantes\.size <= MAX_SESSIONS_OUVERTES/.test(sourceSession),
+    'aucun plafond de sessions',
+  );
+  check(
+    'MEGA : une session utilisée par un transfert n’est jamais fermée',
+    /retenir\(accountId: string\)/.test(sourceSession) &&
+      /!this\.retenues\.has\(id\)/.test(sourceSession),
+    'transfert non protégé',
+  );
+  const sourceService = await readFile(join(racine, 'desktop/mega/service.ts'), 'utf8');
+  check(
+    'MEGA : le téléchargement retient puis relâche sa session',
+    /this\.session\.retenir\(request\.accountId\)/.test(sourceService) &&
+      /this\.session\.relacher\(request\.accountId\)/.test(sourceService),
+    'aucun verrou de transfert',
+  );
+  // Les « récents » MEGA demandaient onze sessions d'un coup : un par un.
+  const sourceRemote = await readFile(join(racine, 'src/lib/remote.ts'), 'utf8');
+  check(
+    'MEGA : les récents sont lus un compte à la fois, espacés',
+    /RECENTS_MEGA_ESPACEMENT_MS/.test(sourceRemote) &&
+      /providerOf\(accountId\) === 'mega'/.test(sourceRemote) &&
+      /private pomperRecents\(\)/.test(sourceRemote),
+    'rafale de sessions encore possible',
+  );
 
   const { messageErreurMega, codeErreurMega } = await import('../mega/files.ts');
   const message = messageErreurMega(Object.assign(new Error('EBLOCKED'), { code: -16 }));
@@ -1708,6 +1753,22 @@ try {
     /bloque temporairement/i.test(messageErreurMega(sansCode)) &&
       !/EBLOCKED|User blocked/.test(messageErreurMega(sansCode)),
     messageErreurMega(sansCode),
+  );
+
+  // 5bis. Un figement doit dire ce qui tournait, pas seulement combien de temps.
+  const sourceTrace = await readFile(join(racine, 'src/lib/trace.ts'), 'utf8');
+  const sentinellePhase = await readFile(
+    join(racine, 'src/hooks/useFreezeWatchdog.ts'),
+    'utf8',
+  );
+  const storePhase = await readFile(join(racine, 'src/store.tsx'), 'utf8');
+  check(
+    'figements : la ligne de journal nomme la phase en cours',
+    /export function marquerPhase/.test(sourceTrace) &&
+      /export function lirePhase/.test(sourceTrace) &&
+      /lirePhase\(\)/.test(sentinellePhase) &&
+      /marquerPhase\('écriture de l’état local'\)/.test(storePhase),
+    'la phase n’est pas citée',
   );
 
   // 6. La sentinelle ne compte pas le temps passé en arrière-plan.

@@ -254,6 +254,9 @@ export class MegaService {
 
   private async run(job: Job): Promise<void> {
     const { request } = job;
+    // La session de ce compte ne doit pas être libérée pour faire de la place
+    // pendant que son fichier descend.
+    this.session.retenir(request.accountId);
     try {
       if (!job.partPath || !job.finalPath) {
         const dossier = relativeDir(request.dir || (await this.fallbackDir()), request.subPath);
@@ -352,6 +355,8 @@ export class MegaService {
         speed: 0,
         message,
       });
+    } finally {
+      this.session.relacher(request.accountId);
     }
   }
 

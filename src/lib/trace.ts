@@ -16,6 +16,26 @@ const MAX_LIGNES = 40;
 
 let ecrites = 0;
 
+/**
+ * Dernière phase connue de l'interface.
+ *
+ * Les figements mesurés ne disaient pas *ce qui* tournait. Cette marque est
+ * posée par les endroits capables de bloquer (rendu d'un écran, écriture de
+ * l'état local, lecture d'un dossier) : la ligne de journal d'un figement la
+ * cite, et le prochain diagnostic a un nom au lieu d'une durée.
+ */
+let phaseCourante = 'démarrage';
+
+/** Annonce la phase en cours ; le nom apparaît dans le journal des figements. */
+export function marquerPhase(nom: string): void {
+  phaseCourante = nom;
+}
+
+/** Phase la plus récente, pour le journal. */
+export function lirePhase(): string {
+  return phaseCourante;
+}
+
 function ecrire(message: string): void {
   if (ecrites >= MAX_LIGNES) return;
   const note = getBridge()?.note;

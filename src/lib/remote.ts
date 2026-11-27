@@ -16,12 +16,14 @@ import type { FileNode } from '../data/catalog';
 import { getBridge, type GoogleFile } from './bridge';
 import {
   listFolder,
+  providerOf,
   recentAccount,
   searchAccount,
   sharedAccount,
 } from './cloud';
 import { GOOGLE_ROOT, toNode } from './google';
 import { messageLisible } from './errors';
+import { marquerPhase } from './trace';
 
 export interface FolderState {
   nodes: FileNode[];
@@ -62,8 +64,14 @@ export function driveFolderId(path: string[]): string {
   return index > 0 ? last.slice(index + ID_SEPARATOR.length) : GOOGLE_ROOT;
 }
 
+/** Respiration entre deux lectures de « récents » MEGA (session + arborescence). */
+const RECENTS_MEGA_ESPACEMENT_MS = 1_500;
+
 class RemoteCatalog {
   private states = new Map<string, FolderState>();
+  /** Comptes MEGA en attente de lecture des « récents ». */
+  private readonly fileRecents: string[] = [];
+  private minuterieRecents: number | null = null;
   private listeners = new Set<() => void>();
   private snapshot = new Map<string, FolderState>();
   private counter = 0;
@@ -127,6 +135,7 @@ class RemoteCatalog {
     if (!client) return;
     this.states.set(key, { nodes: [], status: 'loading' });
     this.publish();
+    marquerPhase(`lecture d’un dossier (${accountId})`);
     try {
       const files = await listFolder(accountId, driveFolderId(path));
       this.states.set(key, { nodes: files.map(toNode), status: 'ready' });
@@ -173,12 +182,40 @@ class RemoteCatalog {
     this.loadRecent(accountId);
   }
 
-  /** Charge les derniers fichiers modifiés du compte (une fois). */
+  /**
+   * Charge les derniers fichiers modifiés du compte (une fois).
+   *
+   * Les comptes Google répondent à une requête ; les comptes MEGA, eux,
+   * exigent d'ouvrir une session et de lire **toute** l'arborescence. Onze
+   * comptes MEGA demandés d'un coup, c'était onze connexions en rafale : MEGA
+   * bloquait les derniers (`-16`), et la machine passait plusieurs minutes à
+   * charger des arborescences. Les comptes MEGA passent donc par une file, un
+   * par un, avec une respiration.
+   */
   loadRecent(accountId: string): void {
     const key = recentKey(accountId);
     const existing = this.states.get(key);
     if (existing && existing.status !== 'error') return;
+    if (providerOf(accountId) === 'mega') {
+      if (!this.fileRecents.includes(accountId)) this.fileRecents.push(accountId);
+      this.pomperRecents();
+      return;
+    }
     void this.fetchRecent(accountId, key);
+  }
+
+  /** Un compte MEGA à la fois, espacés : voir `loadRecent`. */
+  private pomperRecents(): void {
+    if (this.minuterieRecents || this.fileRecents.length === 0) return;
+    const compte = this.fileRecents.shift() as string;
+    this.minuterieRecents = window.setTimeout(() => {
+      this.minuterieRecents = null;
+      const key = recentKey(compte);
+      const existing = this.states.get(key);
+      // Un autre écran a pu le charger entre-temps.
+      if (!existing || existing.status === 'error') void this.fetchRecent(compte, key);
+      this.pomperRecents();
+    }, RECENTS_MEGA_ESPACEMENT_MS);
   }
 
   private async fetchRecent(accountId: string, key: string): Promise<void> {
@@ -186,6 +223,7 @@ class RemoteCatalog {
     if (!client) return;
     this.states.set(key, { nodes: [], status: 'loading' });
     this.publish();
+    marquerPhase(`lecture des récents (${accountId})`);
     try {
       const files = await recentAccount(accountId, { days: 90, limit: 200 });
       this.states.set(key, { nodes: files.map(toNode), status: 'ready' });
@@ -196,6 +234,7 @@ class RemoteCatalog {
         error: messageLisible(cause) || 'Les fichiers récents sont injoignables.',
       });
     }
+    marquerPhase('au repos');
     this.publish();
   }
 

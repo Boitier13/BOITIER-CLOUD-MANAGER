@@ -41,6 +41,17 @@ export class DeuxEtapesRequises extends Error {
 const GARDE_BLOCAGE_MS = 10 * 60_000;
 
 /**
+ * Nombre de sessions gardées ouvertes en mémoire.
+ *
+ * Rouvrir une session MEGA, c'est télécharger **toute** l'arborescence du
+ * compte et la garder en mémoire. Avec onze comptes, l'application retenait
+ * onze arborescences : la mémoire partait en échange disque, et tout —
+ * l'interface comprise — se figeait par à-coups. Deux sessions suffisent :
+ * le compte consulté, et le précédent pour les allers-retours.
+ */
+const MAX_SESSIONS_OUVERTES = 2;
+
+/**
  * Pause entre deux restaurations de session.
  *
  * Onze comptes relus à la suite, sans respirer, suffisent à déclencher le
@@ -76,6 +87,10 @@ export class MegaSession {
   private file: Promise<unknown> = Promise.resolve();
   /** Horodatage de la dernière ouverture : sert à espacer les restaurations. */
   private derniereOuverture = 0;
+  /** Dernière utilisation de chaque session ouverte (pour libérer la plus froide). */
+  private readonly usages = new Map<string, number>();
+  /** Sessions retenues par un transfert en cours : jamais fermées sous lui. */
+  private readonly retenues = new Map<string, number>();
 
   constructor(vault: MegaVault) {
     this.vault = vault;
@@ -214,7 +229,10 @@ export class MegaSession {
    */
   async storage(accountId: string): Promise<Storage> {
     const vivante = this.vivantes.get(accountId);
-    if (vivante) return vivante;
+    if (vivante) {
+      this.toucher(accountId);
+      return vivante;
+    }
     const enCours = this.ouvertures.get(accountId);
     if (enCours) return enCours;
 
@@ -244,6 +262,49 @@ export class MegaSession {
     this.ouvertures.set(accountId, ouverture);
     this.file = ouverture.catch(() => undefined);
     return ouverture;
+  }
+
+  /**
+   * Retient une session pendant un transfert : elle ne sera pas fermée pour
+   * faire de la place, même si un autre compte est consulté entre-temps.
+   */
+  retenir(accountId: string): void {
+    this.retenues.set(accountId, (this.retenues.get(accountId) ?? 0) + 1);
+  }
+
+  /** Fin du transfert : la session redevient libérable. */
+  relacher(accountId: string): void {
+    const reste = (this.retenues.get(accountId) ?? 0) - 1;
+    if (reste > 0) this.retenues.set(accountId, reste);
+    else this.retenues.delete(accountId);
+  }
+
+  /** Marque la session comme utilisée à l'instant, puis libère les plus froides. */
+  private toucher(accountId: string): void {
+    this.usages.set(accountId, Date.now());
+    this.liberer(accountId);
+  }
+
+  /**
+   * Ferme les sessions les plus anciennes au-delà du plafond.
+   *
+   * La fermeture est silencieuse : ce qui compte est la mémoire rendue. Une
+   * session fermée se rouvre toute seule au prochain accès — c'est le prix
+   * d'un compte MEGA, pas une perte.
+   */
+  private liberer(sauf: string): void {
+    if (this.vivantes.size <= MAX_SESSIONS_OUVERTES) return;
+    const candidats = [...this.vivantes.keys()]
+      .filter((id) => id !== sauf && !this.retenues.has(id))
+      .sort((a, b) => (this.usages.get(a) ?? 0) - (this.usages.get(b) ?? 0));
+    while (this.vivantes.size > MAX_SESSIONS_OUVERTES && candidats.length) {
+      const id = candidats.shift() as string;
+      const storage = this.vivantes.get(id);
+      this.vivantes.delete(id);
+      this.usages.delete(id);
+      log(`MEGA : session libérée (${this.vivantes.size + 1} ouvertes, plafond ${MAX_SESSIONS_OUVERTES})`);
+      void storage?.close().catch(() => undefined);
+    }
   }
 
   private async restaurer(accountId: string): Promise<Storage> {
@@ -290,6 +351,7 @@ export class MegaSession {
 
     this.vivantes.set(accountId, storage);
     log(`MEGA : session restaurée pour ${compte.email}`);
+    this.toucher(accountId);
     return storage;
   }
 

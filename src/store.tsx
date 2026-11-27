@@ -19,6 +19,7 @@ import {
 import { advanceDownloads, type DownloadItem } from './lib/downloads';
 import { interruptStaleDownloads, isLegacyDownloadFolder } from './lib/transfers';
 import { flattenTree, type TreeEntry } from './lib/tree';
+import { marquerPhase } from './lib/trace';
 import { remoteCatalog, remoteTree } from './lib/remote';
 import { getBridge } from './lib/bridge';
 import {
@@ -831,6 +832,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // Sauvegarde locale différée (aucun serveur).
   useEffect(() => {
     const timer = window.setTimeout(() => {
+      // Une sérialisation d'état est synchrone : elle mérite d'être nommée si
+      // un figement tombe pendant qu'elle s'écrit.
+      marquerPhase('écriture de l’état local');
       const payload = {
         version: 1,
         accounts: state.accounts,
@@ -844,6 +848,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       } catch {
         /* stockage indisponible : l'app continue de fonctionner en mémoire */
       }
+      marquerPhase('au repos');
     }, 600);
     return () => window.clearTimeout(timer);
   }, [

@@ -18,6 +18,7 @@
  */
 
 import { useEffect, useRef } from 'react';
+import { lirePhase } from '../lib/trace';
 
 /** Cadence du minuteur : assez fine pour voir un gel d'une seconde. */
 const PERIODE_MS = 500;
@@ -41,7 +42,10 @@ export function useFreezeWatchdog(ecran: string): void {
     // Dans un navigateur, aucun journal : inutile de faire tourner quoi que ce soit.
     if (!signaler) return;
 
-    const contexte = (origine: string) => `${origine} · écran ${ecranRef.current}`;
+    // La phase en cours est citée : « tâche longue · écran files · rendu files »
+    // dit où chercher, là où « tâche longue · écran files » laissait deviner.
+    const contexte = (origine: string) =>
+      `${origine} · écran ${ecranRef.current} · ${lirePhase()}`;
     /**
      * Une fenêtre masquée ou réduite n'est pas une fenêtre figée : Chromium
      * étrangle ses minuteurs à une fois par minute. Le journal se remplissait de
