@@ -1,0 +1,7 @@
+{
+  "name": "BOITIER CLOUD MANAGER",
+  "description": "BOITIER CLOUD MANAGER — gestionnaire local multi-cloud (Google Drive et MEGA).",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

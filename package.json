@@ -9,6 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
     "dev:preview": "VITE_HMR_CLIENT_PORT=443 vite",
     "desktop:typecheck": "tsc -p desktop/tsconfig.json",
     "desktop:build": "node desktop/build.mjs",
