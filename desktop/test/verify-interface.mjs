@@ -2327,6 +2327,224 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   );
 }
 
+/* --- 18. Ligne MEGA de l'écran Clouds : les bons boutons ------------------ */
+//
+// La ligne de compte était écrite pour Google et servait aux deux fournisseurs :
+// sur un compte MEGA, « Reconnecter » ouvrait le dialogue **Google**, le
+// rafraîchissement du quota interrogeait Google avec un identifiant MEGA, et le
+// badge annonçait « Lecture seule » alors que MEGA autorise aussi l'envoi.
+{
+  const googleCompte = {
+    id: 'gdrive-real-c1',
+    googleId: 'c1',
+    email: 'boitierecup@gmail.com',
+    source: 'google',
+    provider: 'gdrive',
+    name: 'Boitier First Recup',
+    usedBytes: 4 * 1024 ** 3,
+    quotaBytes: 15 * 1024 ** 3,
+    status: 'connected',
+    createdAt: '2026-11-01T10:00:00.000Z',
+    seed: 7,
+    localTree: false,
+  };
+  const megaCompte = {
+    id: 'mega-real-c2',
+    megaId: 'c2',
+    email: 'firstboitier2@gmail.com',
+    source: 'mega',
+    provider: 'mega',
+    name: 'firstboitier2',
+    usedBytes: 12 * 1024 ** 3,
+    quotaBytes: 20 * 1024 ** 3,
+    status: 'connected',
+    createdAt: '2026-11-01T10:00:00.000Z',
+    seed: 11,
+    localTree: false,
+  };
+
+  const appels = { megaUsage: 0, googleRefresh: 0, megaConnect: 0 };
+  const nuage = await parcours({
+    label: 'ligne MEGA',
+    storage: {
+      key: 'boitier-cloud-manager:v1',
+      value: {
+        version: 1,
+        accounts: [googleCompte, megaCompte],
+        favorites: [],
+        downloads: [],
+        settings: {},
+        explorer: { accountId: megaCompte.id, path: [] },
+      },
+    },
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      google: {
+        status: async () => ({ configured: true, source: 'env' }),
+        accounts: async () => [],
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+        storage: async () => ({ usedBytes: 0, categories: [] }),
+        refresh: async () => {
+          appels.googleRefresh += 1;
+          return null;
+        },
+      },
+      mega: {
+        accounts: async () => [
+          {
+            accountId: 'c2',
+            name: 'firstboitier2',
+            email: 'firstboitier2@gmail.com',
+            usedBytes: 13 * 1024 ** 3,
+            quotaBytes: 20 * 1024 ** 3,
+            status: 'connected',
+          },
+        ],
+        onUpload: () => () => {},
+        list: async () => [],
+        usage: async () => {
+          appels.megaUsage += 1;
+          return { usedBytes: 13 * 1024 ** 3, quotaBytes: 20 * 1024 ** 3 };
+        },
+        connect: async () => {
+          appels.megaConnect += 1;
+          return {
+            accountId: 'c2',
+            name: 'firstboitier2',
+            email: 'firstboitier2@gmail.com',
+            usedBytes: 13 * 1024 ** 3,
+            quotaBytes: 20 * 1024 ** 3,
+            status: 'connected',
+          };
+        },
+      },
+    },
+  });
+
+  const versMega = [...nuage.doc.querySelectorAll('.nav-item, .cloud-item')].find((button) =>
+    /MEGA/.test(button.textContent ?? ''),
+  );
+  if (versMega) await nuage.click(versMega);
+  await new Promise((r) => setTimeout(r, 300));
+
+  const ligne = nuage.doc.querySelector('.account-row');
+  const ligneTexte = (ligne?.textContent ?? '').replace(/\s+/g, ' ');
+  check('ligne MEGA : le compte est affiché', /firstboitier2/.test(ligneTexte), ligneTexte.slice(0, 80));
+  check(
+    'ligne MEGA : le badge décrit ce que MEGA permet vraiment',
+    /Lecture et envoi/.test(ligneTexte) && !/Lecture seule/.test(ligneTexte),
+    ligneTexte.slice(0, 120),
+  );
+
+  // Rafraîchir le quota : la mesure MEGA, pas celle de Google.
+  const rafraichir = ligne?.querySelector('[title^="Rafraîchir le quota"]');
+  check(
+    'ligne MEGA : le rafraîchissement du quota nomme MEGA',
+    /depuis MEGA/.test(rafraichir?.getAttribute('title') ?? ''),
+    rafraichir?.getAttribute('title') ?? 'bouton absent',
+  );
+  if (rafraichir) {
+    await nuage.click(rafraichir);
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  check(
+    'ligne MEGA : le quota est relu chez MEGA, jamais chez Google',
+    appels.megaUsage === 1 && appels.googleRefresh === 0,
+    `mega.usage ${appels.megaUsage} · google.refresh ${appels.googleRefresh}`,
+  );
+
+  // Reconnecter : le dialogue MEGA, adresse préremplie, aucune mention Google.
+  const reconnecter = ligne?.querySelector('[aria-label^="Reconnecter"]');
+  check(
+    'ligne MEGA : « Reconnecter » parle de la session MEGA',
+    /rouvrir la session MEGA/.test(reconnecter?.getAttribute('title') ?? ''),
+    reconnecter?.getAttribute('title') ?? 'bouton absent',
+  );
+  if (reconnecter) {
+    await nuage.click(reconnecter);
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  const dialogue = nuage.doc.querySelector('.modal');
+  const titreDialogue = dialogue?.querySelector('.modal__title')?.textContent?.trim() ?? '';
+  const corpsDialogue = (dialogue?.textContent ?? '').replace(/\s+/g, ' ');
+  check(
+    'ligne MEGA : la reconnexion ouvre le dialogue MEGA',
+    /Reconnecter firstboitier2/.test(titreDialogue) && /MEGA/.test(corpsDialogue),
+    titreDialogue || 'aucun dialogue',
+  );
+  check(
+    'ligne MEGA : la reconnexion ne parle pas de Google',
+    !/Google|autorisation/i.test(corpsDialogue),
+    corpsDialogue.slice(0, 100),
+  );
+  check(
+    'ligne MEGA : l’adresse est préremplie',
+    dialogue?.querySelector('#mega-email')?.value === 'firstboitier2@gmail.com',
+    dialogue?.querySelector('#mega-email')?.value ?? 'champ absent',
+  );
+  check(
+    'ligne MEGA : la fiche du compte est conservée (aucun doublon annoncé)',
+    /conservés/.test(corpsDialogue),
+    'promesse absente',
+  );
+
+  // La reconnexion aboutit : la session est rouverte et le compte reste unique.
+  const setValue = (input, value) => {
+    const setter = Object.getOwnPropertyDescriptor(
+      nuage.window.HTMLInputElement.prototype,
+      'value',
+    )?.set;
+    setter?.call(input, value);
+    input.dispatchEvent(new nuage.window.Event('input', { bubbles: true }));
+  };
+  const motDePasse = dialogue?.querySelector('#mega-password');
+  if (motDePasse) setValue(motDePasse, 'mot-de-passe-de-test');
+  await new Promise((r) => setTimeout(r, 120));
+  const valider = [...nuage.doc.querySelectorAll('.modal__foot .btn')].find((button) =>
+    /Se reconnecter/.test(button.textContent ?? ''),
+  );
+  check('ligne MEGA : le bouton « Se reconnecter » est proposé', Boolean(valider));
+  if (valider) {
+    await nuage.click(valider);
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  check(
+    'ligne MEGA : la reconnexion rouvre vraiment la session',
+    appels.megaConnect === 1,
+    `${appels.megaConnect} appel(s) de connexion`,
+  );
+  check(
+    'ligne MEGA : aucun compte en double après reconnexion',
+    nuage.doc.querySelectorAll('.account-row').length === 1,
+    `${nuage.doc.querySelectorAll('.account-row').length} ligne(s)`,
+  );
+
+  // Côté Google, rien ne change : lecture seule et autorisation Google.
+  const versGoogle = [...nuage.doc.querySelectorAll('.cloud-item, .nav-item')].find((button) =>
+    /Google Drive/.test(button.textContent ?? ''),
+  );
+  if (versGoogle) await nuage.click(versGoogle);
+  await new Promise((r) => setTimeout(r, 300));
+  const ligneGoogle = nuage.doc.querySelector('.account-row');
+  const texteGoogle = (ligneGoogle?.textContent ?? '').replace(/\s+/g, ' ');
+  check(
+    'ligne Google : le badge reste « Lecture seule »',
+    /Lecture seule/.test(texteGoogle),
+    texteGoogle.slice(0, 100),
+  );
+  check(
+    'ligne Google : « Reconnecter » renouvelle l’autorisation Google',
+    /autorisation Google/.test(
+      ligneGoogle?.querySelector('[aria-label^="Reconnecter"]')?.getAttribute('title') ?? '',
+    ),
+  );
+}
+
 console.log(
   failures === 0
     ? '\nInterface vérifiée : état vide maîtrisé, compte réel affiché, aucun décor.'

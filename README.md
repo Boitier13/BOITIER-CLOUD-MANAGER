@@ -315,8 +315,16 @@ Ce qui se passe maintenant :
 - le bouton **Réessayer** relance la lecture du dossier, sans retirer le compte.
 
 Si le blocage persiste plusieurs heures : attendez, puis reconnectez le compte
-depuis **Clouds** (l'adresse et le mot de passe suffisent ; aucune donnée n'est
-perdue, seul le jeton de session est renouvelé).
+**dans l'application** (jamais besoin de passer par le site de MEGA). Dans
+**Clouds → MEGA**, l'icône câble **« Reconnecter »** de la ligne du compte ouvre
+le dialogue MEGA, **adresse préremplie** ; l'adresse et le mot de passe
+suffisent. La fiche est mise à jour, jamais dupliquée : même nom, même place dans
+la liste, mêmes favoris, même dossier de téléchargement. Le mot de passe n'est
+pas conservé, seule la session est renouvelée.
+
+Reconnectez **un compte à la fois**, avec une minute d'écart : c'est la rafale de
+connexions qui déclenche le blocage chez MEGA. Et attendez que le blocage soit
+retombé — tant qu'il est actif côté MEGA, aucune reconnexion ne passe.
 
 ### Téléverser : ce que l'application ne fait pas
 
