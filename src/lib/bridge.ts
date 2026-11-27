@@ -84,7 +84,7 @@ export type MegaUploadEvent = {
   id: string;
   accountId: string;
   name: string;
-  status: 'running' | 'paused' | 'done' | 'error';
+  status: 'running' | 'paused' | 'done' | 'error' | 'queued';
   received: number;
   size: number;
   message?: string;

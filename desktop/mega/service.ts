@@ -57,6 +57,7 @@ interface Job {
   received: number;
   size: number;
   paused: boolean;
+  cancelled?: boolean;
   /** Abandonne le flux en cours (pause, annulation). */
   stopper?: () => void;
   partPath?: string;
@@ -239,6 +240,7 @@ export class MegaService {
       size: request.size,
       paused: false,
     });
+    this.emitDownload({ id: request.id, status: 'running', received: 0, size: request.size, speed: 0 });
     await this.run(this.jobs.get(request.id)!);
   }
 
@@ -247,14 +249,14 @@ export class MegaService {
     if (!job || job.status !== 'running') return;
     job.paused = true;
     job.stopper?.();
-    job.status = 'paused';
-    this.emitDownload({ id, status: 'paused', received: job.received, size: job.size, speed: 0 });
+    // L'état « pause » est émis après fermeture du flux, dans run().
   }
 
   async resume(id: string): Promise<boolean> {
     const job = this.jobs.get(id);
     if (!job || (job.status !== 'paused' && job.status !== 'error')) return false;
     job.paused = false;
+    job.cancelled = false;
     job.status = 'running';
     this.emitDownload({
       id,
@@ -270,10 +272,12 @@ export class MegaService {
   async cancel(id: string): Promise<void> {
     const job = this.jobs.get(id);
     if (!job) return;
-    job.stopper?.();
+    if (job.status === 'running') {
+      job.cancelled = true; job.paused = false; job.stopper?.();
+      return; // run() ferme le flux, efface le partiel et signale la fin.
+    }
     this.jobs.delete(id);
     if (job.partPath) await rm(job.partPath, { force: true }).catch(() => undefined);
-    this.emitDownload({ id, status: 'error', received: job.received, size: job.size, speed: 0, message: 'annulé' });
   }
 
   private async run(job: Job): Promise<void> {
@@ -293,6 +297,7 @@ export class MegaService {
       const finalPath = job.finalPath;
 
       const storage = await this.session.storage(request.accountId);
+      if (job.paused || job.cancelled) throw new Error('Transfert interrompu');
       const nœud = storage.files[request.fileId];
       if (!nœud || nœud.directory) throw new Error('fichier MEGA introuvable');
       if (!job.size) job.size = Number(nœud.size) || 0;
@@ -302,6 +307,7 @@ export class MegaService {
       const deja = await stat(partPath).then((info) => info.size).catch(() => 0);
       if (deja > 0) log(`MEGA ${request.id} : reprise à ${deja} o`);
 
+      if (job.paused || job.cancelled) throw new Error('Transfert interrompu');
       const flux = nœud.download({ start: deja });
       let dernier = 0;
       let dernierEmission = 0;
@@ -349,6 +355,7 @@ export class MegaService {
       if (minuteur) clearTimeout(minuteur);
       job.stopper = undefined;
 
+      if (job.paused || job.cancelled) throw new Error('Transfert interrompu');
       await rename(partPath, finalPath);
       job.partPath = undefined;
       job.status = 'done';
@@ -364,7 +371,17 @@ export class MegaService {
       });
     } catch (cause) {
       job.stopper = undefined;
-      if (job.paused) return; // la pause a déjà émis son état
+      if (job.cancelled) {
+        if (job.partPath) await rm(job.partPath, { force: true }).catch(() => undefined);
+        this.jobs.delete(request.id);
+        this.emitDownload({ id: request.id, status: 'error', received: job.received, size: job.size, speed: 0, message: 'annulé' });
+        return;
+      }
+      if (job.paused) {
+        job.status = 'paused';
+        this.emitDownload({ id: request.id, status: 'paused', received: job.received, size: job.size, speed: 0 });
+        return;
+      }
       if (sessionExpiree(cause)) await this.session.storage(request.accountId).catch(() => undefined);
       const message = messageErreurMega(cause);
       job.status = 'error';

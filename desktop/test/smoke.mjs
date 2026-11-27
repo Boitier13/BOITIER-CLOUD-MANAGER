@@ -910,7 +910,7 @@ try {
   check(
     'recherche : chaque résultat peut être ouvert à son emplacement ou téléchargé',
     page.includes('bridge.google.locate!(') && page.includes('bridge.shadow!.locate(') && page.includes('google') &&
-      page.includes('.download({'),
+      page.includes('downloadAccount({'),
     'aucune action sur le résultat',
   );
 }
@@ -1256,7 +1256,7 @@ try {
   check(
     'figement : le minuteur de file ne tourne que s’il y a du travail',
     /if \(!fileAnimee\) return;/.test(store) &&
-      /item\.status === 'queued' \|\| \(item\.status === 'active' && !item\.remoteId\)/.test(
+      /!item\.remoteId && \(item\.status === 'queued' \|\| item\.status === 'active'\)/.test(
         store,
       ),
     'minuteur permanent',

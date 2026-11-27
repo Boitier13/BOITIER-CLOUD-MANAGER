@@ -1,3 +1,4 @@
+import { TransferQueue } from './transferQueue';
 /**
  * Aiguillage entre fournisseurs côté interface.
  *
@@ -151,7 +152,7 @@ export async function planFolder(
 }
 
 /** Lance un téléchargement réel (le processus principal écrit sur le disque). */
-export async function downloadAccount(
+async function startTransfer(
   request: GoogleDownloadRequest & { provider?: ProviderId },
 ): Promise<void> {
   const bridge = getBridge();
@@ -171,7 +172,7 @@ export async function downloadAccount(
   return bridge.google.download(request);
 }
 
-export async function pauseTransfer(provider: ProviderId, id: string): Promise<void> {
+async function pauseRaw(provider: ProviderId, id: string): Promise<void> {
   const bridge = getBridge();
   if (!bridge) return;
   if (provider === 'terabox') return bridge.terabox?.pause(id);
@@ -180,7 +181,7 @@ export async function pauseTransfer(provider: ProviderId, id: string): Promise<v
   return bridge.google.pause(id);
 }
 
-export async function resumeTransfer(
+async function resumeRaw(
   provider: ProviderId,
   id: string,
   remoteAccount?: string,
@@ -193,7 +194,7 @@ export async function resumeTransfer(
   return bridge.google.resume(id, remoteAccount ?? '');
 }
 
-export async function cancelTransfer(provider: ProviderId, id: string): Promise<void> {
+async function cancelRaw(provider: ProviderId, id: string): Promise<void> {
   const bridge = getBridge();
   if (!bridge) return;
   if (provider === 'terabox') return bridge.terabox?.cancel(id);
@@ -201,6 +202,15 @@ export async function cancelTransfer(provider: ProviderId, id: string): Promise<
   if (provider === 'mega') return bridge.mega?.cancel(id);
   return bridge.google.cancel(id);
 }
+
+const queue = new TransferQueue({ start: startTransfer, pause: pauseRaw, resume: resumeRaw, cancel: cancelRaw });
+export const downloadAccount = async (request: GoogleDownloadRequest & { provider?: ProviderId }) => queue.add({ ...request, provider: request.provider ?? providerOf(request.accountId) });
+export const pauseTransfer = async (_provider: ProviderId, id: string) => queue.pause(id);
+export const resumeTransfer = async (_provider: ProviderId, id: string, _account?: string) => queue.resume(id);
+export const cancelTransfer = async (_provider: ProviderId, id: string) => queue.cancel(id);
+export const setTransferLimit = (limit: number) => queue.setLimit(limit);
+export const onTransferEvent = (listener: Parameters<TransferQueue['subscribe']>[0]) => queue.subscribe(listener);
+export const observeTransferEvent = (event: Parameters<TransferQueue['observe']>[0]) => queue.observe(event);
 
 /** Comptes MEGA connus du processus principal (aucune requête réseau). */
 export async function megaAccounts(): Promise<MegaAccountInfo[]> {

@@ -1,3 +1,4 @@
+import { downloadAccount } from '../lib/cloud';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Download,
@@ -155,8 +156,8 @@ export function SearchPage() {
       ...(subPath ? { subPath } : {}),
     });
     dispatch({ type: 'downloads/add', items: [item] });
-    void bridge.google
-      .download({
+    void downloadAccount({
+        provider: account.provider,
         id: item.id,
         accountId: googleId,
         fileId: node.id,

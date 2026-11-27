@@ -2784,6 +2784,31 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   screen.window.close();
 }
 
+/* --- File réelle : le quatrième fichier attend qu'une place se libère --- */
+{
+  const requests = [];
+  let sendEvent;
+  const account = { id: 'terabox-real-terabox-123', teraboxId: 'terabox-123', source: 'terabox', provider: 'terabox', name: 'Test', email: 'test', status: 'connected', usedBytes: 12, quotaBytes: 100, createdAt: '2026-01-01T00:00:00Z', seed: 1, localTree: false };
+  const screen = await parcours({ label: 'file TeraBox', storage: { key: 'boitier-cloud-manager:v1', value: { version: 1, accounts: [account], favorites: [], downloads: [], settings: { concurrent: 3 }, explorer: { accountId: account.id, path: [] } } }, bridge: {
+    platform: 'win32', ready: async () => true,
+    google: { status: async () => ({ configured: true }), accounts: async () => [], folder: async () => 'C:\\Downloads', onDownload: (listener) => { sendEvent = listener; return () => {}; }, list: async () => [], recent: async () => [], search: async () => [], shared: async () => [] },
+    terabox: { accounts: async () => [], list: async () => [{ id: 'folder', name: 'Essai', kind: 'folder', size: 0, modified: new Date().toISOString() }],
+      plan: async () => ({ files: [0,1,2,3].map((i) => ({ fileId: `f${i}`, path: `f${i}.txt`, size: 12, mimeType: 'text/plain' })), folders: [], skipped: [], truncated: false, totalBytes: 48 }),
+      prepareFolders: async () => {}, download: async (r) => { requests.push(r); }, pause: async () => {}, resume: async () => true, cancel: async () => {}, recent: async () => [], search: async () => [] },
+  }});
+  const files = [...screen.doc.querySelectorAll('.nav-item')].find((e) => e.textContent.includes('Tous les fichiers'));
+  if (files) await screen.click(files);
+  const folder = screen.doc.querySelector('[aria-label^="Télécharger le dossier"]');
+  if (folder) await screen.click(folder);
+  const confirm = [...screen.doc.querySelectorAll('.modal__foot .btn')].find((b) => b.textContent.trim() === 'Télécharger');
+  if (confirm) await screen.click(confirm);
+  check('file TeraBox : trois transferts lancés, un en attente', requests.length === 3, `${requests.length} lancé(s)`);
+  if (requests[0] && sendEvent) sendEvent({ id: requests[0].id, status: 'done', received: 12, size: 12, speed: 0 });
+  await new Promise((r) => setTimeout(r, 250));
+  check('file TeraBox : le quatrième démarre après une fin', requests.length === 4, `${requests.length} lancé(s)`);
+  screen.window.close();
+}
+
 console.log(
   failures === 0
     ? '\nInterface vérifiée : état vide maîtrisé, compte réel affiché, aucun décor.'

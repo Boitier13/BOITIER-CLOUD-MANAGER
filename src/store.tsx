@@ -24,6 +24,9 @@ import { remoteCatalog, remoteTree } from './lib/remote';
 import { getBridge } from './lib/bridge';
 import {
   cancelTransfer,
+  setTransferLimit,
+  onTransferEvent,
+  observeTransferEvent,
   pauseTransfer,
   registerAccountProviders,
   resumeTransfer,
@@ -134,7 +137,7 @@ export type Action =
       type: 'downloads/progress';
       updates: {
         id: string;
-        status: 'running' | 'paused' | 'done' | 'error';
+        status: 'running' | 'paused' | 'done' | 'error' | 'queued';
         received: number;
         size: number;
         speed: number;
@@ -482,7 +485,9 @@ function reducer(state: AppState, action: Action): AppState {
           if (!update) return item;
           touche = true;
           const status: DownloadItem['status'] =
-            update.status === 'running'
+            update.status === 'queued'
+              ? 'queued'
+              : update.status === 'running'
               ? 'active'
               : update.status === 'paused'
                 ? 'paused'
@@ -533,7 +538,7 @@ function reducer(state: AppState, action: Action): AppState {
             void resumeTransfer(item.provider ?? 'gdrive', item.id, item.remoteAccount).catch(
               () => undefined,
             );
-            return { ...item, status: 'active' as const };
+            return { ...item, status: 'queued' as const };
           }
           return { ...item, status: 'queued' as const };
         }),
@@ -695,7 +700,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // toutes les 900 ms même sans le moindre transfert en cours — et un seul
   // transfert terminé suffisait à le maintenir indéfiniment.
   const fileAnimee = state.downloads.some(
-    (item) => item.status === 'queued' || (item.status === 'active' && !item.remoteId),
+    (item) => !item.remoteId && (item.status === 'queued' || item.status === 'active'),
   );
   useEffect(() => {
     if (!fileAnimee) return;
@@ -784,7 +789,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const bridge = getBridge();
     if (!bridge) return;
-    const stop = bridge.google.onDownload((event) => {
+    const stopQueue = onTransferEvent((event) => {
       dispatch({
         type: 'downloads/progress',
         updates: [
@@ -800,8 +805,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ],
       });
     });
-    return stop;
+    const stop = bridge.google.onDownload(observeTransferEvent);
+    return () => { stop(); stopQueue(); };
   }, []);
+
+  useEffect(() => { setTransferLimit(state.settings.concurrent); }, [state.settings.concurrent]);
 
   // Thème appliqué à la racine du document.
   useEffect(() => {
