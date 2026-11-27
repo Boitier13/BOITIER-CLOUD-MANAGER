@@ -888,7 +888,7 @@ export function Files() {
                     <button
                       type="button"
                       className="btn btn--sm"
-                      title="Ouvrir ce dossier dans Google Drive, pour y déposer des fichiers"
+                      title={`Ouvrir ce dossier dans ${provider.name}, pour y déposer des fichiers`}
                       onClick={() => {
                         void getBridge()?.google.openExternal?.(
                           driveFolderUrl(driveFolderId(path)),
@@ -1042,20 +1042,20 @@ export function Files() {
             {remote && searchMode && remoteSearchState?.status === 'loading' ? (
               <div className="filetable-loading">
                 <RefreshCw size={13} className="spin" />
-                Recherche dans Google Drive…
+                Recherche dans {provider.name}…
               </div>
             ) : remote && activeState?.status === 'loading' && rows.length === 0 ? (
               <div className="filetable-loading">
                 <RefreshCw size={13} className="spin" />
                 {sharedView
                   ? 'Recherche des fichiers partagés…'
-                  : 'Chargement du dossier depuis Google Drive…'}
+                  : `Chargement du dossier depuis ${provider.name}…`}
               </div>
             ) : remote && activeState?.status === 'error' && rows.length === 0 ? (
               <div className="filetable-error">
                 <CloudOff size={20} />
                 <p className="filetable-error__title">
-                  {sharedView ? 'Fichiers partagés injoignables' : 'Google Drive est injoignable'}
+                  {sharedView ? 'Fichiers partagés injoignables' : `${provider.name} est injoignable`}
                 </p>
                 <p className="filetable-error__text">{activeState.error}</p>
                 <button
@@ -1102,7 +1102,7 @@ export function Files() {
                       : query
                         ? 'Saisissez au moins deux caractères pour chercher dans tout le compte.'
                         : remote
-                          ? 'Ce dossier Google Drive est vide.'
+                          ? `Ce dossier ${provider.name} est vide.`
                           : 'Ce dossier ne contient aucun élément.'}
                 </p>
                 {query ? (
@@ -1357,31 +1357,32 @@ export function Files() {
                                 >
                                   <FolderOpen size={13} />
                                 </button>
-                                {isRealAccount(
-                                  state.accounts.find((a) => a.id === rowAccountId) ?? account,
-                                ) ? (
-                                  <button
-                                    type="button"
-                                    className="icon-btn"
-                                    title="Télécharger le dossier entier"
-                                    aria-label={`Télécharger le dossier ${node.name}`}
-                                    onClick={() => {
-                                      const targetAccount =
-                                        state.accounts.find((a) => a.id === rowAccountId) ??
-                                        account;
-                                      const googleId = realAccountId(targetAccount);
-                                      if (!googleId) return;
-                                      setFolderTarget({
-                                        name: node.name,
-                                        fileId: node.id,
-                                        account: targetAccount,
-                                        basePath: rowPath.slice(0, -1),
-                                      });
-                                    }}
-                                  >
-                                    <FolderDown size={13} />
-                                  </button>
-                                ) : null}
+                                <button
+                                  type="button"
+                                  className="icon-btn"
+                                  title={`Télécharger « ${node.name} » avec toute son arborescence`}
+                                  aria-label={`Télécharger le dossier ${node.name}`}
+                                  onClick={() => {
+                                    const targetAccount =
+                                      state.accounts.find((a) => a.id === rowAccountId) ??
+                                      account;
+                                    if (!realAccountId(targetAccount)) {
+                                      toast.push(
+                                        'Ce dossier ne vient pas d’un cloud : rien à télécharger',
+                                        'warn',
+                                      );
+                                      return;
+                                    }
+                                    setFolderTarget({
+                                      name: node.name,
+                                      fileId: node.id,
+                                      account: targetAccount,
+                                      basePath: rowPath.slice(0, -1),
+                                    });
+                                  }}
+                                >
+                                  <FolderDown size={13} />
+                                </button>
                               </>
                             ) : (
                               <button

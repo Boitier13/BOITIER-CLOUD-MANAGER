@@ -2498,12 +2498,19 @@ tr.is-folder .cell-name__text {
   color: var(--text-4);
 }
 
+/*
+ * Les actions d'une ligne restent visibles, en retrait, et s'affirment au
+ * survol. Masquées complètement, l'icône de téléchargement d'un dossier était
+ * invisible tant qu'on ne passait pas la souris dessus — on croyait donc qu'un
+ * dossier ne pouvait pas être téléchargé, alors que les fichiers, eux,
+ * montraient la leur dès qu'on les survolait.
+ */
 .file-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 1px;
-  opacity: 0;
+  opacity: 0.55;
   transition: opacity 120ms var(--ease);
 }
 

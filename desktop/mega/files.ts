@@ -110,14 +110,48 @@ export function sortRemoteFiles(files: RemoteFile[]): RemoteFile[] {
 }
 
 /**
- * Message lisible pour une erreur MEGA.
+ * Codes d'erreur MEGA, par nom.
  *
- * Les codes négatifs de l'API sont traduits : sans cela, l'utilisateur voyait
- * « -17 » au lieu de « quota de transfert épuisé », qui est pourtant l'erreur
- * la plus fréquente sur un compte gratuit.
+ * `megajs` ne joint pas toujours le code numérique : l'erreur arrive sous la
+ * forme `EBLOCKED (-16): User blocked`, avec le code **dans le texte**. Sans
+ * cette table, l'écran affichait ce texte brut à la place d'une explication.
  */
+const CODES_MEGA: Record<string, number> = {
+  EINTERNAL: 3,
+  EARGS: 4,
+  EAGAIN: 4,
+  ENOENT: 9,
+  EACCESS: 11,
+  EEXPIRED: 15,
+  EBLOCKED: 16,
+  EOVERQUOTA: 17,
+  ETEMPUNAVAIL: 18,
+  ETOOMANY: 19,
+  EOVERQUOTA_ACCOUNT: 24,
+  EMFAREQUIRED: 26,
+};
+
+/**
+ * Code numérique d'une erreur MEGA, même quand il n'est que dans le texte.
+ *
+ * L'erreur réelle observée en usage était `EBLOCKED (-16): User blocked` :
+ * `cause.code` valait `undefined`, donc le message restait en anglais et
+ * parlait de « Google Drive ».
+ */
+export function codeErreurMega(cause: unknown): number {
+  const direct = Number((cause as { code?: number } | null)?.code ?? 0);
+  if (Number.isFinite(direct) && direct !== 0) return Math.abs(direct);
+  const texte = (cause as Error | null)?.message ?? '';
+  const numerique = /\(\s*-?(\d{1,3})\s*\)/.exec(texte);
+  if (numerique) return Math.abs(Number(numerique[1]));
+  const nom = /\b(E[A-Z_]{3,})\b/.exec(texte);
+  if (nom && CODES_MEGA[nom[1]] !== undefined) return CODES_MEGA[nom[1]];
+  return 0;
+}
+
+/** Message lisible pour une erreur MEGA. */
 export function messageErreurMega(cause: unknown): string {
-  const code = Math.abs(Number((cause as { code?: number } | null)?.code ?? 0));
+  const code = codeErreurMega(cause);
   const messages: Record<number, string> = {
     3: 'MEGA est momentanément indisponible, réessayez dans un instant',
     4: 'trop de requêtes envoyées à MEGA, réessayez dans quelques secondes',
@@ -138,8 +172,7 @@ export function messageErreurMega(cause: unknown): string {
 
 /** Vrai si l'erreur signifie « il faut un code de vérification ». */
 export function exigeDeuxEtapes(cause: unknown): boolean {
-  const code = Math.abs(Number((cause as { code?: number } | null)?.code ?? 0));
-  if (code === 26) return true;
+  if (codeErreurMega(cause) === 26) return true;
   return /EMFAREQUIRED|multi-f.?factor|two-factor|2fa/i.test(
     (cause as Error | null)?.message ?? '',
   );
@@ -147,7 +180,6 @@ export function exigeDeuxEtapes(cause: unknown): boolean {
 
 /** Vrai si l'erreur signifie « session à renouveler ». */
 export function sessionExpiree(cause: unknown): boolean {
-  const code = Math.abs(Number((cause as { code?: number } | null)?.code ?? 0));
-  if (code === 15) return true;
+  if (codeErreurMega(cause) === 15) return true;
   return /ESID/i.test((cause as Error | null)?.message ?? '');
 }

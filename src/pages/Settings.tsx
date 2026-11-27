@@ -242,7 +242,7 @@ export function Settings() {
             <div className="settings-row__text">
               <div className="settings-row__label">Dossier de destination</div>
               <div className="settings-row__desc">
-                Emplacement réel des fichiers téléchargés depuis Google Drive.
+                Emplacement réel des fichiers téléchargés depuis vos clouds (Google Drive, MEGA).
               </div>
             </div>
             <div className="settings-row__control settings-row__control--path">
@@ -299,7 +299,7 @@ export function Settings() {
             <div className="settings-row__text">
               <div className="settings-row__label">Ranger par cloud et par type</div>
               <div className="settings-row__desc">
-                Classe chaque fichier dans « Google Drive » puis dans un dossier
+                Classe chaque fichier dans un dossier au nom du cloud, puis dans un dossier
                 par nature : Videos, Audio, Images, Documents, Archives.
               </div>
             </div>

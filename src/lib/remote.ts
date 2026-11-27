@@ -21,6 +21,7 @@ import {
   sharedAccount,
 } from './cloud';
 import { GOOGLE_ROOT, toNode } from './google';
+import { messageLisible } from './errors';
 
 export interface FolderState {
   nodes: FileNode[];
@@ -133,7 +134,7 @@ class RemoteCatalog {
       this.states.set(key, {
         nodes: [],
         status: 'error',
-        error: (cause as Error).message || 'Google Drive est injoignable.',
+        error: messageLisible(cause) || 'Google Drive est injoignable.',
       });
     }
     this.publish();
@@ -159,7 +160,7 @@ class RemoteCatalog {
       this.states.set(key, {
         nodes: [],
         status: 'error',
-        error: (cause as Error).message || 'Les fichiers partagés sont injoignables.',
+        error: messageLisible(cause) || 'Les fichiers partagés sont injoignables.',
       });
     }
     this.publish();
@@ -192,7 +193,7 @@ class RemoteCatalog {
       this.states.set(key, {
         nodes: [],
         status: 'error',
-        error: (cause as Error).message || 'Les fichiers récents sont injoignables.',
+        error: messageLisible(cause) || 'Les fichiers récents sont injoignables.',
       });
     }
     this.publish();
@@ -219,7 +220,7 @@ class RemoteCatalog {
       this.states.set(key, {
         nodes: [],
         status: 'error',
-        error: (cause as Error).message || 'Recherche impossible.',
+        error: messageLisible(cause) || 'Recherche impossible.',
       });
     }
     this.publish();
