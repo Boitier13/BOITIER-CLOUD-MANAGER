@@ -89,23 +89,33 @@ export class MegaService {
 
   /** Contenu d'un dossier (`folderId` vide = racine du compte). */
   async list(accountId: string, folderId: string): Promise<RemoteFile[]> {
-    const storage = await this.session.storage(accountId);
-    const dossier = folderId ? storage.files[folderId] : storage.root;
-    if (!dossier) throw new Error('dossier MEGA introuvable');
-    const enfants = dossier.children ?? [];
-    return sortRemoteFiles(
-      enfants.map((enfant) => toRemoteFile(enfant, dossier.nodeId ?? (folderId || undefined))),
-    );
+    this.session.retenir(accountId);
+    try {
+      const storage = await this.session.storage(accountId);
+      const dossier = folderId ? storage.files[folderId] : storage.root;
+      if (!dossier) throw new Error('dossier MEGA introuvable');
+      const enfants = dossier.children ?? [];
+      return sortRemoteFiles(
+        enfants.map((enfant) => toRemoteFile(enfant, dossier.nodeId ?? (folderId || undefined))),
+      );
+    } finally {
+      this.session.relacher(accountId);
+    }
   }
 
   /** Derniers fichiers modifiés du compte (MEGA ne transmet pas d'ouverture). */
   async recent(accountId: string, limit = 200): Promise<RemoteFile[]> {
-    const storage = await this.session.storage(accountId);
-    const fichiers = Object.values(storage.files)
-      .filter((nœud) => !nœud.directory)
-      .map((nœud) => toRemoteFile(nœud, nœud.parent?.nodeId));
-    fichiers.sort((a, b) => (a.modified < b.modified ? 1 : -1));
-    return fichiers.slice(0, Math.max(1, Math.min(limit, 500)));
+    this.session.retenir(accountId);
+    try {
+      const storage = await this.session.storage(accountId);
+      const fichiers = Object.values(storage.files)
+        .filter((nœud) => !nœud.directory)
+        .map((nœud) => toRemoteFile(nœud, nœud.parent?.nodeId));
+      fichiers.sort((a, b) => (a.modified < b.modified ? 1 : -1));
+      return fichiers.slice(0, Math.max(1, Math.min(limit, 500)));
+    } finally {
+      this.session.relacher(accountId);
+    }
   }
 
   /**
@@ -115,14 +125,19 @@ export class MegaService {
    * la lecture de l'arborescence, la recherche est donc locale et instantanée.
    */
   async search(accountId: string, term: string): Promise<RemoteFile[]> {
-    const requete = term.trim().toLowerCase();
-    if (requete.length < 2) return [];
-    const storage = await this.session.storage(accountId);
-    const trouves = Object.values(storage.files)
-      .filter((nœud) => (nœud.name ?? '').toLowerCase().includes(requete))
-      .slice(0, 200)
-      .map((nœud) => toRemoteFile(nœud, nœud.parent?.nodeId));
-    return sortRemoteFiles(trouves);
+    this.session.retenir(accountId);
+    try {
+      const requete = term.trim().toLowerCase();
+      if (requete.length < 2) return [];
+      const storage = await this.session.storage(accountId);
+      const trouves = Object.values(storage.files)
+        .filter((nœud) => (nœud.name ?? '').toLowerCase().includes(requete))
+        .slice(0, 200)
+        .map((nœud) => toRemoteFile(nœud, nœud.parent?.nodeId));
+      return sortRemoteFiles(trouves);
+    } finally {
+      this.session.relacher(accountId);
+    }
   }
 
   /**
@@ -142,52 +157,57 @@ export class MegaService {
     truncated: boolean;
     totalBytes: number;
   }> {
-    const storage = await this.session.storage(accountId);
-    const racine = folderId ? storage.files[folderId] : storage.root;
-    if (!racine) throw new Error('dossier MEGA introuvable');
+    this.session.retenir(accountId);
+    try {
+      const storage = await this.session.storage(accountId);
+      const racine = folderId ? storage.files[folderId] : storage.root;
+      if (!racine) throw new Error('dossier MEGA introuvable');
 
-    const fichiers: { fileId: string; path: string; size: number; mimeType: string }[] = [];
-    const dossiers: string[] = [];
-    let total = 0;
-    let tronque = false;
-    const LIMITE = 5_000;
+      const fichiers: { fileId: string; path: string; size: number; mimeType: string }[] = [];
+      const dossiers: string[] = [];
+      let total = 0;
+      let tronque = false;
+      const LIMITE = 5_000;
 
-    const parcourir = (dossier: NonNullable<typeof racine>, prefixe: string) => {
-      const enfants = [...(dossier.children ?? [])].sort((a, b) =>
-        (a.name ?? '').localeCompare(b.name ?? '', 'fr'),
-      );
-      for (const enfant of enfants) {
-        if (fichiers.length >= LIMITE) {
-          tronque = true;
-          return;
+      const parcourir = (dossier: NonNullable<typeof racine>, prefixe: string) => {
+        const enfants = [...(dossier.children ?? [])].sort((a, b) =>
+          (a.name ?? '').localeCompare(b.name ?? '', 'fr'),
+        );
+        for (const enfant of enfants) {
+          if (fichiers.length >= LIMITE) {
+            tronque = true;
+            return;
+          }
+          const nom = enfant.name || 'Sans nom';
+          const chemin = prefixe ? `${prefixe}/${nom}` : nom;
+          if (enfant.directory) {
+            dossiers.push(chemin);
+            parcourir(enfant, chemin);
+          } else {
+            const taille = Math.max(0, Number(enfant.size) || 0);
+            total += taille;
+            fichiers.push({
+              fileId: enfant.nodeId ?? enfant.downloadId ?? nom,
+              path: chemin,
+              size: taille,
+              mimeType: mimeFromName(nom),
+            });
+          }
         }
-        const nom = enfant.name || 'Sans nom';
-        const chemin = prefixe ? `${prefixe}/${nom}` : nom;
-        if (enfant.directory) {
-          dossiers.push(chemin);
-          parcourir(enfant, chemin);
-        } else {
-          const taille = Math.max(0, Number(enfant.size) || 0);
-          total += taille;
-          fichiers.push({
-            fileId: enfant.nodeId ?? enfant.downloadId ?? nom,
-            path: chemin,
-            size: taille,
-            mimeType: mimeFromName(nom),
-          });
-        }
-      }
-    };
-    parcourir(racine, '');
+      };
+      parcourir(racine, '');
 
-    return {
-      files: fichiers,
-      folders: dossiers,
-      // MEGA n'a pas de documents natifs : rien n'est écarté.
-      skipped: [],
-      truncated: tronque,
-      totalBytes: total,
-    };
+      return {
+        files: fichiers,
+        folders: dossiers,
+        // MEGA n'a pas de documents natifs : rien n'est écarté.
+        skipped: [],
+        truncated: tronque,
+        totalBytes: total,
+      };
+    } finally {
+      this.session.relacher(accountId);
+    }
   }
 
   /** Espace utilisé et total du compte. */
@@ -377,6 +397,7 @@ export class MegaService {
     const taille = await stat(chemin).then((info) => info.size).catch(() => 0);
     this.emitUpload({ id, accountId, name: nom, status: 'running', received: 0, size: taille });
 
+    this.session.retenir(accountId);
     try {
       const storage = await this.session.storage(accountId);
       const dossier = folderId ? storage.files[folderId] : storage.root;
@@ -424,6 +445,8 @@ export class MegaService {
         size: taille,
         message,
       });
+    } finally {
+      this.session.relacher(accountId);
     }
   }
 }

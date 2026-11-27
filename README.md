@@ -290,8 +290,9 @@ sur le disque pour la reprise du lendemain.
 
 ### Quand MEGA bloque un compte (« -16 », EBLOCKED)
 
-MEGA bloque temporairement un compte quand trop de connexions arrivent d'un coup
-depuis la même adresse — cas classique avec onze comptes ouverts au démarrage.
+Le code `-16` signifie que MEGA indique que le compte est bloqué. Le journal
+ne précise ni la cause du blocage ni sa durée : il ne faut pas le présenter
+comme un simple problème réseau ou garantir qu'il disparaîtra après attente.
 
 Ce qui s'affichait auparavant : sous le titre « **Google Drive** est
 injoignable », le texte brut d'Electron —
@@ -300,14 +301,12 @@ Le fournisseur était faux et la phrase ne disait rien.
 
 Ce qui se passe maintenant :
 
-- **une seule session à la fois**, espacée de 400 ms : onze relectures d'affilée
-  suffisaient à déclencher le blocage ;
-- après un `-16`, le compte est mis en garde **10 minutes** — insister pendant la
-  garde ne fait qu'allonger le blocage côté MEGA. Le compte reste dans la liste,
+- **une seule restauration à la fois**, espacée de 400 ms ;
+- après un `-16`, la restauration est mise en garde **10 minutes** pour éviter
+  les essais répétés. Cela ne garantit pas la levée du blocage. Le compte reste dans la liste,
   avec son nom, son adresse et son dernier quota connu ;
-- l'écran affiche **« MEGA est injoignable »** et une phrase utile : « MEGA
-  bloque temporairement ce compte (trop de connexions depuis la même adresse) :
-  patientez quelques minutes, puis réessayez » ;
+- l'écran explique que MEGA indique un compte bloqué et conseille de contacter
+  son assistance si le blocage persiste ;
 - le texte technique d'Electron (`Error invoking remote method…`) et les codes
   en clair (`EBLOCKED`, `(-16)`) ne parviennent plus jamais à l'écran :
   `src/lib/errors.ts` les traduit, `desktop/mega/files.ts` retrouve le code
@@ -634,9 +633,8 @@ Le journal a montré deux choses distinctes, mesurées sur dix-sept lancements :
 | lancement ordinaire | **0,7 s** |
 | premier lancement après installation | **4 à 14 s** |
 
-Le second cas est Windows lui-même : l'antivirus analyse un exécutable qu'il
-n'a jamais vu. Aucun code ne peut accélérer cela — mais l'application peut
-**montrer qu'elle démarre** au lieu de laisser l'écran vide :
+Le journal ne permet pas d'attribuer ce délai à une cause unique. L'application
+peut néanmoins **montrer qu'elle démarre** au lieu de laisser l'écran vide :
 
 - **écran de démarrage peint avec la page** : marque, « Préparation de vos
   comptes… », fine barre de progression — styles en ligne, aucun fichier à
@@ -661,25 +659,21 @@ au moment de la compilation : elle ne peut plus annoncer un numéro périmé.
 
 ### Lenteur et téléchargements de fond
 
-Deux sources de figement venaient de l'application elle-même, et non de la
-machine :
+Les journaux signalent des figements, mais ne permettent pas d'en établir
+la cause certaine. Les mesures prises pour réduire le travail de fond sont :
 
-- **l'installeur (près de 100 Mo) se téléchargeait tout seul** dès qu'une
-  version était trouvée, puis son empreinte était vérifiée sur le fil du
-  processus principal. Pendant qu'on consultait les paramètres, le journal
-  relevait `figement 7,6 s · écran settings`. Désormais la version est
-  seulement **signalée** : un clic sur « Télécharger », puis un second sur
-  « Redémarrer et installer » ;
-- **onze sessions MEGA** restaient ouvertes en mémoire, chacune avec
-  l'arborescence complète de son compte. La machine partait en échange disque.
-  Deux sessions suffisent (le compte consulté, le précédent), un transfert en
-  cours n'est jamais fermé sous lui, et les « récents » MEGA sont lus **un
-  compte à la fois**, espacés de 1,5 s — c'était onze connexions en rafale, dont
-  quatre finissaient en `-16`.
+- la mise à jour n'est téléchargée que sur demande ;
+- les sessions MEGA inutilisées sont libérées localement (deux conservées en
+  règle générale, davantage si des opérations actives les retiennent) ;
+- les récents MEGA sont traités un compte à la fois, avec 1,5 s entre lectures.
 
-Ce qui reste lent au démarrage (bundle, première peinture) tient au chargement
-du disque et à l'analyse antivirus d'un exécutable fraîchement installé :
-l'application n'y ajoute plus son propre travail.
+**Correction importante de 0.23.10 :** `Storage.close()` de megajs effectue
+une déconnexion auprès de MEGA, et pas seulement une libération locale. La
+version 0.23.9 l'utilisait à l'éviction et à la fermeture ; une session déjà
+invalidée peut devoir être reconnectée dans l'application. Désormais seules
+les ressources locales sont fermées, sans invalider la session stockée. Le
+quota sauvegardé reste disponible si sa mesure échoue. La fluidité et les
+reconnexions doivent encore être vérifiées en conditions réelles.
 
 ### Mise à jour automatique
 
