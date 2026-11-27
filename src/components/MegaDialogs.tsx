@@ -17,12 +17,19 @@ import { useMegaConnect } from '../hooks/useMega';
 export function MegaConnectDialog({
   onClose,
   onConnected,
+  reconnect,
 }: {
   onClose: () => void;
   onConnected: (nom: string) => void;
+  /**
+   * Reconnexion d'un compte existant : l'adresse est préremplie et la fiche
+   * (nom, place dans la liste, favoris) est conservée. Sans cela, il fallait
+   * retaper l'adresse de tête et craindre d'ajouter un doublon.
+   */
+  reconnect?: { email: string; name: string };
 }) {
   const connect = useMegaConnect();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(reconnect?.email ?? '');
   const [password, setPassword] = useState('');
   const [secondFactor, setSecondFactor] = useState('');
   const [besoinCode, setBesoinCode] = useState(false);
@@ -50,8 +57,12 @@ export function MegaConnectDialog({
 
   return (
     <Modal
-      title="Connecter un compte MEGA"
-      description="Vos fichiers restent chez MEGA. Le mot de passe sert uniquement à ouvrir la session : il n’est jamais enregistré."
+      title={reconnect ? `Reconnecter ${reconnect.name}` : 'Connecter un compte MEGA'}
+      description={
+        reconnect
+          ? 'La même adresse met à jour ce compte : son nom, sa place dans la liste et ses favoris sont conservés. Le mot de passe n’est jamais enregistré.'
+          : 'Vos fichiers restent chez MEGA. Le mot de passe sert uniquement à ouvrir la session : il n’est jamais enregistré.'
+      }
       icon={<ShieldCheck size={16} />}
       onClose={onClose}
       footer={
@@ -65,7 +76,7 @@ export function MegaConnectDialog({
             onClick={() => void submit()}
             disabled={!pret}
           >
-            {busy ? 'Connexion…' : 'Se connecter'}
+            {busy ? 'Connexion…' : reconnect ? 'Se reconnecter' : 'Se connecter'}
           </button>
         </>
       }

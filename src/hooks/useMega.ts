@@ -11,16 +11,18 @@ import type { Account } from '../data/catalog';
 import { GB } from '../data/catalog';
 import { getBridge, type MegaAccountInfo } from '../lib/bridge';
 import { useStore } from '../store';
+import { messageLisible } from '../lib/errors';
 
-/** Message d'erreur lisible : Electron préfixe parfois les erreurs IPC. */
+/**
+ * Message d'erreur lisible.
+ *
+ * Délègue au traducteur commun : le préfixe d'Electron est retiré, et les
+ * codes MEGA (`EBLOCKED (-16)`…) sont expliqués comme ailleurs dans
+ * l'application — une seule formulation, donc plus d'écran qui parle anglais.
+ */
 export function readableMegaError(cause: unknown): string {
-  const brut = cause instanceof Error ? cause.message : String(cause ?? '');
-  return (
-    brut
-      .replace(/^Error invoking remote method '[^']+':\s*/i, '')
-      .replace(/^Error:\s*/i, '')
-      .trim() || 'MEGA n’a pas répondu'
-  );
+  const message = messageLisible(cause);
+  return message || 'MEGA n’a pas répondu';
 }
 
 /**

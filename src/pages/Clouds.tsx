@@ -76,7 +76,7 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | AccountStatus>('all');
   const [dialog, setDialog] = useState<
-    | { kind: 'megaConnect' }
+    | { kind: 'megaConnect'; reconnect?: Account }
     | { kind: 'googleSetup' }
     | { kind: 'googleConnect'; reconnect?: boolean }
     | { kind: 'rename'; account: Account }
@@ -363,10 +363,14 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                     <span>{account.name}</span>
                     <span
                       className="badge badge--live"
-                      title="Compte Google connecté — accès en lecture seule"
+                      title={
+                        provider === 'mega'
+                          ? 'Compte MEGA connecté — lecture, téléchargement et envoi, sans suppression'
+                          : 'Compte Google connecté — accès en lecture seule'
+                      }
                     >
                       <LockKeyhole size={9} />
-                      Lecture seule
+                      {provider === 'mega' ? 'Lecture et envoi' : 'Lecture seule'}
                     </span>
                   </span>
                   <span className="account-row__email">{account.email}</span>
@@ -400,12 +404,27 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                     <button
                       type="button"
                       className="icon-btn"
-                      title="Rafraîchir le quota depuis Google"
+                      title={`Rafraîchir le quota depuis ${def.name}`}
                       onClick={() => {
-                        const googleId = realAccountId(account);
-                        if (!googleId) return;
-                        void getBridge()
-                          ?.google.refresh(googleId)
+                        const compteId = realAccountId(account);
+                        if (!compteId) return;
+                        // Chaque fournisseur a sa mesure : la ligne MEGA
+                        // interrogeait Google avec un identifiant MEGA.
+                        const pont = getBridge();
+                        if (!pont) return;
+                        const requete =
+                          provider === 'mega'
+                            ? pont.mega?.usage(compteId).then((mesure) =>
+                                mesure
+                                  ? {
+                                      status: 'connected' as const,
+                                      usedBytes: mesure.usedBytes,
+                                      quotaBytes: mesure.quotaBytes,
+                                    }
+                                  : null,
+                              )
+                            : pont.google.refresh(compteId);
+                        void Promise.resolve(requete)
                           .then((info) => {
                             if (!info) return;
                             // Les chiffres relus doivent atteindre l'écran : sans
@@ -418,7 +437,7 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                               usedBytes: info.usedBytes,
                               quotaBytes: info.quotaBytes,
                             });
-                            toast.push('Quota Google actualisé', 'ok');
+                            toast.push(`Quota ${def.name} actualisé`, 'ok');
                           })
                           .catch((cause: Error) =>
                             toast.push(cause.message || 'Rafraîchissement impossible', 'error'),
@@ -433,14 +452,20 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                   <button
                     type="button"
                     className="icon-btn"
-                    title={`Reconnecter ${account.name} — renouveler l’autorisation Google`}
+                    title={
+                      provider === 'mega'
+                        ? `Reconnecter ${account.name} — rouvrir la session MEGA`
+                        : `Reconnecter ${account.name} — renouveler l’autorisation Google`
+                    }
                     aria-label={`Reconnecter ${account.name}`}
                     onClick={() =>
-                      setDialog(
-                        googleClient.status?.configured
-                          ? { kind: 'googleConnect', reconnect: true }
-                          : { kind: 'googleSetup' },
-                      )
+                      provider === 'mega'
+                        ? setDialog({ kind: 'megaConnect', reconnect: account })
+                        : setDialog(
+                            googleClient.status?.configured
+                              ? { kind: 'googleConnect', reconnect: true }
+                              : { kind: 'googleSetup' },
+                          )
                     }
                   >
                     <Cable size={14} />
@@ -549,10 +574,21 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
 
       {dialog?.kind === 'megaConnect' ? (
         <MegaConnectDialog
+          reconnect={
+            dialog.reconnect
+              ? { email: dialog.reconnect.email, name: dialog.reconnect.name }
+              : undefined
+          }
           onClose={() => setDialog(null)}
           onConnected={(nom) => {
+            const reconnecte = Boolean(dialog.reconnect);
             setDialog(null);
-            toast.push(`Compte MEGA ${nom} connecté`, 'ok');
+            toast.push(
+              reconnecte
+                ? `Compte MEGA ${nom} reconnecté — session rouverte`
+                : `Compte MEGA ${nom} connecté`,
+              'ok',
+            );
           }}
         />
       ) : null}
