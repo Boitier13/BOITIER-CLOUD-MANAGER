@@ -112,7 +112,7 @@ export function FolderDownloadDialog({
                 ? ` dans ${plural(plan.folders.length, 'sous-dossier')}`
                 : ''}
               {' · '}
-              <b>{formatBytes(plan.totalBytes)}</b> à télécharger
+              <b>{formatBytes(plan.totalBytes)}</b> de fichiers de taille connue
             </span>
           </div>
 
@@ -139,14 +139,20 @@ export function FolderDownloadDialog({
             </div>
           ) : null}
 
+          {plan.files.some((file) => ['application/vnd.google-apps.document', 'application/vnd.google-apps.spreadsheet', 'application/vnd.google-apps.presentation'].includes(file.mimeType)) ? (
+            <div className="callout">
+              Docs, Sheets et Slides seront convertis en .docx, .xlsx et .pptx. Leur taille est connue après export ; Google limite chaque export à 10 Mo et la conversion peut modifier le rendu.
+            </div>
+          ) : null}
+
           {plan.skipped.length > 0 ? (
             <div className="callout">
               <TriangleAlert size={13} style={{ flex: 'none', marginTop: 1 }} />
               <span>
                 {plural(plan.skipped.length, 'document')} Google natif
                 {plan.skipped.length > 1 ? 's' : ''} ne peu
-                {plan.skipped.length > 1 ? 'vent' : 't'} pas être téléchargé
-                {plan.skipped.length > 1 ? 's' : ''} tel quel : {plan.skipped.slice(0, 3).join(', ')}
+                {plan.skipped.length > 1 ? 'vent' : 't'} pas être exporté
+                {plan.skipped.length > 1 ? 's' : ''} par l’application : {plan.skipped.slice(0, 3).join(', ')}
                 {plan.skipped.length > 3 ? '…' : ''}. Exportez-le
                 {plan.skipped.length > 1 ? 's' : ''} depuis Google Drive.
               </span>

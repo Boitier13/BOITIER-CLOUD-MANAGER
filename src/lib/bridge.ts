@@ -79,7 +79,7 @@ export type MegaUploadEvent = {
 export type GoogleFolderPlan = {
   files: { fileId: string; path: string; size: number; mimeType: string }[];
   folders: string[];
-  /** Documents Google natifs écartés (pas de fichier binaire). */
+  /** Documents Google natifs dont le format d’export n’est pas pris en charge. */
   skipped: string[];
   /** La limite de sécurité a été atteinte : le lot est incomplet. */
   truncated: boolean;

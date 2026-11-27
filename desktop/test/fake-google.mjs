@@ -102,6 +102,16 @@ const FILES = [
     modifiedTime: '2026-11-24T11:45:00.000Z',
     parents: ['folder-2026'],
   },
+  ...[
+    ['file-sheet', 'Budget', 'spreadsheet'],
+    ['file-slides', 'Présentation', 'presentation'],
+    ['file-form', 'Questionnaire', 'form'],
+    ['file-large', 'Trop grand', 'document'],
+    ['file-slow', 'Pause', 'document'],
+  ].map(([id, name, kind]) => ({
+    id, name, mimeType: `application/vnd.google-apps.${kind}`,
+    modifiedTime: '2020-01-01T00:00:00.000Z', parents: ['folder-2026'],
+  })),
 ];
 
 /** Jetons révoqués, consultables via GET /state pour les tests. */
@@ -219,6 +229,31 @@ const server = createServer(async (req, res) => {
       );
     }
     return json(res, 200, { files: result });
+  }
+
+  const exportMatch = /^\/drive\/v3\/files\/([^/]+)\/export$/.exec(url.pathname);
+  if (exportMatch) {
+    const file = FILES.find((item) => item.id === decodeURIComponent(exportMatch[1]));
+    if (!file) return json(res, 404, { error: { message: 'File not found' } });
+    const formats = {
+      'application/vnd.google-apps.document': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.google-apps.spreadsheet': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.google-apps.presentation': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    };
+    if (url.searchParams.get('mimeType') !== formats[file.mimeType] || req.headers.range) {
+      return json(res, 400, { error: { message: 'Mauvais format ou Range inattendu' } });
+    }
+    if (file.id === 'file-large') return json(res, 403, { error: { errors: [{ reason: 'exportSizeLimitExceeded' }] } });
+    const body = Buffer.from(`EXPORT ${file.id}`);
+    if (file.id === 'file-slow') {
+      res.writeHead(200, { 'content-type': formats[file.mimeType] });
+      res.write('DEBUT ');
+      setTimeout(() => res.end('FIN'), 500);
+      return;
+    }
+    res.writeHead(200, { 'content-type': formats[file.mimeType], 'content-length': String(body.length) });
+    res.end(body);
+    return;
   }
 
   const fileMatch = /^\/drive\/v3\/files\/([^/]+)$/.exec(url.pathname);

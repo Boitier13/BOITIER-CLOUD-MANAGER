@@ -490,7 +490,7 @@ function reducer(state: AppState, action: Action): AppState {
             ...item,
             status,
             received: update.received,
-            size: update.size || item.size,
+            size: update.size,
             speed: update.speed,
             ...(update.path ? { savedPath: update.path } : {}),
             ...(update.message ? { error: update.message } : {}),

@@ -92,8 +92,10 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
           <h1 className="page-title">Téléchargements</h1>
           <p className="page-subtitle">
             Les fichiers téléchargés depuis vos clouds sont réellement enregistrés sur ce disque. Une pause
-            conserve le fichier partiel : la reprise reprend à l’octet près, sans rien
-            retélécharger. Seule l’annulation efface ce qui a déjà été reçu.
+            conserve le fichier partiel. Les fichiers binaires reprennent généralement à l’octet près ;
+            les exports Google Docs, Sheets et Slides redémarrent depuis le début. Ils sont convertis en
+            formats Office, avec une limite Google de 10 Mo par export et un rendu parfois différent.
+            Seule l’annulation efface le partiel.
           </p>
         </div>
         <div className="page-head__actions">
@@ -150,7 +152,7 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
           </span>
           <div className="summary-cell__body">
             <span className="summary-cell__value tnum">{formatBytes(remaining)}</span>
-            <span className="summary-cell__label">Reste à recevoir</span>
+            <span className="summary-cell__label">Reste connu à recevoir</span>
           </div>
         </div>
         <div className="summary-cell">
@@ -240,7 +242,8 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
           </div>
         ) : (
           items.map((item) => {
-            const ratio = item.received / Math.max(item.size, 1);
+            const unknownSize = item.size === 0 && item.status !== 'done';
+            const ratio = unknownSize ? 0 : item.received / Math.max(item.size, 1);
             const account = state.accounts.find((a) => a.id === item.accountId);
             return (
               <div className="download-row" key={item.id}>
@@ -257,7 +260,7 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
                     <span className="dot-sep" />
                     {item.accountName}
                     <span className="dot-sep" />
-                    {formatBytes(item.size)}
+                    {unknownSize ? 'Taille inconnue' : formatBytes(item.size)}
                     {item.remoteId ? (
                       <>
                         <span className="dot-sep" />
@@ -290,21 +293,21 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
                     }`}
                   >
                     <Meter value={ratio} />
-                    <span className="download-row__pct tnum">{percent(ratio)}</span>
+                    <span className="download-row__pct tnum">{unknownSize ? '—' : percent(ratio)}</span>
                   </div>
                 </div>
                 <div className="download-row__speed">
                   {item.status === 'active' ? formatSpeed(item.speed) : '—'}
                   <small>
                     {item.status === 'active'
-                      ? `${formatEta(item)} restants`
+                      ? unknownSize ? `${formatBytes(item.received)} reçus` : `${formatEta(item)} restants`
                       : item.status === 'done'
                         ? item.savedPath
                           ? 'Enregistré'
                           : 'Terminé'
                         : item.status === 'error'
                           ? 'Interrompu'
-                          : `${formatBytes(Math.max(item.size - item.received, 0))}`}
+                          : unknownSize ? 'Taille inconnue' : `${formatBytes(Math.max(item.size - item.received, 0))}`}
                   </small>
                 </div>
                 <div className="download-row__status">
@@ -396,6 +399,7 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
                           name: item.name,
                           size: item.size,
                           dir: state.settings.downloadFolder,
+                          ...(item.subPath ? { subPath: item.subPath } : {}),
                         })
                           .catch((cause: Error) => {
                             dispatch({

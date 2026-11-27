@@ -80,8 +80,8 @@ l’application utilise PKCE (S256) + `state`.
 | --- | --- |
 | Mode *Testing* : reconnexion hebdomadaire | Google expire les jetons au bout de **7 jours** tant que l’application reste en *Testing*. **Une seule action gratuite supprime cette limite pour toujours** : cf. la section suivante. Avec plusieurs comptes, cette contrainte se paie une fois par compte et par semaine. |
 | Écran « Google n’a pas vérifié cette application » | Normal pour un projet personnel non vérifié : *Paramètres avancés → Continuer*. **Publier l’application ne change rien à cet écran** : il apparaît déjà aujourd’hui, et il réapparaît une fois après la publication. |
-| Documents Google natifs | Docs, Sheets et Slides n’ont pas de fichier binaire : ils doivent être exportés depuis Google Drive. L’application l’indique clairement. |
-| Pause et reprise | Une pause arrête le flux et **conserve le fichier partiel** ; la reprise demande à Drive la suite (`Range`) et repart de l’octet reçu. Seule l’annulation efface ce qui a été reçu. Si le serveur ignore la plage, le partiel est remplacé — jamais allongé. |
+| Documents Google natifs | Docs, Sheets et Slides sont exportés en `.docx`, `.xlsx` et `.pptx`, y compris dans les dossiers. Leur taille est inconnue avant export, le rendu peut varier et Google limite chaque export à 10 Mo. Les autres types natifs non pris en charge sont signalés. |
+| Pause et reprise | Une pause arrête le flux et **conserve le fichier partiel** ; la reprise demande à Drive la suite (`Range`) et repart de l’octet reçu. Seule l’annulation efface ce qui a été reçu. Si le serveur ignore la plage, le partiel est remplacé — jamais allongé. Les exports Google repartent du début après une pause ou un échec. |
 | Comptes professionnels | Un administrateur Google Workspace peut interdire les applications tierces. |
 
 ### Plusieurs comptes Gmail, et les alias
@@ -667,6 +667,8 @@ la cause certaine. Les mesures prises pour réduire le travail de fond sont :
   règle générale, davantage si des opérations actives les retiennent) ;
 - les récents MEGA sont traités un compte à la fois, avec 1,5 s entre lectures.
 
+**0.23.12 — documents Google :** export de Docs, Sheets et Slides en formats Office, individuellement ou dans les dossiers. La conversion est limitée à 10 Mo par export Google ; une reprise redémarre l’export.
+
 **0.23.11 — grands dossiers :** la fusion des fichiers du catalogue évite
 une recherche répétée dans toute la liste ; le calcul est partagé entre les
 écrans. L'explorateur affiche au maximum 100 lignes par page, avec les boutons
@@ -905,7 +907,7 @@ dossier n’est pas lu par l’interface : le processus principal en parcourt
 l’arborescence et renvoie un **plan** — nombre de fichiers, sous-dossiers, taille
 totale — affiché avant tout transfert. Rien ne s’écrit avant la confirmation.
 Chaque fichier arrive à sa place (`Téléchargements/Projets/2026/Devis.pdf`) ; les
-documents Google natifs sont comptés puis écartés, et un dossier très volumineux
+documents Docs, Sheets et Slides sont exportés, les autres types Google natifs non pris en charge sont signalés, et un dossier très volumineux
 annonce un plan partiel plutôt que de bloquer la fenêtre.
 
 **Récents.** Un flux unique, tous comptes confondus, trié par date de modification.

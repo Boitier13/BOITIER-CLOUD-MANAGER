@@ -352,14 +352,16 @@ try {
   const plan = await service2.plan(account.accountId, folder.id);
   check(
     'dossier entier : arborescence parcourue',
-    plan.files.length === 1 &&
-      plan.files[0].path === 'Devis 2026.pdf' &&
-      plan.folders.join(',') === '2026',
+    plan.files.some((file) => file.path === 'Devis 2026.pdf') &&
+      plan.files.some((file) => file.path === '2026/Compte rendu.docx' && file.size === 0) &&
+      plan.files.some((file) => file.path === '2026/Budget.xlsx') &&
+      plan.files.some((file) => file.path === '2026/Présentation.pptx') &&
+      plan.totalBytes === 48211 && plan.folders.join(',') === '2026',
     `${plan.files.map((file) => file.path).join(', ')} | dossiers: ${plan.folders.join(', ')}`,
   );
   check(
-    'dossier entier : document Google natif écarté',
-    plan.skipped.length === 1 && plan.skipped[0].endsWith('Compte rendu'),
+    'dossier entier : type Google non pris en charge écarté',
+    plan.skipped.length === 1 && plan.skipped[0].endsWith('Questionnaire'),
     plan.skipped.join(', ') || 'aucun',
   );
   check(
@@ -386,18 +388,40 @@ try {
     await exists(join(downloadDir, 'Projets', '2026', 'Devis 2026.pdf')),
   );
 
-  // --- 9. Document Google natif refusé -------------------------------------
-  emitted = [];
-  await service2.download({
-    id: 'dl-3',
-    accountId: account.accountId,
-    fileId: 'file-doc',
-    name: 'Compte rendu',
-    size: 0,
-  });
-  await waitFor(() => emitted.some((event) => event.id === 'dl-3' && event.status === 'error'), 6000);
-  const docError = emitted.find((event) => event.id === 'dl-3' && event.status === 'error');
-  check('document Google natif signalé', Boolean(docError?.message?.includes('Google natifs')));
+  // --- 9. Export de documents natifs et protection des fichiers existants ---
+  for (const [fileId, name, ext, subPath] of [
+    ['file-doc', 'Compte rendu', 'docx', 'Projets/2026'],
+    ['file-sheet', 'Budget', 'xlsx', ''],
+    ['file-slides', 'Présentation', 'pptx', ''],
+  ]) {
+    const id = `export-${fileId}`;
+    await service2.download({ id, accountId: account.accountId, fileId, name, size: 99999, subPath });
+    await waitFor(() => emitted.some((event) => event.id === id && ['done', 'error'].includes(event.status)), 8000);
+    const result = emitted.find((event) => event.id === id && event.status === 'done');
+    const dest = join(downloadDir, subPath, `${name}.${ext}`);
+    const contenu = await readFile(dest, 'utf8').catch(() => '');
+    check(`export ${ext} : contenu, nom, taille et dossier`, contenu === `EXPORT ${fileId}` && result?.path === dest && result?.size === Buffer.byteLength(contenu), JSON.stringify(result));
+  }
+  await service2.download({ id: 'export-doublon', accountId: account.accountId, fileId: 'file-doc', name: 'Compte rendu', size: 0, subPath: 'Projets/2026' });
+  await waitFor(() => emitted.some((event) => event.id === 'export-doublon' && event.status === 'done'), 8000);
+  check('export doublon : conserve l’original', await exists(join(downloadDir, 'Projets/2026/Compte rendu (1).docx')) && (await readFile(join(downloadDir, 'Projets/2026/Compte rendu.docx'), 'utf8')) === 'EXPORT file-doc');
+
+  await Promise.all(['a', 'b'].map((id) => service2.download({ id: `concurrent-${id}`, accountId: account.accountId, fileId: 'file-doc', name: 'Simultané', size: 0 })));
+  await waitFor(() => ['a', 'b'].every((id) => emitted.some((event) => event.id === `concurrent-${id}` && event.status === 'done')), 8000);
+  check('exports simultanés : deux fichiers séparés', await exists(join(downloadDir, 'Simultané.docx')) && await exists(join(downloadDir, 'Simultané (1).docx')));
+
+  for (const [fileId, message] of [['file-large', '10 Mo'], ['file-form', 'pas encore']]) {
+    await service2.download({ id: `erreur-${fileId}`, accountId: account.accountId, fileId, name: fileId, size: 0 });
+    await waitFor(() => emitted.some((event) => event.id === `erreur-${fileId}` && event.status === 'error'), 8000);
+    check(`export ${fileId} : erreur explicite`, emitted.some((event) => event.id === `erreur-${fileId}` && event.message?.includes(message)));
+  }
+  await service2.download({ id: 'export-pause', accountId: account.accountId, fileId: 'file-slow', name: 'Pause', size: 0 });
+  await waitFor(() => emitted.some((event) => event.id === 'export-pause' && event.received > 0), 8000);
+  service2.pause('export-pause');
+  await waitFor(() => emitted.some((event) => event.id === 'export-pause' && event.status === 'paused'), 8000);
+  await service2.resume('export-pause', account.accountId);
+  await waitFor(() => emitted.some((event) => event.id === 'export-pause' && ['done', 'error'].includes(event.status)), 8000);
+  check('export après pause : redémarre sans concaténer', (await readFile(join(downloadDir, 'Pause.docx'), 'utf8').catch(() => '')) === 'DEBUT FIN');
 
   // --- 10. Pause ------------------------------------------------------------
   emitted = [];
