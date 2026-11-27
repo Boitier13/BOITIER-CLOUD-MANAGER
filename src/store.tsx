@@ -204,7 +204,7 @@ function loadState(): AppState {
       parsed.accounts.filter(
         (account): account is Account =>
           !!account &&
-          (account.source === 'google' || account.source === 'mega') &&
+          (account.source === 'google' || account.source === 'mega' || account.source === 'shadow') &&
           !!PROVIDERS[account.provider] &&
           typeof account.id === 'string',
       ),
@@ -266,6 +266,9 @@ function mergeAccount(previous: Account | undefined, next: Account): Account {
     merged.avatarUrl === previous.avatarUrl &&
     merged.source === previous.source &&
     merged.googleId === previous.googleId &&
+    merged.megaId === previous.megaId &&
+    merged.shadowId === previous.shadowId &&
+    merged.shadowUrl === previous.shadowUrl &&
     merged.localTree === previous.localTree;
   return identical ? previous : merged;
 }
@@ -368,7 +371,6 @@ function reducer(state: AppState, action: Action): AppState {
       // déconnexion qui révoque (`useDisconnect` dans Cloud.tsx), avant de
       // dispatcher cette action.
       const remaining = state.accounts.filter((account) => account.id !== action.id);
-      if (remaining.length === 0) return state;
       return {
         ...state,
         accounts: remaining,
@@ -378,7 +380,7 @@ function reducer(state: AppState, action: Action): AppState {
         ),
         explorer:
           state.explorer.accountId === action.id
-            ? { accountId: remaining[0].id, path: [], view: 'files' as const, history: [] }
+            ? { accountId: remaining[0]?.id ?? '', path: [], view: 'files' as const, history: [] }
             : state.explorer,
         revision: state.revision + 1,
       };

@@ -34,7 +34,7 @@ const fournisseurs = new Map<string, ProviderId>();
 export function registerAccountProviders(accounts: Account[]): void {
   fournisseurs.clear();
   for (const account of accounts) {
-    const identifiant = account.provider === 'mega' ? (account.megaId ?? account.id) : (account.googleId ?? account.id);
+    const identifiant = account.provider === 'mega' ? (account.megaId ?? account.id) : account.provider === 'shadow' ? (account.shadowId ?? account.id) : (account.googleId ?? account.id);
     fournisseurs.set(identifiant, account.provider);
     fournisseurs.set(account.id, account.provider);
   }
@@ -45,7 +45,7 @@ export function providerOf(accountId: string): ProviderId {
   const connu = fournisseurs.get(accountId);
   if (connu) return connu;
   // Repli : les identifiants d'application MEGA commencent par « mega ».
-  return accountId.startsWith('mega') ? 'mega' : 'gdrive';
+  return accountId.startsWith('mega') ? 'mega' : accountId.startsWith('shadow') ? 'shadow' : 'gdrive';
 }
 
 /** Vrai si le pont MEGA est disponible (application Windows). */
@@ -57,6 +57,10 @@ export function hasMega(): boolean {
 export async function listFolder(accountId: string, folderId: string): Promise<GoogleFile[]> {
   const bridge = getBridge();
   if (!bridge) return [];
+  if (providerOf(accountId) === 'shadow') {
+    if (!bridge.shadow) throw new Error('Shadow Drive n’est disponible que dans l’application Windows.');
+    return bridge.shadow.list(accountId, folderId);
+  }
   if (providerOf(accountId) === 'mega') {
     if (!bridge.mega) throw new Error('MEGA n’est disponible que dans l’application Windows.');
     // « root » est l'alias racine de Google ; MEGA désigne sa racine par vide.
@@ -69,6 +73,10 @@ export async function listFolder(accountId: string, folderId: string): Promise<G
 export async function searchAccount(accountId: string, term: string): Promise<GoogleFile[]> {
   const bridge = getBridge();
   if (!bridge) return [];
+  if (providerOf(accountId) === 'shadow') {
+    if (!bridge.shadow) throw new Error('Shadow Drive indisponible.');
+    return bridge.shadow.search(accountId, term);
+  }
   if (providerOf(accountId) === 'mega') {
     if (!bridge.mega) return [];
     return bridge.mega.search(accountId, term);
@@ -83,6 +91,10 @@ export async function recentAccount(
 ): Promise<GoogleFile[]> {
   const bridge = getBridge();
   if (!bridge) return [];
+  if (providerOf(accountId) === 'shadow') {
+    if (!bridge.shadow) throw new Error('Shadow Drive indisponible.');
+    return bridge.shadow.recent(accountId, options?.limit);
+  }
   if (providerOf(accountId) === 'mega') {
     if (!bridge.mega) return [];
     return bridge.mega.recent(accountId, options?.limit ?? 200);
@@ -100,7 +112,7 @@ export async function recentAccount(
 export async function sharedAccount(accountId: string): Promise<GoogleFile[]> {
   const bridge = getBridge();
   if (!bridge) return [];
-  if (providerOf(accountId) === 'mega') return [];
+  if (providerOf(accountId) !== 'gdrive') return [];
   return bridge.google.shared(accountId);
 }
 
@@ -111,6 +123,10 @@ export async function planFolder(
 ): Promise<GoogleFolderPlan> {
   const bridge = getBridge();
   if (!bridge) throw new Error('Le parcours d’un dossier demande la version Windows.');
+  if (providerOf(accountId) === 'shadow') {
+    if (!bridge.shadow) throw new Error('Shadow Drive indisponible.');
+    return bridge.shadow.plan(accountId, folderId);
+  }
   if (providerOf(accountId) === 'mega') {
     if (!bridge.mega) throw new Error('MEGA n’est disponible que dans l’application Windows.');
     return bridge.mega.plan(accountId, folderId === 'root' ? '' : folderId);
@@ -124,6 +140,10 @@ export async function downloadAccount(
 ): Promise<void> {
   const bridge = getBridge();
   if (!bridge) return;
+  if ((request.provider ?? providerOf(request.accountId)) === 'shadow') {
+    if (!bridge.shadow) throw new Error('Shadow Drive indisponible.');
+    return bridge.shadow.download(request);
+  }
   if ((request.provider ?? providerOf(request.accountId)) === 'mega') {
     if (!bridge.mega) throw new Error('MEGA n’est disponible que dans l’application Windows.');
     return bridge.mega.download(request);
@@ -134,6 +154,7 @@ export async function downloadAccount(
 export async function pauseTransfer(provider: ProviderId, id: string): Promise<void> {
   const bridge = getBridge();
   if (!bridge) return;
+  if (provider === 'shadow') return bridge.shadow?.pause(id);
   if (provider === 'mega') return bridge.mega?.pause(id);
   return bridge.google.pause(id);
 }
@@ -145,6 +166,7 @@ export async function resumeTransfer(
 ): Promise<boolean | void> {
   const bridge = getBridge();
   if (!bridge) return false;
+  if (provider === 'shadow') return bridge.shadow?.resume(id);
   if (provider === 'mega') return bridge.mega?.resume(id);
   return bridge.google.resume(id, remoteAccount ?? '');
 }
@@ -152,6 +174,7 @@ export async function resumeTransfer(
 export async function cancelTransfer(provider: ProviderId, id: string): Promise<void> {
   const bridge = getBridge();
   if (!bridge) return;
+  if (provider === 'shadow') return bridge.shadow?.cancel(id);
   if (provider === 'mega') return bridge.mega?.cancel(id);
   return bridge.google.cancel(id);
 }

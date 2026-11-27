@@ -11,6 +11,7 @@ import type { DownloadEvent } from './google/downloads.ts';
 import type { UpdateState, Updater } from './updater.ts';
 import type { MegaService, UploadEvent } from './mega/service.ts';
 import type { MegaSession } from './mega/session.ts';
+import type { ShadowService } from './shadow/service.ts';
 import { log, logPath, sinceStart } from './log.ts';
 
 export const channels = {
@@ -55,6 +56,20 @@ export const channels = {
   timing: 'desktop:timing',
   /** Ouvre le journal de démarrage dans l'éditeur du système. */
   openLog: 'desktop:open-log',
+  shadowAccounts: 'shadow:accounts',
+  shadowConnect: 'shadow:connect',
+  shadowDisconnect: 'shadow:disconnect',
+  shadowList: 'shadow:list',
+  shadowLocate: 'shadow:locate',
+  shadowSearch: 'shadow:search',
+  shadowRecent: 'shadow:recent',
+  shadowUsage: 'shadow:usage',
+  shadowPlan: 'shadow:plan',
+  shadowPrepareFolders: 'shadow:prepare-folders',
+  shadowDownload: 'shadow:download',
+  shadowPause: 'shadow:pause',
+  shadowResume: 'shadow:resume',
+  shadowCancel: 'shadow:cancel',
   /* MEGA : session séparée, mêmes formes de données que Drive. */
   megaAccounts: 'mega:accounts',
   megaConnect: 'mega:connect',
@@ -88,6 +103,7 @@ export function registerIpc(
   service: GoogleService,
   updater: Updater,
   mega?: { session: MegaSession; service: MegaService },
+  shadow?: ShadowService,
 ): void {
   // Une seule instance : les gestionnaires ne sont enregistrés qu'une fois,
   // même si la fenêtre est recréée.
@@ -213,6 +229,24 @@ export function registerIpc(
       }
       return { sent: resultat.filePaths.length };
     });
+  }
+
+  if (shadow) {
+    handle(channels.shadowAccounts, () => shadow.accounts());
+    handle(channels.shadowConnect, (username: string, token: string, url: string, expectedId?: string) =>
+      shadow.connect(String(username ?? ''), String(token ?? ''), String(url ?? ''), expectedId ? String(expectedId) : undefined));
+    handle(channels.shadowDisconnect, (id: string) => shadow.disconnect(String(id)));
+    handle(channels.shadowList, (id: string, folder: string) => shadow.list(String(id), String(folder ?? 'root')));
+    handle(channels.shadowLocate, (id: string, file: string) => shadow.locate(String(id), String(file)));
+    handle(channels.shadowSearch, (id: string, term: string) => shadow.search(String(id), String(term ?? '')));
+    handle(channels.shadowRecent, (id: string, limit?: number) => shadow.recent(String(id), limit));
+    handle(channels.shadowUsage, (id: string) => shadow.usage(String(id)));
+    handle(channels.shadowPlan, (id: string, folder: string) => shadow.plan(String(id), String(folder ?? 'root')));
+    handle(channels.shadowPrepareFolders, (base: string, paths: string[]) => shadow.prepareFolders(String(base ?? ''), paths));
+    handle(channels.shadowDownload, (request: Parameters<ShadowService['download']>[0]) => shadow.download(request));
+    handle(channels.shadowPause, (id: string) => shadow.pause(String(id)));
+    handle(channels.shadowResume, (id: string) => shadow.resume(String(id)));
+    handle(channels.shadowCancel, (id: string) => shadow.cancel(String(id)));
   }
 
   // Mises à jour. `state` est une lecture sans effet de bord ; `check` et

@@ -83,6 +83,22 @@ contextBridge.exposeInMainWorld('boitier', {
    * distincte : MEGA n'a pas d'OAuth, l'ouverture se fait par adresse et mot de
    * passe, et le mot de passe n'est jamais conservé.
    */
+  shadow: {
+    accounts: () => invoke('shadow:accounts'),
+    connect: (username, token, url, expectedId) => invoke('shadow:connect', username, token, url, expectedId),
+    disconnect: (id) => invoke('shadow:disconnect', id),
+    list: (id, folder) => invoke('shadow:list', id, folder),
+    locate: (id, file) => invoke('shadow:locate', id, file),
+    search: (id, term) => invoke('shadow:search', id, term),
+    recent: (id, limit) => invoke('shadow:recent', id, limit),
+    usage: (id) => invoke('shadow:usage', id),
+    plan: (id, folder) => invoke('shadow:plan', id, folder),
+    prepareFolders: (base, paths) => invoke('shadow:prepare-folders', base, paths),
+    download: (request) => invoke('shadow:download', request),
+    pause: (id) => invoke('shadow:pause', id),
+    resume: (id) => invoke('shadow:resume', id),
+    cancel: (id) => invoke('shadow:cancel', id),
+  },
   mega: {
     accounts: () => invoke('mega:accounts'),
     connect: (email, password, secondFactor) =>

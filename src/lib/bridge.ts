@@ -64,6 +64,16 @@ export type MegaAccountInfo = {
   status: 'connected' | 'expired';
 };
 
+export type ShadowAccountInfo = {
+  accountId: string;
+  name: string;
+  username: string;
+  url: string;
+  usedBytes: number;
+  quotaBytes: number;
+  status: 'connected' | 'expired';
+};
+
 /** Progression d'un téléversement MEGA. */
 export type MegaUploadEvent = {
   id: string;
@@ -230,6 +240,22 @@ export interface BoitierBridge {
     openExternal?(url: string): Promise<boolean>;
     /** Ouvre un dossier dans l'explorateur de fichiers. */
     openDirectory?(path: string): Promise<boolean>;
+  };
+  shadow?: {
+    accounts(): Promise<ShadowAccountInfo[]>;
+    connect(username: string, token: string, url: string, expectedId?: string): Promise<ShadowAccountInfo>;
+    locate(accountId: string, fileId: string): Promise<{ id: string; name: string }[]>;
+    prepareFolders(base: string, paths: string[]): Promise<void>;
+    disconnect(accountId: string): Promise<void>;
+    list(accountId: string, folderId: string): Promise<GoogleFile[]>;
+    search(accountId: string, term: string): Promise<GoogleFile[]>;
+    recent(accountId: string, limit?: number): Promise<GoogleFile[]>;
+    usage(accountId: string): Promise<{ usedBytes: number; quotaBytes: number }>;
+    plan(accountId: string, folderId: string): Promise<GoogleFolderPlan>;
+    download(request: GoogleDownloadRequest): Promise<void>;
+    pause(id: string): Promise<void>;
+    resume(id: string): Promise<boolean>;
+    cancel(id: string): Promise<void>;
   };
   /**
    * MEGA : même forme de données que Google, session distincte.

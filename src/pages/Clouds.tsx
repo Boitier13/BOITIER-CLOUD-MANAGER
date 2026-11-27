@@ -16,6 +16,8 @@ import { KeyRound, LockKeyhole, TriangleAlert, Unplug } from 'lucide-react';
 import { useStore, type Route } from '../store';
 import { GoogleConnectDialog, GoogleSetupDialog } from '../components/GoogleDialogs';
 import { MegaConnectDialog } from '../components/MegaDialogs';
+import { ShadowDialog } from '../components/ShadowDialog';
+import { useShadowAccountSync } from '../hooks/useShadow';
 import { useMegaAccountSync } from '../hooks/useMega';
 import { useGoogleAccountSync, useGoogleClientStatus } from '../hooks/useGoogle';
 import { getBridge, isDesktop } from '../lib/bridge';
@@ -51,20 +53,30 @@ const STATUS_META: Record<
  * C'est le seul chemin de suppression : la synchronisation, elle, n'enlève
  * jamais rien (voir `lib/accountSync.ts`).
  */
-function useDisconnect(): (account: Account) => void {
+function useDisconnect(): (account: Account) => Promise<boolean> {
   const { dispatch } = useStore();
+  const toast = useToast();
   return useCallback(
-    (account: Account) => {
+    async (account: Account) => {
       const pont = getBridge();
-      if (account.provider === 'mega') {
+      if (account.provider === 'shadow') {
+        try {
+          if (!pont?.shadow || !account.shadowId) throw new Error('Coffre Shadow Drive indisponible.');
+          await pont.shadow.disconnect(account.shadowId);
+        } catch (cause) {
+          toast.push((cause as Error).message || 'Déconnexion Shadow Drive impossible', 'error');
+          return false;
+        }
+      } else if (account.provider === 'mega') {
         void pont?.mega?.disconnect(account.megaId ?? '').catch(() => undefined);
       } else if (account.provider === 'gdrive') {
         const reel = realAccountId(account);
         if (reel) void pont?.google.disconnect(reel).catch(() => undefined);
       }
       dispatch({ type: 'account/remove', id: account.id });
+      return true;
     },
-    [dispatch],
+    [dispatch, toast],
   );
 }
 
@@ -77,6 +89,7 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
   const [statusFilter, setStatusFilter] = useState<'all' | AccountStatus>('all');
   const [dialog, setDialog] = useState<
     | { kind: 'megaConnect'; reconnect?: Account }
+    | { kind: 'shadowConnect'; reconnect?: Account }
     | { kind: 'googleSetup' }
     | { kind: 'googleConnect'; reconnect?: boolean }
     | { kind: 'rename'; account: Account }
@@ -87,6 +100,7 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
   const googleClient = useGoogleClientStatus();
   // Comptes MEGA déjà connus du processus principal (sessions restaurées).
   useMegaAccountSync();
+  useShadowAccountSync();
   const applyGoogleAccount = useGoogleAccountSync();
   const desktop = isDesktop();
 
@@ -109,7 +123,7 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
   // points d'un compte Gmail. On les montre au lieu de laisser croire à des
   // comptes séparés.
   const gmailAliasAccounts = realAccounts.filter((account) =>
-    looksLikeGmailVariant(account.email),
+    account.provider === 'gdrive' && looksLikeGmailVariant(account.email),
   );
 
   const filtered = useMemo(() => {
@@ -149,7 +163,9 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
           <h1 className="page-title">{def.name}</h1>
           <p className="page-subtitle">
             {realAccounts.length
-              ? provider === 'mega'
+              ? provider === 'shadow'
+                ? `${formatDecimal(realAccounts.length)} compte(s) Shadow Drive connecté(s) — lecture et téléchargement.`
+                : provider === 'mega'
                 ? `${formatDecimal(realAccounts.length)} compte${
                     realAccounts.length > 1 ? 's' : ''
                   } MEGA connecté${realAccounts.length > 1 ? 's' : ''} — lecture, téléchargement et envoi, ` +
@@ -158,7 +174,9 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                     realAccounts.length > 1 ? 's' : ''
                   } Google connecté${realAccounts.length > 1 ? 's' : ''} en lecture seule — ` +
                   'aucune modification n’est possible depuis cette application.'
-              : provider === 'mega'
+              : provider === 'shadow'
+                ? 'Aucun compte connecté. Connectez Shadow Drive avec un jeton WebDAV dédié.'
+                : provider === 'mega'
                 ? 'Aucun compte connecté. Vos fichiers restent chez MEGA : le mot de passe sert à ouvrir la session et n’est jamais enregistré.'
                 : 'Aucun compte connecté. Vos fichiers restent chez Google : l’application ne lit que ce que vous l’autorisez.'}
           </p>
@@ -177,7 +195,11 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                   Configurer
                 </button>
               ) : null}
-              {provider === 'mega' ? (
+              {provider === 'shadow' ? (
+                <button type="button" className="btn btn--primary" onClick={() => setDialog({ kind: 'shadowConnect' })}>
+                  <Plus size={14} strokeWidth={2.4} /> Connecter Shadow Drive
+                </button>
+              ) : provider === 'mega' ? (
                 <button
                   type="button"
                   className="btn btn--primary"
@@ -306,8 +328,8 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
             <p className="empty__text">
               {accounts.length === 0
                 ? desktop
-                  ? 'Connectez votre compte Google pour explorer vos fichiers. L’application n’a accès qu’en lecture : rien ne peut être supprimé ni modifié chez Google.'
-                  : 'La connexion Google est disponible dans l’application Windows. Dans le navigateur, l’application n’a aucun accès à vos fichiers.'
+                  ? `Connectez un compte ${def.name} pour explorer vos fichiers.`
+                  : 'La connexion est disponible dans l’application Windows.'
                 : 'Modifiez la recherche ou le filtre d’état pour retrouver un compte.'}
             </p>
             <div className="empty__actions">
@@ -316,16 +338,10 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                   <button
                     type="button"
                     className="btn btn--sm btn--primary"
-                    onClick={() =>
-                      setDialog(
-                        googleClient.status?.configured
-                          ? { kind: 'googleConnect' }
-                          : { kind: 'googleSetup' },
-                      )
-                    }
+                    onClick={() => provider === 'shadow' ? setDialog({ kind: 'shadowConnect' }) : provider === 'mega' ? setDialog({ kind: 'megaConnect' }) : setDialog(googleClient.status?.configured ? { kind: 'googleConnect' } : { kind: 'googleSetup' })}
                   >
                     <Plus size={13} />
-                    Connecter Google Drive
+                    Connecter {def.name}
                   </button>
                 ) : null
               ) : (
@@ -366,7 +382,7 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                       title={
                         provider === 'mega'
                           ? 'Compte MEGA connecté — lecture, téléchargement et envoi, sans suppression'
-                          : 'Compte Google connecté — accès en lecture seule'
+                          : `Compte ${def.name} connecté — accès en lecture seule`
                       }
                     >
                       <LockKeyhole size={9} />
@@ -384,7 +400,7 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                 <div className="account-row__usage">
                   <div className="account-row__usage-top">
                     <span>
-                      <b>{formatBytes(account.usedBytes)}</b> / {formatBytes(account.quotaBytes)}
+                      {account.quotaBytes > 0 ? <><b>{formatBytes(account.usedBytes)}</b> / {formatBytes(account.quotaBytes)}</> : 'Quota indisponible'}
                     </span>
                     <span>{percent(ratio)}</span>
                   </div>
@@ -413,7 +429,9 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                         const pont = getBridge();
                         if (!pont) return;
                         const requete =
-                          provider === 'mega'
+                          provider === 'shadow'
+                            ? pont.shadow?.usage(compteId).then((mesure) => mesure ? { status: 'connected' as const, ...mesure } : null)
+                            : provider === 'mega'
                             ? pont.mega?.usage(compteId).then((mesure) =>
                                 mesure
                                   ? {
@@ -455,11 +473,13 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                     title={
                       provider === 'mega'
                         ? `Reconnecter ${account.name} — rouvrir la session MEGA`
-                        : `Reconnecter ${account.name} — renouveler l’autorisation Google`
+                        : `Reconnecter ${account.name} — renouveler l’autorisation ${def.name}`
                     }
                     aria-label={`Reconnecter ${account.name}`}
                     onClick={() =>
-                      provider === 'mega'
+                      provider === 'shadow'
+                        ? setDialog({ kind: 'shadowConnect', reconnect: account })
+                        : provider === 'mega'
                         ? setDialog({ kind: 'megaConnect', reconnect: account })
                         : setDialog(
                             googleClient.status?.configured
@@ -497,8 +517,7 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                           });
                         }
                       }
-                      deconnecter(account);
-                      toast.push(`Accès Google révoqué pour ${account.name}`, 'warn');
+                      void deconnecter(account).then((ok) => { if (ok) toast.push(`Compte ${account.name} déconnecté`, 'warn'); });
                     }}
                   >
                     <Unplug size={14} />
@@ -548,8 +567,7 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
           ) : (
             <>
               <LockKeyhole size={11} /> Accès en lecture seule : aucun fichier ne peut être
-              supprimé, déplacé ni modifié depuis cette application. Aucun jeton ne circule
-              dans l’interface.
+              supprimé, déplacé ni modifié depuis cette application. {provider === 'shadow' ? 'Le jeton WebDAV est conservé chiffré par Windows.' : 'Le jeton Google ne circule pas dans l’interface.'}
             </>
           )
         ) : (
@@ -570,6 +588,10 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
             setDialog(status.configured ? { kind: 'googleConnect' } : null);
           }}
         />
+      ) : null}
+
+      {dialog?.kind === 'shadowConnect' ? (
+        <ShadowDialog reconnect={dialog.reconnect} onClose={() => setDialog(null)} onConnected={() => { setDialog(null); toast.push('Compte Shadow Drive connecté', 'ok'); }} />
       ) : null}
 
       {dialog?.kind === 'megaConnect' ? (
@@ -630,9 +652,9 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
           onClose={() => setDialog(null)}
           onConfirm={(reassign) => {
             if (reassign) dispatch({ type: 'explorer/chooseAccount', accountId: reassign });
-            deconnecter(dialog.account);
+            const compte = dialog.account;
             setDialog(null);
-            toast.push(`Compte ${dialog.account.name} supprimé`, 'warn');
+            void deconnecter(compte).then((ok) => { if (ok) toast.push(`Compte ${compte.name} supprimé`, 'warn'); });
           }}
         />
       ) : null}
@@ -715,7 +737,7 @@ function DeleteDialog({
   return (
     <Modal
       title={`Déconnecter ${account.name} ?`}
-      description="L’accès de l’application à ce compte Google sera révoqué. Vos fichiers restent intacts chez Google."
+      description={`L’accès local à ${PROVIDERS[account.provider].name} sera supprimé. Vos fichiers restent intacts.`}
       icon={<Trash2 size={15} />}
       onClose={onClose}
       footer={
@@ -737,8 +759,11 @@ function DeleteDialog({
       <div className="callout callout--warn">
         <CircleSlash size={13} />
         <span>
-          L’autorisation accordée à l’application sera révoquée chez Google et le jeton
-          chiffré conservé sur cet ordinateur sera effacé. Vos fichiers ne sont pas touchés.
+          {account.provider === 'gdrive'
+            ? 'L’autorisation Google sera révoquée et le jeton chiffré effacé de cet ordinateur.'
+            : account.provider === 'shadow'
+              ? 'Le jeton chiffré sera effacé de cet ordinateur. Pour le révoquer aussi chez Shadow, supprimez-le dans votre compte Shadow Drive.'
+              : 'La session MEGA sera déconnectée et ses données locales effacées.'} Vos fichiers ne sont pas touchés.
         </span>
       </div>
       {isCurrent && others.length > 0 ? (

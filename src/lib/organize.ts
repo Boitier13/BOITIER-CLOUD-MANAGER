@@ -35,6 +35,7 @@ export function categoryFolder(type: FileType): string {
 const CLOUD_FOLDER: Record<ProviderId, string> = {
   gdrive: 'Google Drive',
   mega: 'MEGA',
+  shadow: 'Shadow Drive',
 };
 
 /** Nom du dossier de cloud, pour les téléchargements de dossiers entiers. */

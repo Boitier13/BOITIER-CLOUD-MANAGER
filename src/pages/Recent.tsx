@@ -154,7 +154,7 @@ export function Recent({ onNavigate }: { onNavigate: (route: Route) => void }) {
             </span>
             <p className="empty__title">Aucun compte à interroger</p>
             <p className="empty__text">
-              Ce flux se construit à partir des dates de modification de Google Drive.
+              Ce flux se construit à partir des dates de modification des fournisseurs connectés.
               Connectez un compte pour le voir se remplir.
             </p>
             <div className="empty__actions">
@@ -261,7 +261,7 @@ export function Recent({ onNavigate }: { onNavigate: (route: Route) => void }) {
             <p className="empty__text">
               {query
                 ? 'Le filtre porte uniquement sur les fichiers déjà affichés.'
-                : `Aucun fichier n’a été modifié ces ${days} derniers jours. Élargissez la période ou modifiez un fichier depuis Google Drive.`}
+                : `Aucun fichier n’a été modifié ces ${days} derniers jours. Élargissez la période ou modifiez un fichier dans votre cloud.`}
             </p>
             {query ? (
               <div className="empty__actions">

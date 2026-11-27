@@ -909,7 +909,7 @@ try {
   );
   check(
     'recherche : chaque résultat peut être ouvert à son emplacement ou téléchargé',
-    page.includes('await bridge.google.locate(') && page.includes('google') &&
+    page.includes('bridge.google.locate!(') && page.includes('bridge.shadow!.locate(') && page.includes('google') &&
       page.includes('.download({'),
     'aucune action sur le résultat',
   );

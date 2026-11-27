@@ -1,7 +1,7 @@
 {
   "name": "boitier-cloud-manager",
   "private": true,
-  "version": "0.23.13",
+  "version": "0.23.14",
   "description": "BOITIER CLOUD MANAGER — gestionnaire local multi-cloud (Google Drive réel en lecture seule)",
   "type": "module",
   "scripts": {
@@ -15,7 +15,7 @@
     "desktop:build": "node desktop/build.mjs",
     "desktop": "npm run build && npm run desktop:build && electron .",
     "desktop:dev": "npm run desktop:build && node desktop/dev.mjs",
-    "desktop:test": "node desktop/test/smoke.mjs && node desktop/test/update-launcher.mjs && node desktop/test/mega-session.mjs && node desktop/test/catalogue-performance.mjs",
+    "desktop:test": "node desktop/test/smoke.mjs && node desktop/test/shadow.mjs && node desktop/test/update-launcher.mjs && node desktop/test/mega-session.mjs && node desktop/test/catalogue-performance.mjs",
     "verify:desktop": "npm run typecheck && npm run desktop:typecheck && npm run build && npm run desktop:build && npm run desktop:test && npm run verify:interface && npm run desktop:paths && npm run desktop:package-test",
     "desktop:paths": "node desktop/test/verify-paths.mjs",
     "package:win": "npm run build && npm run desktop:build && electron-builder --win nsis --x64",
@@ -27,6 +27,7 @@
     "@fontsource-variable/dm-sans": "^5.3.0",
     "@fontsource-variable/inter": "^5.1.1",
     "@fontsource-variable/manrope": "^5.3.0",
+    "fast-xml-parser": "^5.12.1",
     "lucide-react": "^0.469.0",
     "megajs": "^1.3.10",
     "react": "^18.3.1",

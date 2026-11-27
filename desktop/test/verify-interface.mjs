@@ -37,7 +37,7 @@ const js = await readFile(new URL(jsHref, pageUrl), 'utf8');
 // MEGA n'est plus un décor : c'est un fournisseur réel, avec sa session et ses
 // transferts. Les fournisseurs purement fictifs des versions précédentes, eux,
 // ne doivent jamais réapparaître dans le paquet livré.
-for (const forbidden of ['SHADOW', 'TERABOX', 'shadow.demo', 'terabox.demo']) {
+for (const forbidden of ['TERABOX', 'shadow.demo', 'terabox.demo']) {
   check(`aucun fournisseur fictif : ${forbidden}`, !js.includes(forbidden));
 }
 check(
@@ -2246,7 +2246,7 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   check(
     'logos : chaque fournisseur affiche un dessin, pas une lettre',
     pastilles.length > 0 &&
-      pastilles.every((element) => element.querySelector('svg') && !(element.textContent ?? '').trim()),
+      pastilles.every((element) => element.querySelector('svg, img') && !(element.textContent ?? '').trim()),
     `${pastilles.length} pastille(s) : ${pastilles.map((e) => (e.textContent ?? '').trim() || 'svg').join(', ')}`,
   );
   check(
@@ -2696,6 +2696,50 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   if (precedent) await grand.click(precedent);
   check('grand dossier : retour à la page précédente', /Fichier 100\.pdf/.test(grand.doc.querySelector('.filetable tbody tr')?.textContent ?? ''));
   grand.window.close();
+}
+
+/* --- Shadow : branchement interface et identité du compte ---------------- */
+{
+  const calls = [];
+  const info = { accountId: 'shadow-test', name: 'mon-compte', username: 'mon-compte', url: 'https://drive.shadow.tech/remote.php/webdav/', usedBytes: 12, quotaBytes: 100, status: 'connected' };
+  const screen = await parcours({ label: 'Shadow Drive', bridge: {
+    platform: 'win32', ready: async () => true,
+    google: { status: async () => ({ configured: true }), accounts: async () => [], onDownload: () => () => {}, list: async () => { calls.push('google-list'); return []; }, recent: async () => [], search: async () => [], shared: async () => [] },
+    shadow: {
+      accounts: async () => [],
+      connect: async (user, token, url, expected) => { calls.push(['connect', user, token, url, expected]); return info; },
+      disconnect: async (id) => { calls.push(['disconnect', id]); },
+      list: async (id, folder) => { calls.push(['list', id, folder]); return [{ id: 'f1', name: 'preuve.txt', kind: 'file', size: 12, modified: new Date().toISOString() }]; },
+      search: async () => [], recent: async () => [], usage: async () => ({ usedBytes: 12, quotaBytes: 100 }),
+    },
+  }});
+  const nav = [...screen.doc.querySelectorAll('.cloud-item')].find((e) => e.textContent.includes('Shadow Drive'));
+  if (nav) await screen.click(nav);
+  const add = [...screen.doc.querySelectorAll('button')].find((e) => e.textContent.includes('Connecter Shadow Drive'));
+  check('Shadow : fournisseur et bouton de connexion visibles', Boolean(nav && add));
+  if (add) await screen.click(add);
+  const setInput = (id, value) => {
+    const input = screen.doc.querySelector(id);
+    if (!input) return;
+    Object.getOwnPropertyDescriptor(screen.window.HTMLInputElement.prototype, 'value').set.call(input, value);
+    input.dispatchEvent(new screen.window.Event('input', { bubbles: true }));
+  };
+  setInput('#shadow-user', 'mon-compte'); setInput('#shadow-token', 'jeton-test');
+  await new Promise((r) => setTimeout(r, 100));
+  const submit = [...screen.doc.querySelectorAll('button')].find((e) => e.textContent.trim() === 'Se connecter');
+  if (submit) await screen.click(submit);
+  check('Shadow : connexion transmise au pont dédié', calls.some((x) => Array.isArray(x) && x[0] === 'connect' && x[1] === 'mon-compte' && x[2] === 'jeton-test'));
+  const open = [...screen.doc.querySelectorAll('button')].find((e) => e.textContent.trim() === 'Ouvrir');
+  if (open) await screen.click(open);
+  check('Shadow : fichiers lus avec l’identifiant fournisseur', calls.some((x) => Array.isArray(x) && x[0] === 'list' && x[1] === 'shadow-test') && screen.text().includes('preuve.txt'));
+  check('Shadow : exploration sans appel Google accidentel', !calls.includes('google-list'));
+  if (nav) await screen.click(nav);
+  const disconnect = [...screen.doc.querySelectorAll('button')].find((e) => (e.title ?? '').startsWith('Déconnecter'));
+  if (disconnect) await screen.click(disconnect);
+  const confirm = [...screen.doc.querySelectorAll('button')].find((e) => e.textContent.trim() === 'Déconnecter');
+  if (confirm) await screen.click(confirm);
+  check('Shadow : dernier compte retiré du coffre et de la liste', calls.some((x) => Array.isArray(x) && x[0] === 'disconnect' && x[1] === 'shadow-test') && screen.text().includes('Aucun compte connecté'));
+  screen.window.close();
 }
 
 console.log(

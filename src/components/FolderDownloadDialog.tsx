@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDownToLine, Download, FolderDown, Loader2, TriangleAlert } from 'lucide-react';
 import { Modal } from './Modal';
 import { getBridge, type GoogleFolderPlan } from '../lib/bridge';
-import { planFolder } from '../lib/cloud';
+import { planFolder, providerOf } from '../lib/cloud';
 import { formatBytes, plural } from '../lib/format';
 
 /**
@@ -62,7 +62,7 @@ export function FolderDownloadDialog({
       .finally(() => setWorking(false));
   }, [accountId, bridge, fileId]);
 
-  const prepared = Boolean(plan && plan.files.length > 0);
+  const prepared = Boolean(plan && (plan.files.length > 0 || providerOf(accountId) === 'shadow'));
 
   return (
     <Modal
