@@ -31,7 +31,7 @@ try {
   assert.deepEqual(result, ['--updated', 'chemin avec espaces'], 'arguments transmis sans shell');
   await assert.rejects(launchDetached({ command: join(dir, 'absent.exe'), args: [] }), /ENOENT/);
 
-  if (process.platform !== 'win32') {
+  {
     // Une élévation est un exécutable recevant le chemin original et ses
     // arguments ; ici Node joue ce rôle sans demander de privilèges.
     const elevated = join(dir, 'élevé.cjs');
