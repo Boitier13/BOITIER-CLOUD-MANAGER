@@ -365,7 +365,13 @@ export class MegaSession {
       // Une session restaurée n'est « prête » qu'une fois son arborescence
       // relue ; sans ce drapeau, `mkdir`/`upload` refusent d'agir.
       (storage as unknown as { status: string }).status = 'ready';
-      await storage.reload(true);
+      const debut = performance.now();
+      try {
+        await storage.reload(true);
+      } finally {
+        const duree = performance.now() - debut;
+        if (duree >= 500) log(`durée : MEGA restauration ${Math.round(duree)} ms (réseau et traitement)`);
+      }
     } catch (cause) {
       this.fermerLocalement(storage);
       if (sessionExpiree(cause)) {

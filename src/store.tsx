@@ -19,7 +19,7 @@ import {
 import { advanceDownloads, type DownloadItem } from './lib/downloads';
 import { interruptStaleDownloads, isLegacyDownloadFolder } from './lib/transfers';
 import { flattenTree, type TreeEntry } from './lib/tree';
-import { marquerPhase } from './lib/trace';
+import { chrono, marquerPhase } from './lib/trace';
 import { remoteCatalog, remoteTree } from './lib/remote';
 import { getBridge } from './lib/bridge';
 import {
@@ -891,6 +891,16 @@ export function catalogKey(accountId: string, path: string[]): string {
   return `${accountId}::${path.join('/')}`;
 }
 
+// App et plusieurs écrans utilisent le même catalogue : un seul calcul par
+// révision, partagé entre les composants au lieu d'aplatir chaque fois.
+let catalogueMemorise: {
+  accounts: AppState['accounts'];
+  revision: number;
+  view: AppState['explorer']['view'];
+  accountId: string;
+  value: Catalog;
+} | undefined;
+
 export function useCatalog(): Catalog {
   const { state } = useStore();
   // Les comptes réels alimentent ce catalogue au fil des dossiers chargés :
@@ -900,38 +910,49 @@ export function useCatalog(): Catalog {
     () => remoteCatalog.revision,
   );
   return useMemo(() => {
-    const trees: Record<string, FileNode[]> = {};
-    const entries: CatalogEntry[] = [];
-    const byKey = new Map<string, CatalogEntry>();
+    if (catalogueMemorise && catalogueMemorise.accounts === state.accounts &&
+        catalogueMemorise.revision === remoteRevision &&
+        catalogueMemorise.view === state.explorer.view &&
+        catalogueMemorise.accountId === state.explorer.accountId) return catalogueMemorise.value;
+    const value = chrono('catalogue local', () => {
+      const trees: Record<string, FileNode[]> = {};
+      const entries: CatalogEntry[] = [];
+      const byKey = new Map<string, CatalogEntry>();
 
-    // Toutes les arborescences proviennent des dossiers déjà chargés depuis le
-    // fournisseur (voir lib/remote.ts) : plus aucun catalogue fictif.
-    // La vue « partagés » n'est pas un dossier : ses fichiers n'ont pas de
-    // chemin. On les indexe à la racine du compte pour que la recherche, les
-    // favoris et les compteurs les voient comme n'importe quel fichier.
-    for (const account of state.accounts) {
-      // Le catalogue distant est indexé par l'identifiant Google (voir
-      // lib/remote.ts) ; l'arborescence reste rangée sous l'identifiant de
-      // l'application, celui que manipulent les favoris et l'explorateur.
-      const remoteId = realAccountId(account);
-      const tree = remoteTree(remoteId ?? account.id, {
-        includeShared: state.explorer.view === 'shared' && state.explorer.accountId === account.id,
-      });
-      trees[account.id] = tree;
-      const flat: TreeEntry[] = flattenTree(tree);
-      for (const entry of flat) {
-        const catalogEntry: CatalogEntry = {
-          accountId: account.id,
-          node: entry.node,
-          path: entry.path,
-          parentPath: entry.parentPath,
-        };
-        entries.push(catalogEntry);
-        byKey.set(catalogKey(account.id, entry.path), catalogEntry);
+      // Toutes les arborescences proviennent des dossiers déjà chargés depuis le
+      // fournisseur (voir lib/remote.ts) : plus aucun catalogue fictif.
+      // La vue « partagés » n'est pas un dossier : ses fichiers n'ont pas de
+      // chemin. On les indexe à la racine du compte pour que la recherche, les
+      // favoris et les compteurs les voient comme n'importe quel fichier.
+      for (const account of state.accounts) {
+        // Le catalogue distant est indexé par l'identifiant Google (voir
+        // lib/remote.ts) ; l'arborescence reste rangée sous l'identifiant de
+        // l'application, celui que manipulent les favoris et l'explorateur.
+        const remoteId = realAccountId(account);
+        const tree = remoteTree(remoteId ?? account.id, {
+          includeShared: state.explorer.view === 'shared' && state.explorer.accountId === account.id,
+        });
+        trees[account.id] = tree;
+        const flat: TreeEntry[] = flattenTree(tree);
+        for (const entry of flat) {
+          const catalogEntry: CatalogEntry = {
+            accountId: account.id,
+            node: entry.node,
+            path: entry.path,
+            parentPath: entry.parentPath,
+          };
+          entries.push(catalogEntry);
+          byKey.set(catalogKey(account.id, entry.path), catalogEntry);
+        }
       }
-    }
 
-    return { trees, entries, byKey };
+      return { trees, entries, byKey };
+    });
+    catalogueMemorise = {
+      accounts: state.accounts, revision: remoteRevision, view: state.explorer.view,
+      accountId: state.explorer.accountId, value,
+    };
+    return value;
   }, [state.accounts, remoteRevision, state.explorer.view, state.explorer.accountId]);
 }
 

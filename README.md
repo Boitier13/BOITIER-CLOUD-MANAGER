@@ -667,6 +667,16 @@ la cause certaine. Les mesures prises pour réduire le travail de fond sont :
   règle générale, davantage si des opérations actives les retiennent) ;
 - les récents MEGA sont traités un compte à la fois, avec 1,5 s entre lectures.
 
+**0.23.11 — grands dossiers :** la fusion des fichiers du catalogue évite
+une recherche répétée dans toute la liste ; le calcul est partagé entre les
+écrans. L'explorateur affiche au maximum 100 lignes par page, avec les boutons
+« Précédent » et « Suivant » : tous les fichiers restent accessibles et « Tout
+sélectionner » porte sur tous les résultats, pas seulement la page affichée.
+Le tri et les filtres s'appliquent aux lignes réellement affichées. Les durées
+anormalement longues du catalogue, du tri et de la préparation MEGA sont
+journalisées ; la durée de restauration MEGA comprend aussi l'attente réseau.
+Ces améliorations doivent encore être vérifiées sur la machine concernée.
+
 **Correction importante de 0.23.10 :** `Storage.close()` de megajs effectue
 une déconnexion auprès de MEGA, et pas seulement une libération locale. La
 version 0.23.9 l'utilisait à l'éviction et à la fermeture ; une session déjà

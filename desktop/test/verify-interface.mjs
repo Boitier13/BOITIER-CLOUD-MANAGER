@@ -2390,7 +2390,7 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   const texte = bloque.doc.querySelector('.filetable-error__text')?.textContent?.trim() ?? '';
   check(
     'MEGA bloqué : l’écran nomme le bon fournisseur',
-    /MEGA est injoignable/.test(titre) && !/Google Drive/.test(titre),
+    /MEGA : compte bloqué/.test(titre) && !/Google Drive|injoignable/.test(titre),
     titre || 'titre absent',
   );
   check(
@@ -2416,6 +2416,13 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
     /boitierfirst7/.test(bloque.doc.body.textContent ?? ''),
     'compte disparu',
   );
+  check('explorateur MEGA : aucun bouton pour ouvrir Google Drive',
+    !/Ouvrir dans Drive/.test(bloque.doc.body.textContent ?? ''));
+  let compteEnvoi = '';
+  bloque.window.boitier.mega.upload = async (accountId) => { compteEnvoi = accountId; return { sent: 0 }; };
+  const envoi = [...bloque.doc.querySelectorAll('button')].find((button) => /Envoyer sur MEGA/.test(button.textContent ?? ''));
+  if (envoi) await bloque.click(envoi);
+  check('explorateur MEGA : l’envoi utilise l’identifiant MEGA', compteEnvoi === 'b7', compteEnvoi);
 }
 
 /* --- 18. Ligne MEGA de l'écran Clouds : les bons boutons ------------------ */
@@ -2634,6 +2641,47 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
       ligneGoogle?.querySelector('[aria-label^="Reconnecter"]')?.getAttribute('title') ?? '',
     ),
   );
+}
+
+/* --- Grand dossier : le DOM reste borné sans perdre les fichiers --------- */
+{
+  const gros = Array.from({ length: 230 }, (_, i) => ({
+    id: `large-${i}`, name: `Fichier ${String(i).padStart(3, '0')}.pdf`,
+    kind: 'file', mimeType: 'application/pdf', size: 1000,
+    modified: '2026-01-01T00:00:00.000Z',
+  }));
+  const pont = compte.window.boitier;
+  const grand = await parcours({
+    label: 'grand dossier',
+    bridge: { ...pont, google: { ...pont.google, list: async () => gros } },
+  });
+  const fichiers = [...grand.doc.querySelectorAll('.nav-item')].find((button) =>
+    /Tous les fichiers/.test(button.textContent ?? ''),
+  );
+  if (fichiers) await grand.click(fichiers);
+  await new Promise((r) => setTimeout(r, 350));
+  check('grand dossier : 100 lignes au départ', grand.doc.querySelectorAll('.filetable tbody tr').length === 100,
+    `${grand.doc.querySelectorAll('.filetable tbody tr').length} lignes`);
+  const tout = grand.doc.querySelector('[aria-label="Tout sélectionner (tous les résultats)"]');
+  if (tout) await grand.click(tout);
+  check('grand dossier : sélection de tous les résultats même non affichés', /230 sélectionnés/.test(grand.text()));
+  if (tout) await grand.click(tout);
+  const nom = grand.doc.querySelector('.filetable thead th.is-sortable');
+  if (nom) await grand.click(nom);
+  check('grand dossier : le tri s’applique aux lignes affichées', /Fichier 229\.pdf/.test(grand.doc.querySelector('.filetable tbody tr')?.textContent ?? ''));
+  if (nom) await grand.click(nom);
+  const suivant = [...grand.doc.querySelectorAll('button')].find((button) => /^Suivant$/.test(button.textContent?.trim() ?? ''));
+  check('grand dossier : les fichiers suivants restent accessibles', Boolean(suivant));
+  if (suivant) await grand.click(suivant);
+  check('grand dossier : 100 lignes sur la deuxième page', grand.doc.querySelectorAll('.filetable tbody tr').length === 100);
+  check('grand dossier : la deuxième page commence au fichier 100', /Fichier 100\.pdf/.test(grand.doc.querySelector('.filetable tbody tr')?.textContent ?? ''));
+  if (suivant) await grand.click(suivant);
+  check('grand dossier : dernière page de 30 fichiers', grand.doc.querySelectorAll('.filetable tbody tr').length === 30);
+  check('grand dossier : dernier fichier présent', /Fichier 229\.pdf/.test(grand.text()));
+  const precedent = [...grand.doc.querySelectorAll('button')].find((button) => /^Précédent$/.test(button.textContent?.trim() ?? ''));
+  if (precedent) await grand.click(precedent);
+  check('grand dossier : retour à la page précédente', /Fichier 100\.pdf/.test(grand.doc.querySelector('.filetable tbody tr')?.textContent ?? ''));
+  grand.window.close();
 }
 
 console.log(
