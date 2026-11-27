@@ -91,7 +91,7 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
           <div className="page-eyebrow">Transferts</div>
           <h1 className="page-title">Téléchargements</h1>
           <p className="page-subtitle">
-            Les fichiers Google Drive sont réellement enregistrés sur ce disque. Une pause
+            Les fichiers téléchargés depuis vos clouds sont réellement enregistrés sur ce disque. Une pause
             conserve le fichier partiel : la reprise reprend à l’octet près, sans rien
             retélécharger. Seule l’annulation efface ce qui a déjà été reçu.
           </p>

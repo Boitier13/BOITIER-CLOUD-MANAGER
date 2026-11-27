@@ -633,6 +633,19 @@ try {
       /#4285f4/.test(sourceVisuals),
     'dessin manquant',
   );
+  // Les actions d'une ligne ne sont plus invisibles hors survol : l'icône de
+  // téléchargement d'un dossier passait pour inexistante.
+  const sourceStyles = await readFile(
+    new URL('../../src/styles.css', import.meta.url),
+    'utf8',
+  );
+  const blocActions = sourceStyles.slice(sourceStyles.indexOf('.file-actions {'));
+  check(
+    'dossiers : l’icône de téléchargement reste visible sans survol',
+    /opacity:\s*0?\.55/.test(blocActions.slice(0, 200)),
+    'actions encore masquées (opacity: 0)',
+  );
+
   check(
     'logos : un fournisseur non dessiné reçoit un nuage, pas une lettre',
     /un fournisseur pas encore dessiné|reçoit un nuage/i.test(sourceVisuals) ||
@@ -1664,16 +1677,37 @@ try {
   );
   check(
     'MEGA : un blocage temporaire impose une garde avant nouvel essai',
-    /bloques\.set\(accountId, Date\.now\(\) \+ 3 \* 60_000\)/.test(sourceSession),
-    'aucune garde après un -16',
+    /bloques\.set\(accountId, Date\.now\(\) \+ GARDE_BLOCAGE_MS\)/.test(sourceSession) &&
+      /const GARDE_BLOCAGE_MS = 10 \* 60_000/.test(sourceSession),
+    'aucune garde (ou garde trop courte) après un -16',
+  );
+  check(
+    'MEGA : les restaurations de session sont espacées',
+    /PAUSE_ENTRE_SESSIONS_MS/.test(sourceSession) &&
+      /derniereOuverture \+ PAUSE_ENTRE_SESSIONS_MS/.test(sourceSession),
+    'aucune pause entre deux comptes',
   );
 
-  const { messageErreurMega } = await import('../mega/files.ts');
+  const { messageErreurMega, codeErreurMega } = await import('../mega/files.ts');
   const message = messageErreurMega(Object.assign(new Error('EBLOCKED'), { code: -16 }));
   check(
     'MEGA : le blocage temporaire est expliqué, pas résumé à un code',
     /bloque/i.test(message) && /patientez/i.test(message),
     message,
+  );
+  // L'erreur réellement reçue ne portait aucun `code` : « EBLOCKED (-16) » était
+  // dans le texte, et l'écran affichait cette phrase anglaise telle quelle.
+  const sansCode = new Error('EBLOCKED (-16): User blocked');
+  check(
+    'MEGA : le code est retrouvé dans le texte quand il manque',
+    codeErreurMega(sansCode) === 16,
+    `code lu : ${codeErreurMega(sansCode)}`,
+  );
+  check(
+    'MEGA : un blocage reçu en texte est expliqué en français',
+    /bloque temporairement/i.test(messageErreurMega(sansCode)) &&
+      !/EBLOCKED|User blocked/.test(messageErreurMega(sansCode)),
+    messageErreurMega(sansCode),
   );
 
   // 6. La sentinelle ne compte pas le temps passé en arrière-plan.

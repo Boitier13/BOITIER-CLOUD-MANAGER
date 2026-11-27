@@ -18,6 +18,7 @@ import { Files } from './pages/Files';
 import { SearchPage } from './pages/Search';
 import { Profiler } from 'react';
 import { traceRendu } from './lib/trace';
+import { isRealAccount } from './lib/google';
 import { Storage } from './pages/Storage';
 import { Recent } from './pages/Recent';
 import { Downloads } from './pages/Downloads';
@@ -124,7 +125,13 @@ export default function App() {
   const queue = state.downloads.filter((item) => item.status !== 'done');
   const totalSpeed = activeDownloads.reduce((sum, item) => sum + item.speed, 0);
   const totalCount = catalog.entries.length;
-  const realCount = state.accounts.filter((account) => account.source === 'google').length;
+  /**
+   * Comptes réellement rattachés à un fournisseur, tous clouds confondus.
+   *
+   * Le compteur ne regardait que Google : il annonçait « 9 réels » alors que
+   * les onze comptes MEGA en sont tout autant.
+   */
+  const realCount = state.accounts.filter((account) => isRealAccount(account)).length;
 
   const explorerLabel = useMemo(() => {
     const account = state.accounts.find((a) => a.id === state.explorer.accountId);
@@ -204,7 +211,7 @@ export default function App() {
                 />
                 {formatDecimal(state.accounts.length)} compte
                 {state.accounts.length > 1 ? 's' : ''} ·{' '}
-                {realCount
+                {realCount && realCount !== state.accounts.length
                   ? `${formatDecimal(realCount)} réel${realCount > 1 ? 's' : ''}`
                   : `${formatDecimal(PROVIDER_LIST.length)} fournisseurs`}
               </span>

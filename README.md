@@ -273,7 +273,9 @@ système, la progression s'affiche, et le dossier est relu à la fin.
 **Dossier entier.** Un dossier MEGA se télécharge aussi d'un bloc, avec le même
 dialogue que chez Google : le plan (nombre de fichiers, sous-dossiers, taille)
 est calculé avant tout transfert, puis chaque fichier arrive à sa place dans
-l'arborescence.
+l'arborescence. La commande est sur **chaque** ligne de dossier (icône dédiée,
+désormais visible sans survol) et dans la barre d'outils quand on est déjà dans
+le dossier (« Ce dossier »).
 
 **Ce que MEGA ne permet pas ici.** Ni suppression ni déplacement ni renommage :
 l'application ne fait que lire, télécharger et envoyer. Les dossiers partagés
@@ -285,6 +287,36 @@ distinct du stockage : au-delà, les téléchargements et les envois sont refus�
 L'erreur est traduite en clair (« quota de transfert MEGA épuisé pour
 aujourd'hui ») au lieu d'afficher un code négatif, et le partiel déjà reçu reste
 sur le disque pour la reprise du lendemain.
+
+### Quand MEGA bloque un compte (« -16 », EBLOCKED)
+
+MEGA bloque temporairement un compte quand trop de connexions arrivent d'un coup
+depuis la même adresse — cas classique avec onze comptes ouverts au démarrage.
+
+Ce qui s'affichait auparavant : sous le titre « **Google Drive** est
+injoignable », le texte brut d'Electron —
+`Error invoking remote method 'mega:list': Error: EBLOCKED (-16): User blocked`.
+Le fournisseur était faux et la phrase ne disait rien.
+
+Ce qui se passe maintenant :
+
+- **une seule session à la fois**, espacée de 400 ms : onze relectures d'affilée
+  suffisaient à déclencher le blocage ;
+- après un `-16`, le compte est mis en garde **10 minutes** — insister pendant la
+  garde ne fait qu'allonger le blocage côté MEGA. Le compte reste dans la liste,
+  avec son nom, son adresse et son dernier quota connu ;
+- l'écran affiche **« MEGA est injoignable »** et une phrase utile : « MEGA
+  bloque temporairement ce compte (trop de connexions depuis la même adresse) :
+  patientez quelques minutes, puis réessayez » ;
+- le texte technique d'Electron (`Error invoking remote method…`) et les codes
+  en clair (`EBLOCKED`, `(-16)`) ne parviennent plus jamais à l'écran :
+  `src/lib/errors.ts` les traduit, `desktop/mega/files.ts` retrouve le code
+  numérique **même quand il n'est que dans le texte** (c'était le cas ici) ;
+- le bouton **Réessayer** relance la lecture du dossier, sans retirer le compte.
+
+Si le blocage persiste plusieurs heures : attendez, puis reconnectez le compte
+depuis **Clouds** (l'adresse et le mot de passe suffisent ; aucune donnée n'est
+perdue, seul le jeton de session est renouvelé).
 
 ### Téléverser : ce que l'application ne fait pas
 
@@ -482,7 +514,7 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 195 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 199 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,

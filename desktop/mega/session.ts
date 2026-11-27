@@ -9,7 +9,7 @@
 
 import { Storage } from 'megajs';
 import { log } from '../log.ts';
-import { exigeDeuxEtapes, messageErreurMega, sessionExpiree } from './files.ts';
+import { codeErreurMega, exigeDeuxEtapes, messageErreurMega, sessionExpiree } from './files.ts';
 import type { MegaStoredAccount, MegaVault } from './store.ts';
 
 export interface MegaAccountInfo {
@@ -29,6 +29,24 @@ export class DeuxEtapesRequises extends Error {
     this.name = 'DeuxEtapesRequises';
   }
 }
+
+/**
+ * Durée de la garde après un blocage MEGA (-16).
+ *
+ * MEGA bloque un compte quand trop de connexions arrivent d'un coup depuis la
+ * même adresse. Réessayer pendant la garde ne fait qu'allonger le blocage :
+ * trois minutes étaient visiblement trop courtes, le compte retombait bloqué
+ * aussitôt. Dix minutes laissent passer la fenêtre côté MEGA.
+ */
+const GARDE_BLOCAGE_MS = 10 * 60_000;
+
+/**
+ * Pause entre deux restaurations de session.
+ *
+ * Onze comptes relus à la suite, sans respirer, suffisent à déclencher le
+ * blocage anti-abus de MEGA : chaque restauration est donc espacée.
+ */
+const PAUSE_ENTRE_SESSIONS_MS = 400;
 
 export class MegaSession {
   private readonly vault: MegaVault;
@@ -56,6 +74,8 @@ export class MegaSession {
    * secondes et MEGA finissait par bloquer le compte.
    */
   private file: Promise<unknown> = Promise.resolve();
+  /** Horodatage de la dernière ouverture : sert à espacer les restaurations. */
+  private derniereOuverture = 0;
 
   constructor(vault: MegaVault) {
     this.vault = vault;
@@ -205,10 +225,19 @@ export class MegaSession {
       );
     }
 
-    // Mise à la file : une session à la fois.
+    // Mise à la file : une session à la fois, et espacées. Onze relectures
+    // d'affilée déclenchent le blocage anti-abus de MEGA : la pause laisse
+    // passer la fenêtre, sans retarder la toute première ouverture.
     const ouverture = this.file
       .catch(() => undefined)
-      .then(() => this.restaurer(accountId))
+      .then(async () => {
+        const attente = this.derniereOuverture + PAUSE_ENTRE_SESSIONS_MS - Date.now();
+        if (this.derniereOuverture > 0 && attente > 0) {
+          await new Promise((resolve) => setTimeout(resolve, attente));
+        }
+        this.derniereOuverture = Date.now();
+        return this.restaurer(accountId);
+      })
       .finally(() => {
         this.ouvertures.delete(accountId);
       });
@@ -249,9 +278,11 @@ export class MegaSession {
         this.expirees.add(accountId);
         throw new Error('session MEGA expirée : reconnectez ce compte');
       }
-      if (Number((cause as { code?: number } | null)?.code) === -16) {
+      if (codeErreurMega(cause) === 16) {
         // Blocage temporaire côté MEGA : on ne réessaie pas tout de suite.
-        this.bloques.set(accountId, Date.now() + 3 * 60_000);
+        // Le code est lu dans le texte quand il n'est pas porté par l'erreur :
+        // l'erreur réelle était `EBLOCKED (-16): User blocked`, sans `code`.
+        this.bloques.set(accountId, Date.now() + GARDE_BLOCAGE_MS);
         log(`MEGA : compte ${accountId} temporairement bloqué par MEGA (-16)`);
       }
       throw new Error(messageErreurMega(cause));
@@ -289,8 +320,8 @@ export class MegaSession {
         this.expirees.add(accountId);
         throw new Error('session MEGA expirée : reconnectez ce compte');
       }
-      if (Number((cause as { code?: number } | null)?.code) === -16) {
-        this.bloques.set(accountId, Date.now() + 3 * 60_000);
+      if (codeErreurMega(cause) === 16) {
+        this.bloques.set(accountId, Date.now() + GARDE_BLOCAGE_MS);
       }
       throw new Error(messageErreurMega(cause));
     }

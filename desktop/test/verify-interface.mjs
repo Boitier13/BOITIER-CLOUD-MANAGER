@@ -2224,6 +2224,109 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   }
 }
 
+/* --- 17. Un compte MEGA bloqué ne parle plus de Google Drive ------------- */
+//
+// Incident réel : un compte MEGA affichait « Google Drive est injoignable » et,
+// en dessous, le texte brut d'Electron :
+//
+//   Error invoking remote method 'mega:list': Error: EBLOCKED (-16): User blocked
+//
+// Le fournisseur était faux et l'explication absente. MEGA bloque un compte
+// quand trop de connexions arrivent d'un coup : c'est ce qu'il faut dire.
+{
+  const megaCompte = {
+    id: 'mega-real-b7',
+    megaId: 'b7',
+    email: 'boitierfirst7@gmail.com',
+    source: 'mega',
+    provider: 'mega',
+    name: 'boitierfirst7',
+    usedBytes: 18 * 1024 ** 3,
+    quotaBytes: 20 * 1024 ** 3,
+    status: 'connected',
+    createdAt: '2026-11-01T10:00:00.000Z',
+    seed: 13,
+    localTree: false,
+  };
+
+  const bloque = await parcours({
+    label: 'MEGA bloqué',
+    storage: {
+      key: 'boitier-cloud-manager:v1',
+      value: {
+        version: 1,
+        accounts: [megaCompte],
+        favorites: [],
+        downloads: [],
+        settings: {},
+        explorer: { accountId: megaCompte.id, path: [] },
+      },
+    },
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      google: {
+        status: async () => ({ configured: true, source: 'env' }),
+        accounts: async () => [],
+        folder: async () => 'C:\\Users\\BOITIER_FIRST\\Downloads\\BOITIER-CLOUD-MANAGER',
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+        storage: async () => ({ usedBytes: 0, categories: [] }),
+      },
+      mega: {
+        accounts: async () => [],
+        onUpload: () => () => {},
+        // La forme exacte relevée dans le journal de l'utilisateur.
+        list: async () => {
+          throw new Error(
+            "Error invoking remote method 'mega:list': Error: EBLOCKED (-16): User blocked",
+          );
+        },
+      },
+    },
+  });
+
+  const versFichiers = [...bloque.doc.querySelectorAll('.nav-item')].find((button) =>
+    (button.textContent ?? '').includes('Tous les fichiers'),
+  );
+  if (versFichiers) await bloque.click(versFichiers);
+  await new Promise((r) => setTimeout(r, 300));
+
+  const titre = bloque.doc.querySelector('.filetable-error__title')?.textContent?.trim() ?? '';
+  const texte = bloque.doc.querySelector('.filetable-error__text')?.textContent?.trim() ?? '';
+  check(
+    'MEGA bloqué : l’écran nomme le bon fournisseur',
+    /MEGA est injoignable/.test(titre) && !/Google Drive/.test(titre),
+    titre || 'titre absent',
+  );
+  check(
+    'MEGA bloqué : le blocage est expliqué, en français',
+    /bloque temporairement/i.test(texte) && /patientez/i.test(texte),
+    texte,
+  );
+  check(
+    'MEGA bloqué : aucun texte technique à l’écran',
+    !/Error invoking remote method|EBLOCKED|User blocked/.test(texte),
+    'texte brut encore affiché',
+  );
+  check(
+    'MEGA bloqué : un nouvel essai reste possible',
+    Boolean(
+      [...bloque.doc.querySelectorAll('.filetable-error .btn')].find((button) =>
+        /Réessayer/.test(button.textContent ?? ''),
+      ),
+    ),
+  );
+  check(
+    'MEGA bloqué : le compte n’est pas retiré de la liste',
+    /boitierfirst7/.test(bloque.doc.body.textContent ?? ''),
+    'compte disparu',
+  );
+}
+
 console.log(
   failures === 0
     ? '\nInterface vérifiée : état vide maîtrisé, compte réel affiché, aucun décor.'
