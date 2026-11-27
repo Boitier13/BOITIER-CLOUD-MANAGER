@@ -37,6 +37,7 @@ import {
   displaySegment,
   driveFolderId,
   ID_SEPARATOR,
+  remoteCatalog,
   useReloadRemote,
   useRemoteFolder,
   useRemoteSearch,
@@ -440,7 +441,7 @@ export function Files() {
     }
   };
 
-  const queuePlan = (
+  const queuePlan = async (
     plan: GoogleFolderPlan,
     folderName: string,
     basePath: string[],
@@ -476,6 +477,18 @@ export function Files() {
         ...(subPath ? { subPath } : {}),
       });
     });
+
+    // Shadow recrée aussi les sous-dossiers vides, après confirmation seulement.
+    if (source.provider === 'shadow') {
+      if (!bridge.shadow?.prepareFolders) { toast.push('Shadow Drive indisponible', 'error'); return; }
+      const base = [root, folderName].filter(Boolean).join('/');
+      try {
+        await bridge.shadow.prepareFolders(state.settings.downloadFolder, [base, ...plan.folders.map((folder) => `${base}/${folder}`)]);
+      } catch (cause) {
+        toast.push((cause as Error).message || 'Impossible de créer les dossiers.', 'error');
+        return;
+      }
+    }
 
     // La file est créée avant l'appel au pont : sinon un refus immédiat
     // arriverait avant la ligne et laisserait un transfert « En cours » à 0 %
@@ -652,12 +665,12 @@ export function Files() {
                     />
                     <span className="rail-account__name">{shortAddress(acc.email)}</span>
                     {isRealAccount(acc) ? (
-                      <span className="rail-account__live" title="Compte Google réel" />
+                      <span className="rail-account__live" title={`Compte ${PROVIDERS[item.id].name} réel`} />
                     ) : null}
                   </button>
                 ))}
                 {accs
-                  .filter((acc) => isRealAccount(acc) && acc.id === account.id)
+                  .filter((acc) => acc.provider === 'gdrive' && isRealAccount(acc) && acc.id === account.id)
                   .map((acc) => (
                     <button
                       key={`${acc.id}-shared`}
@@ -823,7 +836,7 @@ export function Files() {
                   sharedView
                     ? 'Filtrer les fichiers partagés…'
                     : remote
-                      ? 'Rechercher dans ce compte Google…'
+                      ? `Rechercher dans ce compte ${PROVIDERS[account.provider].name}…`
                       : 'Rechercher dans tous les comptes…'
                 }
                 value={query}
@@ -1050,6 +1063,13 @@ export function Files() {
                 <RefreshCw size={13} className="spin" />
                 Recherche dans {provider.name}…
               </div>
+            ) : remote && searchMode && remoteSearchState?.status === 'error' ? (
+              <div className="filetable-error" role="alert">
+                <CloudOff size={20} />
+                <p className="filetable-error__title">Recherche impossible</p>
+                <p className="filetable-error__text">{remoteSearchState.error}</p>
+                <button type="button" className="btn btn--sm" onClick={() => remoteCatalog.search(remoteId!, remoteQuery)}><RotateCcw size={12} /> Réessayer</button>
+              </div>
             ) : remote && activeState?.status === 'loading' && rows.length === 0 ? (
               <div className="filetable-loading">
                 <RefreshCw size={13} className="spin" />
@@ -1099,7 +1119,7 @@ export function Files() {
                 <p className="filetable-empty__text">
                   {searchMode
                     ? remote
-                      ? 'La recherche interroge tout ce compte Google. Essayez un autre terme.'
+                      ? `La recherche interroge ce compte ${PROVIDERS[account.provider].name}. Essayez un autre terme.`
                       : 'La recherche couvre tous les comptes. Essayez un autre terme.'
                     : sharedView
                       ? query
@@ -1452,7 +1472,7 @@ export function Files() {
             <span className="filetable-foot__path">
               {searchMode
                 ? remote
-                  ? 'Recherche Google'
+                  ? `Recherche ${PROVIDERS[account.provider].name}`
                   : 'Recherche globale'
                 : cleanPath.length
                   ? cleanPath.join(' / ')

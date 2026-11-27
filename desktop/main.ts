@@ -22,6 +22,8 @@ import { registerIpc, emitDownload, emitUpdate, emitUpload, channels } from './a
 import { MegaVault } from './mega/store.ts';
 import { MegaSession } from './mega/session.ts';
 import { MegaService } from './mega/service.ts';
+import { ShadowService } from './shadow/service.ts';
+import { ShadowVault } from './shadow/vault.ts';
 import { traceMiseAJour, Updater } from './updater.ts';
 import { loadEnvFile, readGoogleConfig } from './config.ts';
 import { initLog, log, logPath as currentLogPath, sinceStart } from './log.ts';
@@ -493,7 +495,15 @@ function boot(): void {
   });
 
   megaService = mega;
-  registerIpc(win, service, updater, { session: mega.session, service: mega });
+  const shadow = new ShadowService(
+    new ShadowVault(dataDir ?? resolveDataDir(app.getPath('appData')), protect, unprotect),
+    (event) => {
+      for (const target of windows) if (!target.isDestroyed()) emitDownload(target, event);
+      if (event.status === 'done' || event.status === 'error') notifierTransfert(event);
+    },
+    async () => defaultDownloadDir(app.getPath('downloads')),
+  );
+  registerIpc(win, service, updater, { session: mega.session, service: mega }, shadow);
   // La vérification démarre douze secondes après : l'interface passe d'abord.
   updater.start();
   log(`fenêtre créée · +${sinceStart()} ms`);

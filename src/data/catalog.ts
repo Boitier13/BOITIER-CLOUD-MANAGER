@@ -16,7 +16,7 @@
  * Ajouter un fournisseur se fait ici, puis dans `desktop/` : l'interface ne
  * connaît que ces métadonnées et les formes de données communes.
  */
-export type ProviderId = 'gdrive' | 'mega';
+export type ProviderId = 'gdrive' | 'mega' | 'shadow';
 
 export type AccountStatus = 'connected' | 'syncing' | 'expired';
 
@@ -55,6 +55,15 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
     domain: 'gmail.com',
     tagline: 'Documents et partages',
   },
+  shadow: {
+    id: 'shadow',
+    name: 'Shadow Drive',
+    prefix: 'SHADOW',
+    brand: '#6635c7',
+    quota: 0,
+    domain: 'drive.shadow.tech',
+    tagline: 'Stockage WebDAV',
+  },
   mega: {
     id: 'mega',
     name: 'MEGA',
@@ -68,12 +77,12 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
   },
 };
 
-export const PROVIDER_IDS: ProviderId[] = ['gdrive', 'mega'];
+export const PROVIDER_IDS: ProviderId[] = ['gdrive', 'mega', 'shadow'];
 
 export const PROVIDER_LIST: Provider[] = PROVIDER_IDS.map((id) => PROVIDERS[id]);
 
 /** Origine du compte : toujours un fournisseur réel désormais. */
-export type AccountSource = 'google' | 'mega';
+export type AccountSource = 'google' | 'mega' | 'shadow';
 
 export interface Account {
   id: string;
@@ -93,6 +102,8 @@ export interface Account {
   googleId?: string;
   /** Identifiant du compte côté MEGA (handle utilisateur, jamais un secret). */
   megaId?: string;
+  shadowId?: string;
+  shadowUrl?: string;
   /** Photo de profil fournie par Google. */
   avatarUrl?: string;
   /** Espace utilisé provenant des autres fournisseurs (offres professionnelles). */

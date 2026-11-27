@@ -23,13 +23,15 @@ export const GOOGLE_ROOT = 'root';
 export function isRealAccount(account: Account): boolean {
   return (
     (account.provider === 'gdrive' && account.source === 'google') ||
-    (account.provider === 'mega' && account.source === 'mega')
+    (account.provider === 'mega' && account.source === 'mega') ||
+    (account.provider === 'shadow' && account.source === 'shadow')
   );
 }
 
 /** Identifiant du compte côté fournisseur (jamais un secret). */
 export function realAccountId(account: Account): string | undefined {
   if (account.provider === 'mega') return account.megaId ?? account.id;
+  if (account.provider === 'shadow') return account.shadowId ?? account.id;
   return account.googleId ?? (account.source === 'google' ? account.id : undefined);
 }
 

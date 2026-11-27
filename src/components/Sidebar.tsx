@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { PROVIDER_LIST } from '../data/catalog';
 import { BrandMark } from './BrandMark';
+import { ProviderMark } from './visuals';
 import { useStore, type Route } from '../store';
 import { useUpdater } from '../hooks/useUpdater';
 import { formatDecimal } from '../lib/format';
@@ -111,10 +112,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
                 aria-current={isActive ? 'page' : undefined}
                 title={`${provider.name} — ${countFor(provider.id)} compte(s)`}
               >
-                <span
-                  className="cloud-item__dot"
-                  style={{ ['--dot' as string]: provider.brand }}
-                />
+                <ProviderMark provider={provider.id} size="sm" />
                 <span className="cloud-item__name">{provider.name}</span>
                 {provider.id === 'gdrive' && liveCount > 0 ? (
                   <span className="rail-account__live" aria-label="compte réel connecté" />

@@ -52,7 +52,7 @@ export function Storage({ onNavigate }: { onNavigate: (route: Route) => void }) 
     // MEGA n'expose pas de répartition par catégorie : le quota vient de la
     // session (mesuré à la connexion et après chaque envoi), et il n'y a donc
     // rien de plus à demander ici. On ne lance pas une requête inutile.
-    if (account?.provider === 'mega') {
+    if (account?.provider !== 'gdrive') {
       setUsage(null);
       measuredFor.current = id;
       return;

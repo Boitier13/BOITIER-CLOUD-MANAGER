@@ -9,6 +9,7 @@ import {
   Folder,
 } from 'lucide-react';
 import { PROVIDERS, type FileType, type ProviderId } from '../data/catalog';
+import shadowDriveLogo from '../assets/shadow-drive.png?inline';
 
 const TYPE_ICONS: Record<FileType, typeof File> = {
   folder: Folder,
@@ -61,6 +62,7 @@ function ProviderLogo({ provider }: { provider: ProviderId }) {
       </svg>
     );
   }
+  if (provider === 'shadow') return <img src={shadowDriveLogo} alt="" />;
   if (provider === 'mega') {
     // Le « M » rouge de MEGA, tracé comme une arête double.
     return (

@@ -156,17 +156,22 @@ export class DownloadManager {
   private readonly fallbackDir: () => Promise<string>;
 
   private readonly stallMs: number;
+  private readonly adapter?: {
+    readMeta: (accountId: string, fileId: string, signal: AbortSignal) => Promise<{ mimeType: string; size: number }>;
+    openMedia: (accountId: string, fileId: string, signal: AbortSignal, from: number) => ReturnType<typeof openMedia>;
+  };
 
   constructor(
     endpoints: Endpoints,
     emit: (event: DownloadEvent) => void,
     fallbackDir: () => Promise<string>,
-    options: { stallMs?: number } = {},
+    options: { stallMs?: number; adapter?: DownloadManager['adapter'] } = {},
   ) {
     this.endpoints = endpoints;
     this.emit = emit;
     this.fallbackDir = fallbackDir;
     this.stallMs = options.stallMs ?? STALL_TIMEOUT_MS;
+    this.adapter = options.adapter;
   }
 
   list(): { id: string; status: DownloadStatus; received: number; size: number }[] {
@@ -272,10 +277,12 @@ export class DownloadManager {
       log(`transfert ${request.id} : dossier ${dir}`);
       await mkdir(dir, { recursive: true });
       // Les métadonnées décident si c'est un binaire ou un export Google.
-      const meta = await readFileMeta(this.endpoints, token, request.fileId, job.controller.signal);
+      const meta = this.adapter
+        ? await this.adapter.readMeta(token, request.fileId, job.controller.signal)
+        : await readFileMeta(this.endpoints, token, request.fileId, job.controller.signal);
       log(`transfert ${request.id} : métadonnées ${meta.mimeType} ${meta.size} o`);
-      const format = formatExport(meta.mimeType);
-      if (isGoogleDocument(meta.mimeType) && !format) {
+      const format = this.adapter ? undefined : formatExport(meta.mimeType);
+      if (!this.adapter && isGoogleDocument(meta.mimeType) && !format) {
         throw new Error('Ce type de document Google ne possède pas encore de format d’export pris en charge.');
       }
       if (!job.partPath || !job.finalPath) {
@@ -297,10 +304,13 @@ export class DownloadManager {
       if (format) job.size = 0; // la taille source n'est pas celle de l'export
       const media = format
         ? await openExport(this.endpoints, token, request.fileId, format.mimeType, job.controller.signal)
-        : await openMedia(this.endpoints, token, request.fileId, job.controller.signal, deja);
+        : this.adapter
+          ? await this.adapter.openMedia(token, request.fileId, job.controller.signal, deja)
+          : await openMedia(this.endpoints, token, request.fileId, job.controller.signal, deja);
       if (!job.size) job.size = media.size ?? (format ? 0 : meta.size);
 
       // Drive a ignoré la plage : le partiel est remplacé, jamais complété.
+      if (media.resumed && media.start !== deja) throw new Error('Le serveur a répondu avec une plage de téléchargement incorrecte.');
       const reprend = media.resumed && media.start > 0;
       job.received = reprend ? media.start : 0;
       if (deja > 0 && !reprend) {
