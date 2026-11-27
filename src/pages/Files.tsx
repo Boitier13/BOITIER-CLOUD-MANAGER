@@ -496,12 +496,12 @@ export function Files() {
     );
     const total = plan.totalBytes;
     toast.push(
-      `${folderName} · ${plural(items.length, 'fichier')} (${formatBytes(total)}) en file`,
+      `${folderName} · ${plural(items.length, 'fichier')} (${formatBytes(total)} de taille connue) en file`,
       'ok',
     );
     if (plan.skipped.length) {
       toast.push(
-        `${plural(plan.skipped.length, 'document')} Google natif écarté${plan.skipped.length > 1 ? 's' : ''}`,
+        `${plural(plan.skipped.length, 'document')} Google natif non pris en charge et écarté${plan.skipped.length > 1 ? 's' : ''}`,
         'warn',
       );
     }

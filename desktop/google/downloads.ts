@@ -13,10 +13,11 @@
  */
 
 import { once } from 'node:events';
-import { createWriteStream } from 'node:fs';
-import { mkdir, rename, rm, stat } from 'node:fs/promises';
-import { join } from 'node:path';
-import { isGoogleDocument, openMedia, readFileMeta } from './drive.ts';
+import { createWriteStream, type WriteStream } from 'node:fs';
+import { link, mkdir, open, rm, stat } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
+import { isGoogleDocument, openExport, openMedia, readFileMeta } from './drive.ts';
+import { formatExport, nomExporte } from './export.ts';
 import type { Endpoints } from './endpoints.ts';
 import { log } from '../log.ts';
 
@@ -120,10 +121,30 @@ export async function uniquePath(dir: string, name: string): Promise<string> {
   for (;;) {
     try {
       await stat(candidate);
-      candidate = join(dir, `${stem} (${index})${ext}`);
-      index += 1;
-    } catch {
-      return candidate;
+    } catch (cause) {
+      if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') throw cause;
+      try {
+        await stat(`${candidate}.part`);
+      } catch (partError) {
+        if ((partError as NodeJS.ErrnoException).code !== 'ENOENT') throw partError;
+        return candidate;
+      }
+    }
+    candidate = join(dir, `${stem} (${index})${ext}`);
+    index += 1;
+  }
+}
+
+/** Réserve aussi le partiel : deux transferts simultanés ne partagent jamais le même chemin. */
+async function reservePath(dir: string, name: string): Promise<string> {
+  for (;;) {
+    const path = await uniquePath(dir, name);
+    try {
+      const file = await open(`${path}.part`, 'wx');
+      await file.close();
+      return path;
+    } catch (cause) {
+      if ((cause as NodeJS.ErrnoException).code !== 'EEXIST') throw cause;
     }
   }
 }
@@ -240,46 +261,44 @@ export class DownloadManager {
     const timer: { handle?: NodeJS.Timeout } = {};
     // Déclaré hors du `try` : le nettoyage en cas d'échec doit y accéder.
     let partPath = '';
+    let sink: WriteStream | undefined;
     this.watch(job, timer);
 
     // Préparation DANS le try : un dossier impossible à créer lève ici, et
     // l'erreur doit atteindre l'interface. Elle en sortait auparavant avant le
     // `try` — la ligne restait alors « En cours » à 0 %, sans aucun message.
     try {
-      if (!job.partPath || !job.finalPath) {
-        const dir = relativeDir(request.dir || (await this.fallbackDir()), request.subPath);
-        log(`transfert ${request.id} : dossier ${dir}`);
-        await mkdir(dir, { recursive: true });
-        const finalPath = await uniquePath(dir, request.name);
-        job.finalPath = finalPath;
-        job.partPath = `${finalPath}.part`;
-      }
-      partPath = job.partPath;
-      const finalPath = job.finalPath;
-
-      // Documents Google natifs (Docs, Sheets…) : pas de flux binaire direct.
+      const dir = relativeDir(request.dir || (await this.fallbackDir()), request.subPath);
+      log(`transfert ${request.id} : dossier ${dir}`);
+      await mkdir(dir, { recursive: true });
+      // Les métadonnées décident si c'est un binaire ou un export Google.
       const meta = await readFileMeta(this.endpoints, token, request.fileId, job.controller.signal);
       log(`transfert ${request.id} : métadonnées ${meta.mimeType} ${meta.size} o`);
-      if (isGoogleDocument(meta.mimeType)) {
-        throw new Error(
-          'Les documents Google natifs (Docs, Sheets, Slides) n’ont pas de fichier binaire. Exportez-les d’abord depuis Google Drive.',
-        );
+      const format = formatExport(meta.mimeType);
+      if (isGoogleDocument(meta.mimeType) && !format) {
+        throw new Error('Ce type de document Google ne possède pas encore de format d’export pris en charge.');
       }
+      if (!job.partPath || !job.finalPath) {
+        const nom = format ? nomExporte(safeFileName(request.name), format) : request.name;
+        const finalPath = await reservePath(dir, nom);
+        job.finalPath = finalPath;
+        job.partPath = `${finalPath}.part`;
+        if (job.controller.signal.aborted) {
+          if (!job.paused) await rm(job.partPath, { force: true });
+          throw new DOMException('Transfert interrompu', 'AbortError');
+        }
+      }
+      partPath = job.partPath;
+      let finalPath = job.finalPath;
 
-      // Octets réellement présents sur le disque : c'est la vérité, pas le
-      // compteur en mémoire — une fermeture brutale laisserait un partiel plus
-      // court que ce que l'interface croyait avoir reçu.
+      // files.export ne garantit pas Range : une reprise redémarre l'export.
       const deja = await taillePartiel(partPath);
-      if (deja > 0) log(`transfert ${request.id} : reprise à ${deja} o`);
-
-      const media = await openMedia(
-        this.endpoints,
-        token,
-        request.fileId,
-        job.controller.signal,
-        deja,
-      );
-      if (!job.size) job.size = media.size ?? meta.size;
+      if (deja > 0) log(`transfert ${request.id} : partiel ${deja} o`);
+      if (format) job.size = 0; // la taille source n'est pas celle de l'export
+      const media = format
+        ? await openExport(this.endpoints, token, request.fileId, format.mimeType, job.controller.signal)
+        : await openMedia(this.endpoints, token, request.fileId, job.controller.signal, deja);
+      if (!job.size) job.size = media.size ?? (format ? 0 : meta.size);
 
       // Drive a ignoré la plage : le partiel est remplacé, jamais complété.
       const reprend = media.resumed && media.start > 0;
@@ -299,7 +318,9 @@ export class DownloadManager {
         speed: 0,
       });
 
-      const sink = createWriteStream(partPath, { flags: reprend ? 'a' : 'w' });
+      sink = createWriteStream(partPath, { flags: reprend ? 'a' : 'w' });
+      // L'erreur est également transmise par drain/end, sans événement non géré.
+      sink.on('error', () => undefined);
       const reader = media.body.getReader();
       const startedAt = Date.now();
       let lastEmit = 0;
@@ -330,10 +351,22 @@ export class DownloadManager {
       }
 
       await new Promise<void>((resolve, reject) => {
-        sink.end((error?: Error | null) => (error ? reject(error) : resolve()));
+        sink!.end((error?: Error | null) => (error ? reject(error) : resolve()));
       });
 
-      await rename(partPath, finalPath);
+      // link est atomique et refuse d'écraser un fichier créé entre-temps.
+      for (;;) {
+        try {
+          await link(partPath, finalPath);
+          break;
+        } catch (cause) {
+          if ((cause as NodeJS.ErrnoException).code !== 'EEXIST') throw cause;
+          const next = await reservePath(dirname(finalPath), basename(finalPath));
+          await rm(`${next}.part`, { force: true });
+          finalPath = next;
+        }
+      }
+      await rm(partPath, { force: true });
       // Plus de partiel : une annulation tardive ne doit pas viser un chemin mort.
       job.partPath = undefined;
       job.status = 'done';
@@ -341,14 +374,20 @@ export class DownloadManager {
       const seconds = Math.max((Date.now() - startedAt) / 1000, 0.001);
       this.emit({
         id: request.id,
-        name: request.name,
+        name: format ? basename(finalPath) : request.name,
         status: 'done',
         received: job.received,
-        size: job.size || job.received,
+        size: format ? job.received : job.size || job.received,
         speed: Math.round(job.received / seconds),
         path: finalPath,
       });
     } catch (cause) {
+      // Fermer le handle avant d'autoriser une reprise (notamment sur Windows).
+      if (sink && !sink.closed) {
+        const closed = once(sink, 'close').catch(() => undefined);
+        sink.destroy();
+        await closed;
+      }
       const aborted =
         (cause as Error).name === 'AbortError' ||
         (cause as { code?: string }).code === 'ABORT_ERR';
@@ -363,7 +402,9 @@ export class DownloadManager {
       // Message lisible pour les refus du disque (chemin inexistant, droits…).
       const code = (cause as { code?: string }).code;
       const diskMessage =
-        code === 'ENOENT'
+        ['ENOTSUP', 'EOPNOTSUPP', 'ENOSYS'].includes(code ?? '')
+          ? 'Ce disque ne permet pas de finaliser le fichier sans risque d’écrasement. Choisissez un disque compatible dans Paramètres.'
+          : code === 'ENOENT'
           ? `Dossier introuvable : « ${request.dir} ». Choisissez un autre dossier dans Paramètres.`
           : code === 'EACCES' || code === 'EPERM'
             ? `Windows refuse l’écriture dans « ${request.dir} ». Choisissez un autre dossier dans Paramètres.`

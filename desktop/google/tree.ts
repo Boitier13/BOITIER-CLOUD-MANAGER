@@ -7,11 +7,12 @@
  * rapatrie que des métadonnées (chemin relatif, identifiant, taille).
  *
  * Rien n'est écrit ici : l'écriture reste le travail du gestionnaire de
- * téléchargements, qui refuse un fichier natif Google et ne laisse jamais de
+ * téléchargements, qui exporte les types compatibles et ne laisse jamais de
  * fichier tronqué présenté comme complet.
  */
 
 import { listChildren, type DriveItem } from './drive.ts';
+import { formatExport, nomExporte } from './export.ts';
 import type { Endpoints } from './endpoints.ts';
 
 export type PlannedFile = {
@@ -26,7 +27,7 @@ export type FolderPlan = {
   files: PlannedFile[];
   /** Dossiers rencontrés, chemins relatifs (pour créer l'arborescence). */
   folders: string[];
-  /** Documents Google natifs écartés : ils n'ont pas de fichier binaire. */
+  /** Types Google natifs pour lesquels aucun format d’export n’est pris en charge. */
   skipped: string[];
   /** Vrai si la limite de sécurité a été atteinte : le lot est incomplet. */
   truncated: boolean;
@@ -87,10 +88,12 @@ export async function planFolder(
         continue;
       }
 
-      if (isGoogleNative(item.mimeType)) {
+      const format = formatExport(item.mimeType);
+      if (isGoogleNative(item.mimeType) && !format) {
         plan.skipped.push(relative.join('/'));
         continue;
       }
+      if (format) relative[relative.length - 1] = nomExporte(item.name, format);
       if (plan.files.length >= MAX_FILES) {
         plan.truncated = true;
         return;
@@ -98,10 +101,10 @@ export async function planFolder(
       plan.files.push({
         fileId: item.id,
         path: relative.join('/'),
-        size: item.size,
+        size: format ? 0 : item.size,
         mimeType: item.mimeType,
       });
-      plan.totalBytes += item.size;
+      if (!format) plan.totalBytes += item.size;
     }
   };
 

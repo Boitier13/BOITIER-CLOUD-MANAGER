@@ -301,6 +301,32 @@ export async function readFileMeta(
   return toItem(raw);
 }
 
+/**
+ * Exporte un document Workspace. Google limite files.export à 10 Mo et ne
+ * garantit pas la reprise par plage : on repart donc du début après une pause.
+ */
+export async function openExport(
+  endpoints: Endpoints,
+  token: string,
+  fileId: string,
+  mimeType: string,
+  signal?: AbortSignal,
+): Promise<{ body: ReadableStream<Uint8Array>; size?: number; start: number; resumed: boolean }> {
+  const url = new URL(`${endpoints.drive}/files/${encodeURIComponent(fileId)}/export`);
+  url.searchParams.set('mimeType', mimeType);
+  const response = await fetch(url.toString(), { headers: bearer(token), signal });
+  if (!response.ok || !response.body) {
+    let texte = '';
+    try { texte = await response.text(); } catch { /* erreur réseau */ }
+    if (/exportSizeLimitExceeded|exceeds? (the )?(maximum|size limit)|too large/i.test(texte)) {
+      throw new Error('Google limite cet export à 10 Mo : ce document est trop volumineux pour être exporté par l’application.');
+    }
+    throw new Error(`Export du document refusé par Google (${response.status}). Vérifiez les droits du compte et réessayez.`);
+  }
+  const length = Number(response.headers.get('content-length') ?? 0);
+  return { body: response.body, ...(length > 0 ? { size: length } : {}), start: 0, resumed: false };
+}
+
 /** Ouvre le flux binaire d'un fichier (téléchargement réel). */
 /**
  * Ouvre le flux binaire d'un fichier Drive, éventuellement **à partir d'un
