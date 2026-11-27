@@ -99,7 +99,7 @@ export function useUpdater(): UpdaterView {
     download,
     install,
     supported: Boolean(api) && state.status !== 'unsupported',
-    busy: state.status === 'checking' || state.status === 'downloading',
+    busy: state.status === 'checking' || state.status === 'downloading' || state.status === 'installing',
   };
 }
 
@@ -135,7 +135,10 @@ export function describeUpdate(state: UpdateState): string {
       return `Version ${state.version ?? 'récente'} disponible — cliquez sur « Télécharger » quand cela vous arrange.`;
     case 'downloading':
       return `Téléchargement de la version ${state.version ?? 'récente'} — ${state.percent ?? 0} %.`;
+    case 'installing':
+      return 'Préparation de l’installation… La fenêtre se fermera quand l’installeur aura démarré.';
     case 'ready':
+      if (state.message) return state.message;
       return `Version ${state.version ?? 'récente'} prête. Cliquez pour redémarrer et installer.`;
     case 'error':
       return state.message ?? 'Vérification impossible pour le moment.';

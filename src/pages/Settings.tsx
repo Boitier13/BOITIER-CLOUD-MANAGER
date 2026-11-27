@@ -588,7 +588,9 @@ export function Settings() {
                   }
                 >
                   <RefreshCw size={12} />
-                  {updater.state.status === 'downloading'
+                  {updater.state.status === 'installing'
+                    ? 'Préparation…'
+                    : updater.state.status === 'downloading'
                     ? 'Téléchargement…'
                     : updater.busy
                       ? 'Vérification…'

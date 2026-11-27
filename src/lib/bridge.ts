@@ -137,6 +137,7 @@ export type UpdateStatus =
   | 'available'
   | 'downloading'
   | 'ready'
+  | 'installing'
   | 'error';
 
 export interface UpdateState {

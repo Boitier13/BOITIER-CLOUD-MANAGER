@@ -667,6 +667,8 @@ la cause certaine. Les mesures prises pour réduire le travail de fond sont :
   règle générale, davantage si des opérations actives les retiennent) ;
 - les récents MEGA sont traités un compte à la fois, avec 1,5 s entre lectures.
 
+**0.23.13 — mise à jour :** le lancement de l’installeur est isolé du processus principal, et un refus de lancement laisse l’application ouverte avec la possibilité de réessayer. Des repères de focus et de réactivité sont ajoutés après installation pour diagnostiquer un éventuel blocage ; ils ne prouvent pas à eux seuls que le problème est résolu.
+
 **0.23.12 — documents Google :** export de Docs, Sheets et Slides en formats Office, individuellement ou dans les dossiers. La conversion est limitée à 10 Mo par export Google ; une reprise redémarre l’export.
 
 **0.23.11 — grands dossiers :** la fusion des fichiers du catalogue évite

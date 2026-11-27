@@ -195,6 +195,21 @@ function createWindow(): BrowserWindow {
     },
   });
 
+  // Lancement par NSIS après une mise à jour : repères bornés, sans données
+  // personnelles, pour distinguer focus Windows et processus d'affichage figé.
+  if (process.argv.includes('--updated')) {
+    log('mise à jour : premier lancement après installation (--updated)');
+    let focusEvents = 0;
+    const traceFocus = (event: string) => {
+      if (focusEvents++ < 12) log(`mise à jour : fenêtre ${event} · +${sinceStart()} ms`);
+    };
+    win.on('focus', () => traceFocus('focus'));
+    win.on('blur', () => traceFocus('blur'));
+    win.on('show', () => traceFocus('show'));
+  }
+  win.on('unresponsive', () => log(`fenêtre : processus d’affichage non réactif · +${sinceStart()} ms`));
+  win.on('responsive', () => log(`fenêtre : processus d’affichage de nouveau réactif · +${sinceStart()} ms`));
+
   // Affichage garanti.
   //
   // `ready-to-show` ne se déclenche que si la page peint. Une page qui échoue

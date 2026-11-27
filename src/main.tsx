@@ -87,6 +87,12 @@ function ReadySignal(): null {
 // fichier — c'est là que se cachent les secondes du démarrage.
 reportTiming(`bundle exécuté (${Math.round(performance.now())} ms)`);
 
+// Un seul repère, sans contenu de clic : si la fenêtre semble morte, savoir si
+// Chromium reçoit au moins une action permet de distinguer focus et interface.
+document.addEventListener('pointerdown', () => {
+  reportTiming(`premier clic reçu · focus ${document.hasFocus() ? 'oui' : 'non'}`);
+}, { once: true, capture: true });
+
 const root = document.getElementById('root');
 
 if (!root) {
