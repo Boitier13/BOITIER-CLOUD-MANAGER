@@ -43,3 +43,15 @@ jobs:
 
       - name: Contenu de l'application empaquetée
         run: npm run desktop:package-test
+
+  update-launcher-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Vérifie la création d'un processus réel depuis le worker sur Windows,
+      # sans installer ni fermer une application.
+      - name: Lanceur de mise à jour Windows
+        run: node desktop/test/update-launcher.mjs

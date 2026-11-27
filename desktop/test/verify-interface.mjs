@@ -1272,6 +1272,7 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
 {
   let installations = 0;
   let verifications = 0;
+  let notifier = () => {};
   const etatPret = {
     status: 'ready',
     currentVersion: '0.21.0',
@@ -1293,9 +1294,10 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
         },
         install: async () => {
           installations += 1;
+          notifier({ ...etatPret, status: 'installing' });
           return true;
         },
-        onChange: () => () => {},
+        onChange: (callback) => { notifier = callback; return () => {}; },
       },
       google: {
         status: async () => ({ configured: false, source: 'none' }),
@@ -1339,6 +1341,18 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
     'mise à jour : l’installation n’a lieu qu’après le clic',
     installations === 1,
     `${installations} appel(s)`,
+  );
+  check(
+    'mise à jour : préparation affichée sans possibilité de double clic',
+    /Préparation de l’installation/.test(doc.body.textContent ?? '') &&
+      ![...doc.querySelectorAll('button')].some((button) => /Redémarrer et installer/.test(button.textContent ?? '')),
+  );
+  notifier({ ...etatPret, message: 'L’installeur n’a pas pu être lancé. Vous pouvez réessayer.' });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  check(
+    'mise à jour : erreur lisible et tentative à nouveau possible',
+    /L’installeur n’a pas pu être lancé/.test(doc.body.textContent ?? '') &&
+      [...doc.querySelectorAll('button')].some((button) => /Redémarrer et installer/.test(button.textContent ?? '')),
   );
   check(
     'mise à jour : aucune vérification déclenchée par l’ouverture de l’écran',

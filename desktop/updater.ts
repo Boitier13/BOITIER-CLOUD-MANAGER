@@ -14,14 +14,16 @@
  * mise à jour » existe donc, et il faut le vouloir.
  *
  * Le fichier `latest.yml`, publié avec l'installeur, décrit la version
- * disponible et son empreinte : la mise à jour ne peut pas être substituée par
- * un autre fichier sans être détectée.
+ * disponible et son empreinte : un fichier qui ne correspond pas au manifeste
+ * est rejeté. Cela ne remplace pas une signature de l'éditeur.
  *
  * Rien de tout cela ne s'exécute dans une copie de développement : sans
  * installation, il n'y a ni `app-update.yml` ni version à remplacer.
  */
 
 import { app } from 'electron';
+import { join } from 'node:path';
+import { launchDetached } from './update-launcher.ts';
 import { log } from './log.ts';
 
 /**
@@ -51,6 +53,7 @@ export type UpdateStatus =
   | 'available'
   | 'downloading'
   | 'ready'
+  | 'installing'
   | 'error';
 
 export interface UpdateState {
@@ -77,6 +80,8 @@ export class Updater {
   private timer: NodeJS.Timeout | null = null;
   private wired = false;
   private updater: AutoUpdater | null = null;
+  private downloadedFile: string | null = null;
+  private adminRequired = false;
   private readonly notify: (state: UpdateState) => void;
 
   constructor(notify: (state: UpdateState) => void) {
@@ -123,6 +128,8 @@ export class Updater {
     // se déclencher pendant qu'il travaille.
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = false;
+    // Le lanceur utilise uniquement les installeurs complets NSIS.
+    autoUpdater.disableWebInstaller = true;
     autoUpdater.allowPrerelease = false;
 
     autoUpdater.on('checking-for-update', () => {
@@ -145,6 +152,8 @@ export class Updater {
     });
 
     autoUpdater.on('update-downloaded', (info) => {
+      this.downloadedFile = info.downloadedFile;
+      this.adminRequired = info.files?.some((file) => file.isAdminRightsRequired === true) ?? false;
       this.update({
         status: 'ready',
         version: info.version,
@@ -173,7 +182,7 @@ export class Updater {
   /** Vérification manuelle (bouton des paramètres) ou périodique. */
   async check(): Promise<UpdateState> {
     if (!app.isPackaged) return this.snapshot();
-    if (this.state.status === 'downloading' || this.state.status === 'ready') {
+    if (this.state.status === 'downloading' || this.state.status === 'ready' || this.state.status === 'installing') {
       return this.snapshot();
     }
     const autoUpdater = this.updater ?? (await loadAutoUpdater());
@@ -205,7 +214,7 @@ export class Updater {
     const autoUpdater = this.updater ?? (await loadAutoUpdater());
     this.updater = autoUpdater;
     if (!autoUpdater) return this.snapshot();
-    if (this.state.status === 'downloading' || this.state.status === 'ready') {
+    if (this.state.status === 'downloading' || this.state.status === 'ready' || this.state.status === 'installing') {
       return this.snapshot();
     }
     if (this.state.status !== 'available') {
@@ -227,35 +236,31 @@ export class Updater {
     return this.snapshot();
   }
 
-  /**
-   * Installe la version téléchargée et relance l'application.
-   *
-   * L'installeur reste visible : sans signature de code, une installation
-   * silencieuse serait un saut dans le vide. L'utilisateur voit ainsi ce qui
-   * se passe, et l'assistant NSIS se comporte comme lors d'une installation
-   * habituelle.
-   */
+  /** Installe uniquement après clic, sans bloquer le processus principal. */
   install(): boolean {
-    const autoUpdater = this.updater;
-    if (this.state.status !== 'ready' || !autoUpdater) {
+    if (this.state.status !== 'ready' || !this.updater || !this.downloadedFile) {
       log(`mise à jour : installation refusée (${this.state.status})`);
       return false;
     }
-    // Cette ligne est la seule preuve que l'installation a été *demandée* :
-    // les états (vérifiée, téléchargée, prête) se lisent déjà dans le journal,
-    // mais pas le clic. En cas d'échec silencieux, c'est elle qui tranche.
+    const installer = this.downloadedFile;
     log(`mise à jour : installation demandée ${this.state.version ?? ''}`.trim());
-    setImmediate(() => {
-      try {
-        autoUpdater.quitAndInstall(false, true);
-        log('mise à jour : installeur lancé, fermeture de l’application');
-      } catch (cause) {
-        log(`mise à jour : installeur impossible — ${(cause as Error).message}`);
-        this.update({
-          status: 'error',
-          message: 'L’installeur n’a pas pu être lancé. La version téléchargée reste disponible.',
-        });
-      }
+    this.update({ status: 'installing', message: undefined });
+    // Équivalent NSIS à quitAndInstall(false, true) pour nos installeurs complets.
+    // Pas de shell : les espaces et caractères spéciaux du chemin restent intacts.
+    void launchDetached({
+      command: installer,
+      args: ['--updated', '--force-run'],
+      elevationPath: join(process.resourcesPath, 'elevate.exe'),
+      adminRequired: this.adminRequired,
+    }).then(() => {
+      log('mise à jour : installeur démarré, fermeture demandée');
+      app.quit();
+    }).catch((cause: Error) => {
+      log(`mise à jour : installeur impossible — ${cause.message}`);
+      this.update({
+        status: 'ready',
+        message: 'L’installeur n’a pas pu être lancé. La version téléchargée reste disponible ; vous pouvez réessayer.',
+      });
     });
     return true;
   }

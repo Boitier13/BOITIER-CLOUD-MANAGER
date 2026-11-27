@@ -987,21 +987,20 @@ try {
     'installation au quit autorisée',
   );
   check(
-    'mise à jour : l’installation passe par un clic, jamais par une vérification',
-    (updater.match(/quitAndInstall\(/g) ?? []).length === 1 &&
-      /if \(this\.state\.status !== 'ready' \|\| !autoUpdater\) \{/.test(updater),
+    'mise à jour : installation exclusivement après téléchargement et clic',
+    /this\.state\.status !== 'ready'/.test(updater) &&
+      /!this\.downloadedFile/.test(updater) && /launchDetached\(\{/.test(updater) &&
+      /autoUpdater\.disableWebInstaller = true/.test(updater),
   );
   check(
-    'mise à jour : le clic d’installation laisse une trace',
-    /log\(`mise à jour : installation demandée/.test(updater) &&
-      updater.indexOf('installation demandée') < updater.indexOf('quitAndInstall('),
-    'aucune trace du clic',
+    'mise à jour : clic et lancement sont journalisés',
+    /mise à jour : installation demandée/.test(updater) &&
+      /mise à jour : installeur démarré, fermeture demandée/.test(updater),
   );
   check(
-    'mise à jour : un installeur qui refuse de partir est signalé',
-    /catch \(cause\) \{\s*log\(`mise à jour : installeur impossible/.test(updater) &&
-      /message: 'L’installeur n’a pas pu être lancé/.test(updater),
-    'échec silencieux',
+    'mise à jour : échec de lancement laisse la mise à jour prête à réessayer',
+    /mise à jour : installeur impossible/.test(updater) &&
+      /status: 'ready',[\s\S]*?L’installeur n’a pas pu être lancé/.test(updater),
   );
   check(
     'mise à jour : le planning des vérifications est journalisé',
