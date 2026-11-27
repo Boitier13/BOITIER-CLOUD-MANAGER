@@ -24,7 +24,8 @@ export function isRealAccount(account: Account): boolean {
   return (
     (account.provider === 'gdrive' && account.source === 'google') ||
     (account.provider === 'mega' && account.source === 'mega') ||
-    (account.provider === 'shadow' && account.source === 'shadow')
+    (account.provider === 'shadow' && account.source === 'shadow') ||
+    (account.provider === 'terabox' && account.source === 'terabox')
   );
 }
 
@@ -32,6 +33,7 @@ export function isRealAccount(account: Account): boolean {
 export function realAccountId(account: Account): string | undefined {
   if (account.provider === 'mega') return account.megaId ?? account.id;
   if (account.provider === 'shadow') return account.shadowId ?? account.id;
+  if (account.provider === 'terabox') return account.teraboxId ?? account.id;
   return account.googleId ?? (account.source === 'google' ? account.id : undefined);
 }
 

@@ -21,6 +21,7 @@ await build({
   platform: 'node',
   format: 'cjs',
   target: 'node20',
+  define: { 'process.env.BOITIER_TERABOX_TEST_BUILD': JSON.stringify(process.env.BOITIER_TERABOX_TEST_BUILD === '1' ? '1' : '0') },
   sourcemap: true,
   // Electron est fourni par le binaire, jamais empaqueté.
   external: ['electron'],

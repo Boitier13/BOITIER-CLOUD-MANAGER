@@ -25,6 +25,7 @@ import { app } from 'electron';
 import { join } from 'node:path';
 import { launchDetached } from './update-launcher.ts';
 import { log } from './log.ts';
+import { isTeraBoxTestBuild } from './paths.ts';
 
 /**
  * La bibliothèque de mise à jour est chargée **tardivement**, et son échec ne
@@ -87,11 +88,11 @@ export class Updater {
   constructor(notify: (state: UpdateState) => void) {
     this.notify = notify;
     this.state = {
-      status: app.isPackaged ? 'idle' : 'unsupported',
+      status: app.isPackaged && !isTeraBoxTestBuild() ? 'idle' : 'unsupported',
       currentVersion: app.getVersion(),
-      ...(app.isPackaged
-        ? {}
-        : { message: 'Mises à jour disponibles dans la version installée uniquement.' }),
+      ...(isTeraBoxTestBuild()
+        ? { message: 'Mises à jour désactivées dans la version de test TeraBox.' }
+        : app.isPackaged ? {} : { message: 'Mises à jour disponibles dans la version installée uniquement.' }),
     };
   }
 
@@ -106,7 +107,7 @@ export class Updater {
 
   /** Branche les événements du moteur et lance la première vérification. */
   start(): void {
-    if (!app.isPackaged || this.wired) return;
+    if (!app.isPackaged || isTeraBoxTestBuild() || this.wired) return;
     this.wired = true;
     void this.wire();
   }
@@ -181,7 +182,7 @@ export class Updater {
 
   /** Vérification manuelle (bouton des paramètres) ou périodique. */
   async check(): Promise<UpdateState> {
-    if (!app.isPackaged) return this.snapshot();
+    if (!app.isPackaged || isTeraBoxTestBuild()) return this.snapshot();
     if (this.state.status === 'downloading' || this.state.status === 'ready' || this.state.status === 'installing') {
       return this.snapshot();
     }
@@ -211,6 +212,7 @@ export class Updater {
    * courant (erreur comprise), pour que l'écran ne reste pas sur « 0 % ».
    */
   async download(): Promise<UpdateState> {
+    if (isTeraBoxTestBuild()) return this.snapshot();
     const autoUpdater = this.updater ?? (await loadAutoUpdater());
     this.updater = autoUpdater;
     if (!autoUpdater) return this.snapshot();

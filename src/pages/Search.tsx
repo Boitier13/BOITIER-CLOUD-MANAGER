@@ -197,14 +197,16 @@ export function SearchPage() {
     if (!bridge) return;
     // MEGA ne fournit pas le chemin d'un fichier : on ouvre alors son dossier
     // d'affichage courant plutôt que de prétendre le localiser.
-    if (row.account.provider === 'mega' || !googleId || (row.account.provider === 'gdrive' && !bridge.google.locate) || (row.account.provider === 'shadow' && !bridge.shadow?.locate)) {
+    if (row.account.provider === 'mega' || !googleId || (row.account.provider === 'gdrive' && !bridge.google.locate) || (row.account.provider === 'shadow' && !bridge.shadow?.locate) || (row.account.provider === 'terabox' && !bridge.terabox?.locate)) {
       dispatch({ type: 'explorer/open', accountId: row.account.id, path: row.path.slice(0, -1) });
       dispatch({ type: 'route', route: { name: 'files' } });
       return;
     }
     setBusyId(row.node.id);
     try {
-      const trail = row.account.provider === 'shadow'
+      const trail = row.account.provider === 'terabox'
+        ? await bridge.terabox!.locate(googleId, row.node.id)
+        : row.account.provider === 'shadow'
         ? await bridge.shadow!.locate(googleId, row.node.id)
         : await bridge.google.locate!(googleId, row.node.id);
       const segments = trail.map((step) => `${step.name}${ID_SEPARATOR}${step.id}`);

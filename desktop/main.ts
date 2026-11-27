@@ -24,10 +24,12 @@ import { MegaSession } from './mega/session.ts';
 import { MegaService } from './mega/service.ts';
 import { ShadowService } from './shadow/service.ts';
 import { ShadowVault } from './shadow/vault.ts';
+import { TeraBoxVault } from './terabox/vault.ts';
+import { TeraBoxService } from './terabox/service.ts';
 import { traceMiseAJour, Updater } from './updater.ts';
 import { loadEnvFile, readGoogleConfig } from './config.ts';
 import { initLog, log, logPath as currentLogPath, sinceStart } from './log.ts';
-import { resolveDataDir, resolvePreload, resolveRendererDir } from './paths.ts';
+import { isTeraBoxTestBuild, resolveDataDir, resolvePreload, resolveRendererDir } from './paths.ts';
 import { defaultDownloadDir } from '../src/lib/downloadFolder.ts';
 import type { DownloadEvent } from './google/downloads.ts';
 import { Vault } from './google/vault.ts';
@@ -45,7 +47,7 @@ const devServerUrl = process.env.BOITIER_DEV_SERVER_URL;
 // rattache une notification à l'icône de l'application. S'il manque, Windows
 // ignore la bulle sans le dire — l'application croit avoir prévenu.
 try {
-  app.setAppUserModelId('com.boitier.cloudmanager');
+  app.setAppUserModelId(isTeraBoxTestBuild() ? 'com.boitier.cloudmanager.teraboxtest' : 'com.boitier.cloudmanager');
 } catch {
   /* plateforme sans identifiant d'application : les bulles resteront muettes */
 }
@@ -186,7 +188,7 @@ function createWindow(): BrowserWindow {
     // éviter un aplat sombre devant une interface claire.
     backgroundColor: '#f5f7fb',
     show: false,
-    title: 'BOITIER CLOUD MANAGER',
+    title: isTeraBoxTestBuild() ? 'BOITIER CLOUD MANAGER — TEST TERABOX' : 'BOITIER CLOUD MANAGER',
     autoHideMenuBar: true,
     webPreferences: {
       preload: resolvePreload(here),
@@ -503,7 +505,15 @@ function boot(): void {
     },
     async () => defaultDownloadDir(app.getPath('downloads')),
   );
-  registerIpc(win, service, updater, { session: mega.session, service: mega }, shadow);
+  const terabox = new TeraBoxService(
+    new TeraBoxVault(dataDir ?? resolveDataDir(app.getPath('appData')), protect, unprotect),
+    fetch, undefined,
+    { fallbackDir: async () => defaultDownloadDir(app.getPath('downloads')), emit: (event) => {
+      for (const target of windows) if (!target.isDestroyed()) emitDownload(target, event);
+      if (event.status === 'done' || event.status === 'error') notifierTransfert(event);
+    } },
+  );
+  registerIpc(win, service, updater, { session: mega.session, service: mega }, shadow, terabox);
   // La vérification démarre douze secondes après : l'interface passe d'abord.
   updater.start();
   log(`fenêtre créée · +${sinceStart()} ms`);

@@ -13,5 +13,5 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["main.ts", "api.ts", "config.ts", "paths.ts", "google/**/*.ts"]
+  "include": ["main.ts", "api.ts", "config.ts", "paths.ts", "google/**/*.ts", "terabox/**/*.ts"]
 }

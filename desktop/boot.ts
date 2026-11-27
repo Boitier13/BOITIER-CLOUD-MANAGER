@@ -13,8 +13,16 @@
  */
 
 import { app, dialog } from 'electron';
+import { mkdirSync } from 'node:fs';
 import { initLog, log, logPath } from './log.ts';
-import { resolveDataDir } from './paths.ts';
+import { isTeraBoxTestBuild, resolveDataDir } from './paths.ts';
+
+if (isTeraBoxTestBuild()) {
+  // Le profil Chromium et les coffres de test ne partagent rien avec la version stable.
+  const testDataDir = resolveDataDir(app.getPath('appData'));
+  mkdirSync(testDataDir, { recursive: true });
+  app.setPath('userData', testDataDir);
+}
 
 try {
   initLog(resolveDataDir(app.getPath('appData')));

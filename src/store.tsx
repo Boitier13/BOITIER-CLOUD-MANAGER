@@ -204,7 +204,7 @@ function loadState(): AppState {
       parsed.accounts.filter(
         (account): account is Account =>
           !!account &&
-          (account.source === 'google' || account.source === 'mega' || account.source === 'shadow') &&
+          (account.source === 'google' || account.source === 'mega' || account.source === 'shadow' || account.source === 'terabox') &&
           !!PROVIDERS[account.provider] &&
           typeof account.id === 'string',
       ),
@@ -268,6 +268,7 @@ function mergeAccount(previous: Account | undefined, next: Account): Account {
     merged.googleId === previous.googleId &&
     merged.megaId === previous.megaId &&
     merged.shadowId === previous.shadowId &&
+    merged.teraboxId === previous.teraboxId &&
     merged.shadowUrl === previous.shadowUrl &&
     merged.localTree === previous.localTree;
   return identical ? previous : merged;

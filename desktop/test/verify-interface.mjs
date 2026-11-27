@@ -37,7 +37,7 @@ const js = await readFile(new URL(jsHref, pageUrl), 'utf8');
 // MEGA n'est plus un décor : c'est un fournisseur réel, avec sa session et ses
 // transferts. Les fournisseurs purement fictifs des versions précédentes, eux,
 // ne doivent jamais réapparaître dans le paquet livré.
-for (const forbidden of ['TERABOX', 'shadow.demo', 'terabox.demo']) {
+for (const forbidden of ['shadow.demo', 'terabox.demo']) {
   check(`aucun fournisseur fictif : ${forbidden}`, !js.includes(forbidden));
 }
 check(
@@ -2739,6 +2739,48 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   const confirm = [...screen.doc.querySelectorAll('button')].find((e) => e.textContent.trim() === 'Déconnecter');
   if (confirm) await screen.click(confirm);
   check('Shadow : dernier compte retiré du coffre et de la liste', calls.some((x) => Array.isArray(x) && x[0] === 'disconnect' && x[1] === 'shadow-test') && screen.text().includes('Aucun compte connecté'));
+  screen.window.close();
+}
+
+/* --- TeraBox : parcours simulé, sans session dans le renderer ----------- */
+{
+  const calls = [];
+  let connected = false;
+  const info = { accountId: 'terabox-123', name: 'test', usedBytes: 12, quotaBytes: 100, status: 'connected' };
+  const screen = await parcours({ label: 'TeraBox', bridge: {
+    platform: 'win32', ready: async () => true,
+    google: { status: async () => ({ configured: true }), accounts: async () => [], onDownload: () => () => {}, list: async () => { calls.push('google-list'); return []; }, recent: async () => [], search: async () => [], shared: async () => [] },
+    terabox: {
+      accounts: async () => connected ? [info] : [],
+      connect: async (...args) => { calls.push(['connect', ...args]); connected = true; return info; },
+      disconnect: async (id) => { calls.push(['disconnect', id]); connected = false; },
+      list: async (id) => { calls.push(['list', id]); return [{ id: 'tb_L3ByZXV2ZS50eHQ', name: 'preuve.txt', kind: 'file', size: 12, modified: new Date().toISOString() }]; },
+      search: async () => [], recent: async () => [], usage: async () => ({ usedBytes: 12, quotaBytes: 100 }),
+    },
+  }});
+  const nav = [...screen.doc.querySelectorAll('.cloud-item')].find((e) => e.textContent.includes('TeraBox'));
+  if (nav) await screen.click(nav);
+  const add = [...screen.doc.querySelectorAll('button')].find((e) => e.textContent.includes('Connecter TeraBox'));
+  check('TeraBox : fournisseur expérimental et connexion visibles', Boolean(nav && add));
+  if (add) await screen.click(add);
+  const name = screen.doc.querySelector('#terabox-name');
+  if (name) {
+    Object.getOwnPropertyDescriptor(screen.window.HTMLInputElement.prototype, 'value').set.call(name, 'test');
+    name.dispatchEvent(new screen.window.Event('input', { bubbles: true }));
+  }
+  await new Promise((r) => setTimeout(r, 100));
+  const submit = [...screen.doc.querySelectorAll('button')].find((e) => e.textContent.trim() === 'Ouvrir TeraBox');
+  if (submit) await screen.click(submit);
+  check('TeraBox : seul le nom est envoyé au pont', calls.some((c) => Array.isArray(c) && c[0] === 'connect' && c[1] === 'test' && !c[2]));
+  const open = [...screen.doc.querySelectorAll('button')].find((e) => e.textContent.trim() === 'Ouvrir');
+  if (open) await screen.click(open);
+  check('TeraBox : exploration passe par le fournisseur dédié', calls.some((c) => Array.isArray(c) && c[0] === 'list' && c[1] === 'terabox-123') && screen.text().includes('preuve.txt') && !calls.includes('google-list'));
+  if (nav) await screen.click(nav);
+  const disconnect = [...screen.doc.querySelectorAll('button')].find((e) => (e.title ?? '').startsWith('Déconnecter'));
+  if (disconnect) await screen.click(disconnect);
+  const confirm = [...screen.doc.querySelectorAll('button')].find((e) => e.textContent.trim() === 'Déconnecter');
+  if (confirm) await screen.click(confirm);
+  check('TeraBox : déconnexion du compte dédié', calls.some((c) => Array.isArray(c) && c[0] === 'disconnect' && c[1] === 'terabox-123') && screen.text().includes('Aucun compte connecté'));
   screen.window.close();
 }
 

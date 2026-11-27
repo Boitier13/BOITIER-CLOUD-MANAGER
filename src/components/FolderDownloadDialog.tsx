@@ -62,7 +62,7 @@ export function FolderDownloadDialog({
       .finally(() => setWorking(false));
   }, [accountId, bridge, fileId]);
 
-  const prepared = Boolean(plan && (plan.files.length > 0 || providerOf(accountId) === 'shadow'));
+  const prepared = Boolean(plan && (plan.files.length > 0 || providerOf(accountId) === 'shadow' || providerOf(accountId) === 'terabox'));
 
   return (
     <Modal

@@ -16,7 +16,7 @@
  * Ajouter un fournisseur se fait ici, puis dans `desktop/` : l'interface ne
  * connaît que ces métadonnées et les formes de données communes.
  */
-export type ProviderId = 'gdrive' | 'mega' | 'shadow';
+export type ProviderId = 'gdrive' | 'mega' | 'shadow' | 'terabox';
 
 export type AccountStatus = 'connected' | 'syncing' | 'expired';
 
@@ -55,6 +55,10 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
     domain: 'gmail.com',
     tagline: 'Documents et partages',
   },
+  terabox: {
+    id: 'terabox', name: 'TeraBox', prefix: 'TERABOX', brand: '#2463eb', quota: 0,
+    domain: 'terabox.com', tagline: 'Accès Web provisoire',
+  },
   shadow: {
     id: 'shadow',
     name: 'Shadow Drive',
@@ -77,12 +81,12 @@ export const PROVIDERS: Record<ProviderId, Provider> = {
   },
 };
 
-export const PROVIDER_IDS: ProviderId[] = ['gdrive', 'mega', 'shadow'];
+export const PROVIDER_IDS: ProviderId[] = ['gdrive', 'mega', 'shadow', 'terabox'];
 
 export const PROVIDER_LIST: Provider[] = PROVIDER_IDS.map((id) => PROVIDERS[id]);
 
 /** Origine du compte : toujours un fournisseur réel désormais. */
-export type AccountSource = 'google' | 'mega' | 'shadow';
+export type AccountSource = 'google' | 'mega' | 'shadow' | 'terabox';
 
 export interface Account {
   id: string;
@@ -103,6 +107,7 @@ export interface Account {
   /** Identifiant du compte côté MEGA (handle utilisateur, jamais un secret). */
   megaId?: string;
   shadowId?: string;
+  teraboxId?: string;
   shadowUrl?: string;
   /** Photo de profil fournie par Google. */
   avatarUrl?: string;

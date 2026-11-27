@@ -17,6 +17,8 @@ import { useStore, type Route } from '../store';
 import { GoogleConnectDialog, GoogleSetupDialog } from '../components/GoogleDialogs';
 import { MegaConnectDialog } from '../components/MegaDialogs';
 import { ShadowDialog } from '../components/ShadowDialog';
+import { TeraBoxDialog } from '../components/TeraBoxDialog';
+import { useTeraBoxSync } from '../hooks/useTeraBox';
 import { useShadowAccountSync } from '../hooks/useShadow';
 import { useMegaAccountSync } from '../hooks/useMega';
 import { useGoogleAccountSync, useGoogleClientStatus } from '../hooks/useGoogle';
@@ -59,7 +61,15 @@ function useDisconnect(): (account: Account) => Promise<boolean> {
   return useCallback(
     async (account: Account) => {
       const pont = getBridge();
-      if (account.provider === 'shadow') {
+      if (account.provider === 'terabox') {
+        try {
+          if (!pont?.terabox || !account.teraboxId) throw new Error('Coffre TeraBox indisponible.');
+          await pont.terabox.disconnect(account.teraboxId);
+        } catch (cause) {
+          toast.push((cause as Error).message || 'Déconnexion TeraBox impossible', 'error');
+          return false;
+        }
+      } else if (account.provider === 'shadow') {
         try {
           if (!pont?.shadow || !account.shadowId) throw new Error('Coffre Shadow Drive indisponible.');
           await pont.shadow.disconnect(account.shadowId);
@@ -90,6 +100,7 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
   const [dialog, setDialog] = useState<
     | { kind: 'megaConnect'; reconnect?: Account }
     | { kind: 'shadowConnect'; reconnect?: Account }
+    | { kind: 'teraboxConnect'; reconnect?: Account }
     | { kind: 'googleSetup' }
     | { kind: 'googleConnect'; reconnect?: boolean }
     | { kind: 'rename'; account: Account }
@@ -101,6 +112,7 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
   // Comptes MEGA déjà connus du processus principal (sessions restaurées).
   useMegaAccountSync();
   useShadowAccountSync();
+  useTeraBoxSync();
   const applyGoogleAccount = useGoogleAccountSync();
   const desktop = isDesktop();
 
@@ -163,7 +175,9 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
           <h1 className="page-title">{def.name}</h1>
           <p className="page-subtitle">
             {realAccounts.length
-              ? provider === 'shadow'
+              ? provider === 'terabox'
+                ? `${formatDecimal(realAccounts.length)} compte(s) TeraBox connecté(s) — accès Web provisoire.`
+                : provider === 'shadow'
                 ? `${formatDecimal(realAccounts.length)} compte(s) Shadow Drive connecté(s) — lecture et téléchargement.`
                 : provider === 'mega'
                 ? `${formatDecimal(realAccounts.length)} compte${
@@ -174,7 +188,9 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                     realAccounts.length > 1 ? 's' : ''
                   } Google connecté${realAccounts.length > 1 ? 's' : ''} en lecture seule — ` +
                   'aucune modification n’est possible depuis cette application.'
-              : provider === 'shadow'
+              : provider === 'terabox'
+                ? 'Aucun compte connecté. Connectez TeraBox avec votre session Web.'
+                : provider === 'shadow'
                 ? 'Aucun compte connecté. Connectez Shadow Drive avec un jeton WebDAV dédié.'
                 : provider === 'mega'
                 ? 'Aucun compte connecté. Vos fichiers restent chez MEGA : le mot de passe sert à ouvrir la session et n’est jamais enregistré.'
@@ -195,7 +211,9 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                   Configurer
                 </button>
               ) : null}
-              {provider === 'shadow' ? (
+              {provider === 'terabox' ? (
+                <button type="button" className="btn btn--primary" onClick={() => setDialog({ kind: 'teraboxConnect' })}><Plus size={14} /> Connecter TeraBox</button>
+              ) : provider === 'shadow' ? (
                 <button type="button" className="btn btn--primary" onClick={() => setDialog({ kind: 'shadowConnect' })}>
                   <Plus size={14} strokeWidth={2.4} /> Connecter Shadow Drive
                 </button>
@@ -338,7 +356,7 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                   <button
                     type="button"
                     className="btn btn--sm btn--primary"
-                    onClick={() => provider === 'shadow' ? setDialog({ kind: 'shadowConnect' }) : provider === 'mega' ? setDialog({ kind: 'megaConnect' }) : setDialog(googleClient.status?.configured ? { kind: 'googleConnect' } : { kind: 'googleSetup' })}
+                    onClick={() => provider === 'terabox' ? setDialog({ kind: 'teraboxConnect' }) : provider === 'shadow' ? setDialog({ kind: 'shadowConnect' }) : provider === 'mega' ? setDialog({ kind: 'megaConnect' }) : setDialog(googleClient.status?.configured ? { kind: 'googleConnect' } : { kind: 'googleSetup' })}
                   >
                     <Plus size={13} />
                     Connecter {def.name}
@@ -429,7 +447,9 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                         const pont = getBridge();
                         if (!pont) return;
                         const requete =
-                          provider === 'shadow'
+                          provider === 'terabox'
+                            ? pont.terabox?.usage(compteId).then((mesure) => mesure ? { status: 'connected' as const, ...mesure } : null)
+                            : provider === 'shadow'
                             ? pont.shadow?.usage(compteId).then((mesure) => mesure ? { status: 'connected' as const, ...mesure } : null)
                             : provider === 'mega'
                             ? pont.mega?.usage(compteId).then((mesure) =>
@@ -477,7 +497,9 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
                     }
                     aria-label={`Reconnecter ${account.name}`}
                     onClick={() =>
-                      provider === 'shadow'
+                      provider === 'terabox'
+                        ? setDialog({ kind: 'teraboxConnect', reconnect: account })
+                        : provider === 'shadow'
                         ? setDialog({ kind: 'shadowConnect', reconnect: account })
                         : provider === 'mega'
                         ? setDialog({ kind: 'megaConnect', reconnect: account })
@@ -567,7 +589,7 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
           ) : (
             <>
               <LockKeyhole size={11} /> Accès en lecture seule : aucun fichier ne peut être
-              supprimé, déplacé ni modifié depuis cette application. {provider === 'shadow' ? 'Le jeton WebDAV est conservé chiffré par Windows.' : 'Le jeton Google ne circule pas dans l’interface.'}
+              supprimé, déplacé ni modifié depuis cette application. {provider === 'shadow' ? 'Le jeton WebDAV est conservé chiffré par Windows.' : provider === 'terabox' ? 'La session Web provisoire est chiffrée par Windows.' : 'Le jeton Google ne circule pas dans l’interface.'}
             </>
           )
         ) : (
@@ -588,6 +610,10 @@ export function Clouds({ provider, onNavigate, onOpenAccount }: CloudsProps) {
             setDialog(status.configured ? { kind: 'googleConnect' } : null);
           }}
         />
+      ) : null}
+
+      {dialog?.kind === 'teraboxConnect' ? (
+        <TeraBoxDialog reconnect={dialog.reconnect} onClose={() => setDialog(null)} onConnected={() => { setDialog(null); toast.push('Compte TeraBox connecté', 'ok'); }} />
       ) : null}
 
       {dialog?.kind === 'shadowConnect' ? (
@@ -761,7 +787,9 @@ function DeleteDialog({
         <span>
           {account.provider === 'gdrive'
             ? 'L’autorisation Google sera révoquée et le jeton chiffré effacé de cet ordinateur.'
-            : account.provider === 'shadow'
+            : account.provider === 'terabox'
+              ? 'La session chiffrée sera effacée de cet ordinateur ; elle peut rester active chez TeraBox.'
+              : account.provider === 'shadow'
               ? 'Le jeton chiffré sera effacé de cet ordinateur. Pour le révoquer aussi chez Shadow, supprimez-le dans votre compte Shadow Drive.'
               : 'La session MEGA sera déconnectée et ses données locales effacées.'} Vos fichiers ne sont pas touchés.
         </span>

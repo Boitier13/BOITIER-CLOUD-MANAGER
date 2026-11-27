@@ -159,6 +159,9 @@ export class DownloadManager {
   private readonly adapter?: {
     readMeta: (accountId: string, fileId: string, signal: AbortSignal) => Promise<{ mimeType: string; size: number }>;
     openMedia: (accountId: string, fileId: string, signal: AbortSignal, from: number) => ReturnType<typeof openMedia>;
+    /** Si activé, seule une taille exacte publie le fichier final. */
+    verifySize?: boolean;
+    stallProvider?: string;
   };
 
   constructor(
@@ -364,6 +367,10 @@ export class DownloadManager {
         sink!.end((error?: Error | null) => (error ? reject(error) : resolve()));
       });
 
+      if (this.adapter?.verifySize && job.received !== meta.size) {
+        throw new Error('Téléchargement incomplet : la taille reçue ne correspond pas au fichier source.');
+      }
+
       // link est atomique et refuse d'écraser un fichier créé entre-temps.
       for (;;) {
         try {
@@ -435,7 +442,7 @@ export class DownloadManager {
           message:
             job.received > 0
               ? `Flux interrompu : plus aucune donnée depuis ${seconds} s (${job.received} o reçus).`
-              : `Google n’a envoyé aucune donnée en ${seconds} s. Vérifiez la connexion puis réessayez.`,
+              : `${this.adapter?.stallProvider ?? 'Google'} n’a envoyé aucune donnée en ${seconds} s. Vérifiez la connexion puis réessayez.`,
         });
         return;
       }

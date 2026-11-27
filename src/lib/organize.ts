@@ -36,6 +36,7 @@ const CLOUD_FOLDER: Record<ProviderId, string> = {
   gdrive: 'Google Drive',
   mega: 'MEGA',
   shadow: 'Shadow Drive',
+  terabox: 'TeraBox',
 };
 
 /** Nom du dossier de cloud, pour les téléchargements de dossiers entiers. */

@@ -1,0 +1,44 @@
+# Artéfact temporaire pour des essais manuels ; ne publie aucune release.
+name: Essai TeraBox Windows
+on:
+  push:
+    branches: [arena/21096313-boitier-cloud-manager]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+
+  terabox-test-windows:
+    # Copie isolée pour essais manuels : aucune release ni mise à jour publiée.
+    if: github.ref == 'refs/heads/arena/21096313-boitier-cloud-manager'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Installer les dépendances
+        run: npm ci
+      - name: Construire l'interface
+        run: npm run build
+      - name: Construire le processus principal isolé
+        run: npm run desktop:build
+        env:
+          BOITIER_TERABOX_TEST_BUILD: '1'
+      - name: Construire l'installeur de test indépendant
+        shell: pwsh
+        run: >-
+          npx electron-builder --win nsis --x64 --publish never
+          "-c.appId=com.boitier.cloudmanager.teraboxtest"
+          "-c.productName=BOITIER CLOUD MANAGER TEST TERABOX"
+          "-c.nsis.shortcutName=BOITIER CLOUD MANAGER TEST TERABOX"
+          "-c.nsis.uninstallDisplayName=BOITIER CLOUD MANAGER TEST TERABOX"
+          '-c.win.artifactName=BOITIER-CLOUD-MANAGER-TEST-TERABOX-setup.${ext}'
+      - name: Conserver l'installeur expérimental
+        uses: actions/upload-artifact@v4
+        with:
+          name: boitier-test-terabox-windows
+          path: release/*.exe
+          if-no-files-found: error
+          retention-days: 14

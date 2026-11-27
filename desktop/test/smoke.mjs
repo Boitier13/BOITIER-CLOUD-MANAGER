@@ -1009,7 +1009,7 @@ try {
   );
   check(
     'mise à jour : rien ne s’exécute hors d’une installation réelle',
-    /if \(!app\.isPackaged \|\| this\.wired\) return;/.test(updater),
+    /if \(!app\.isPackaged \|\| isTeraBoxTestBuild\(\) \|\| this\.wired\) return;/.test(updater),
   );
   // Journal d'un essai réel : chaque vérification était écrite deux fois (notre
   // `check()` et l'événement de la bibliothèque), et la progression à chaque
@@ -1386,7 +1386,7 @@ try {
   );
   check(
     'notification : Windows sait à quelle application la rattacher',
-    /app\.setAppUserModelId\('com\.boitier\.cloudmanager'\)/.test(principal) &&
+    /app\.setAppUserModelId\(isTeraBoxTestBuild\(\) \? 'com\.boitier\.cloudmanager\.teraboxtest' : 'com\.boitier\.cloudmanager'\)/.test(principal) &&
       /"appId": "com\.boitier\.cloudmanager"/.test(await lire(new URL('../../package.json', import.meta.url), 'utf8')),
     'identifiant d’application absent : bulle ignorée sans erreur',
   );

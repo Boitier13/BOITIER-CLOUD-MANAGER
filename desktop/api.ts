@@ -12,6 +12,8 @@ import type { UpdateState, Updater } from './updater.ts';
 import type { MegaService, UploadEvent } from './mega/service.ts';
 import type { MegaSession } from './mega/session.ts';
 import type { ShadowService } from './shadow/service.ts';
+import type { TeraBoxService } from './terabox/service.ts';
+import { loginTeraBox } from './terabox/login.ts';
 import { log, logPath, sinceStart } from './log.ts';
 
 export const channels = {
@@ -56,6 +58,20 @@ export const channels = {
   timing: 'desktop:timing',
   /** Ouvre le journal de démarrage dans l'éditeur du système. */
   openLog: 'desktop:open-log',
+  teraboxAccounts: 'terabox:accounts',
+  teraboxConnect: 'terabox:connect',
+  teraboxDisconnect: 'terabox:disconnect',
+  teraboxList: 'terabox:list',
+  teraboxLocate: 'terabox:locate',
+  teraboxSearch: 'terabox:search',
+  teraboxRecent: 'terabox:recent',
+  teraboxUsage: 'terabox:usage',
+  teraboxPlan: 'terabox:plan',
+  teraboxPrepareFolders: 'terabox:prepare-folders',
+  teraboxDownload: 'terabox:download',
+  teraboxPause: 'terabox:pause',
+  teraboxResume: 'terabox:resume',
+  teraboxCancel: 'terabox:cancel',
   shadowAccounts: 'shadow:accounts',
   shadowConnect: 'shadow:connect',
   shadowDisconnect: 'shadow:disconnect',
@@ -104,6 +120,7 @@ export function registerIpc(
   updater: Updater,
   mega?: { session: MegaSession; service: MegaService },
   shadow?: ShadowService,
+  terabox?: TeraBoxService,
 ): void {
   // Une seule instance : les gestionnaires ne sont enregistrés qu'une fois,
   // même si la fenêtre est recréée.
@@ -229,6 +246,26 @@ export function registerIpc(
       }
       return { sent: resultat.filePaths.length };
     });
+  }
+
+  if (terabox) {
+    handle(channels.teraboxAccounts, () => terabox.accounts());
+    handle(channels.teraboxConnect, async (name: string, expectedId?: string) => {
+      const secret = await loginTeraBox(_win);
+      return terabox.connect(secret, String(name ?? ''), expectedId ? String(expectedId) : undefined);
+    });
+    handle(channels.teraboxDisconnect, (id: string) => terabox.disconnect(String(id)));
+    handle(channels.teraboxList, (id: string, folder: string) => terabox.list(String(id), String(folder ?? 'root')));
+    handle(channels.teraboxLocate, (id: string, file: string) => terabox.locate(String(id), String(file)));
+    handle(channels.teraboxSearch, (id: string, term: string) => terabox.search(String(id), String(term ?? '')));
+    handle(channels.teraboxRecent, (id: string, limit?: number) => terabox.recent(String(id), limit));
+    handle(channels.teraboxUsage, (id: string) => terabox.usage(String(id)));
+    handle(channels.teraboxPlan, (id: string, folder: string) => terabox.plan(String(id), String(folder ?? 'root')));
+    handle(channels.teraboxPrepareFolders, (base: string, paths: string[]) => terabox.prepareFolders(String(base ?? ''), paths));
+    handle(channels.teraboxDownload, (request: Parameters<TeraBoxService['download']>[0]) => terabox.download(request));
+    handle(channels.teraboxPause, (id: string) => terabox.pause(String(id)));
+    handle(channels.teraboxResume, (id: string) => terabox.resume(String(id)));
+    handle(channels.teraboxCancel, (id: string) => terabox.cancel(String(id)));
   }
 
   if (shadow) {

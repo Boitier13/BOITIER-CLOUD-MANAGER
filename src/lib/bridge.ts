@@ -64,6 +64,11 @@ export type MegaAccountInfo = {
   status: 'connected' | 'expired';
 };
 
+export type TeraBoxAccountInfo = {
+  accountId: string; name: string; usedBytes: number; quotaBytes: number;
+  status: 'connected' | 'expired';
+};
+
 export type ShadowAccountInfo = {
   accountId: string;
   name: string;
@@ -240,6 +245,22 @@ export interface BoitierBridge {
     openExternal?(url: string): Promise<boolean>;
     /** Ouvre un dossier dans l'explorateur de fichiers. */
     openDirectory?(path: string): Promise<boolean>;
+  };
+  terabox?: {
+    accounts(): Promise<TeraBoxAccountInfo[]>;
+    connect(name: string, expectedId?: string): Promise<TeraBoxAccountInfo>;
+    disconnect(accountId: string): Promise<void>;
+    list(accountId: string, folderId: string): Promise<GoogleFile[]>;
+    locate(accountId: string, fileId: string): Promise<{ id: string; name: string }[]>;
+    search(accountId: string, term: string): Promise<GoogleFile[]>;
+    recent(accountId: string, limit?: number): Promise<GoogleFile[]>;
+    usage(accountId: string): Promise<{ usedBytes: number; quotaBytes: number }>;
+    plan(accountId: string, folderId: string): Promise<GoogleFolderPlan>;
+    prepareFolders(base: string, paths: string[]): Promise<void>;
+    download(request: GoogleDownloadRequest): Promise<void>;
+    pause(id: string): Promise<void>;
+    resume(id: string): Promise<boolean>;
+    cancel(id: string): Promise<void>;
   };
   shadow?: {
     accounts(): Promise<ShadowAccountInfo[]>;
