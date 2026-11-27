@@ -2,10 +2,16 @@
  * Mises à jour automatiques.
  *
  * L'application vérifie elle-même, une fois par démarrage et toutes les six
- * heures, si une version plus récente est publiée sur GitHub. Le téléchargement
- * se fait en arrière-plan ; **l'installation n'a jamais lieu sans un clic** :
- * `autoInstallOnAppQuit` est désactivé, sinon fermer la fenêtre installerait
- * une version que personne n'a demandée.
+ * heures, si une version plus récente est publiée sur GitHub. **Rien n'est
+ * téléchargé sans un clic** : ni l'installation, ni même le téléchargement.
+ *
+ * Ce n'était pas le cas, et cela coûtait cher : l'installeur fait près de
+ * 100 Mo, et `electron-updater` le téléchargeait dès qu'une version était
+ * trouvée, puis en vérifiait l'empreinte — sur le fil du processus principal.
+ * Sur une machine modeste, cela se voyait : « figement 7,6 s · écran settings »
+ * pendant que l'utilisateur consultait simplement les paramètres, et des
+ * blocages de plusieurs secondes à chaque étape. Le bouton « Télécharger la
+ * mise à jour » existe donc, et il faut le vouloir.
  *
  * Le fichier `latest.yml`, publié avec l'installeur, décrit la version
  * disponible et son empreinte : la mise à jour ne peut pas être substituée par
@@ -111,9 +117,11 @@ export class Updater {
     }
     this.updater = autoUpdater;
 
-    // L'installation attend un clic : fermer l'application ne doit jamais
-    // changer de version à l'insu de l'utilisateur.
-    autoUpdater.autoDownload = true;
+    // Deux clics, deux intentions distinctes : télécharger, puis installer.
+    // Fermer l'application ne doit jamais changer de version à l'insu de
+    // l'utilisateur, et le téléchargement d'un installeur de 100 Mo ne doit pas
+    // se déclencher pendant qu'il travaille.
+    autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = false;
     autoUpdater.allowPrerelease = false;
 
@@ -183,6 +191,38 @@ export class Updater {
       await autoUpdater.checkForUpdates();
     } catch (cause) {
       this.update({ status: 'error', message: prettify(cause as Error) });
+    }
+    return this.snapshot();
+  }
+
+  /**
+   * Télécharge la version disponible, sur demande explicite.
+   *
+   * Renvoie l'état à la fin : `ready` si le fichier est complet, sinon l'état
+   * courant (erreur comprise), pour que l'écran ne reste pas sur « 0 % ».
+   */
+  async download(): Promise<UpdateState> {
+    const autoUpdater = this.updater ?? (await loadAutoUpdater());
+    this.updater = autoUpdater;
+    if (!autoUpdater) return this.snapshot();
+    if (this.state.status === 'downloading' || this.state.status === 'ready') {
+      return this.snapshot();
+    }
+    if (this.state.status !== 'available') {
+      // Aucun contrôle frais : on en refait un, le bouton reste utile.
+      const frais = await this.check();
+      if (frais.status !== 'available') return frais;
+    }
+    log(`mise à jour : téléchargement demandé ${this.state.version ?? ''}`.trim());
+    this.update({ status: 'downloading', percent: 0, message: undefined });
+    try {
+      await autoUpdater.downloadUpdate();
+    } catch (cause) {
+      log(`mise à jour : téléchargement impossible — ${(cause as Error).message}`);
+      this.update({
+        status: 'error',
+        message: prettify(cause as Error),
+      });
     }
     return this.snapshot();
   }

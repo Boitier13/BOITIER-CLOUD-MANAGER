@@ -522,7 +522,7 @@ Vous en restez l’unique utilisateur, quel que soit le nombre de vos comptes.
 npm run verify:desktop    # enchaîne tout ce qui suit
 npm run typecheck         # types de l'interface
 npm run desktop:typecheck # types du processus principal
-npm run desktop:test      # 199 contrôles : OAuth/PKCE, coffre chiffré, quota,
+npm run desktop:test      # 206 contrôles : OAuth/PKCE, coffre chiffré, quota,
                           # adresses Gmail et alias,
                           # exploration, fichiers partagés, recherche,
                           # téléchargement réel, dossier entier, stockage,
@@ -659,6 +659,28 @@ correction.
 La version affichée dans **Paramètres → À propos** est lue dans `package.json`
 au moment de la compilation : elle ne peut plus annoncer un numéro périmé.
 
+### Lenteur et téléchargements de fond
+
+Deux sources de figement venaient de l'application elle-même, et non de la
+machine :
+
+- **l'installeur (près de 100 Mo) se téléchargeait tout seul** dès qu'une
+  version était trouvée, puis son empreinte était vérifiée sur le fil du
+  processus principal. Pendant qu'on consultait les paramètres, le journal
+  relevait `figement 7,6 s · écran settings`. Désormais la version est
+  seulement **signalée** : un clic sur « Télécharger », puis un second sur
+  « Redémarrer et installer » ;
+- **onze sessions MEGA** restaient ouvertes en mémoire, chacune avec
+  l'arborescence complète de son compte. La machine partait en échange disque.
+  Deux sessions suffisent (le compte consulté, le précédent), un transfert en
+  cours n'est jamais fermé sous lui, et les « récents » MEGA sont lus **un
+  compte à la fois**, espacés de 1,5 s — c'était onze connexions en rafale, dont
+  quatre finissaient en `-16`.
+
+Ce qui reste lent au démarrage (bundle, première peinture) tient au chargement
+du disque et à l'analyse antivirus d'un exécutable fraîchement installé :
+l'application n'y ajoute plus son propre travail.
+
 ### Mise à jour automatique
 
 L'application vérifie d'elle-même, **douze secondes après le démarrage** puis
@@ -668,13 +690,15 @@ l'interface : la vérification se fait en arrière-plan.
 | Étape | Qui décide |
 | --- | --- |
 | vérification | l'application (au démarrage, puis toutes les 6 h) |
-| téléchargement | l'application, en arrière-plan |
+| **téléchargement** | **vous**, par un clic sur « Télécharger 0.xx.x » |
 | **installation** | **vous**, par un clic sur « Redémarrer et installer » |
 
-`autoInstallOnAppQuit` est explicitement désactivé : fermer la fenêtre
-n'installe jamais une version que personne n'a demandée. L'installeur s'affiche
-ensuite comme lors d'une installation habituelle, pour que rien ne se produise
-en silence.
+`autoDownload` **et** `autoInstallOnAppQuit` sont explicitement désactivés :
+rien ne descend sur le disque et rien ne s'installe sans un clic. L'installeur
+s'affiche ensuite comme lors d'une installation habituelle, pour que rien ne se
+produise en silence. Le téléchargement de fond expliquait une partie des
+figements : près de 100 Mo écrits et vérifiés pendant qu'on se sert de
+l'application.
 
 **Ce que le journal montre.** `demarrage.log` (dossier de données de
 l'application, ajout seul, rotation à 64 Ko) reçoit chaque étape :
@@ -684,6 +708,7 @@ mise à jour : première vérification dans 12 s
 mise à jour : vérification demandée
 mise à jour : checking
 mise à jour : available 0.22.5
+mise à jour : téléchargement demandé 0.22.5
 mise à jour : downloading 0.22.5 0 %
 mise à jour : downloading 0.22.5 40 %
 mise à jour : downloading 0.22.5 90 %

@@ -21,6 +21,8 @@ export interface UpdaterView {
   check: () => Promise<void>;
   /** Lance l'installation ; `false` si aucune version n'est prête. */
   install: () => Promise<boolean>;
+  /** Télécharge la version trouvée — jamais automatiquement. */
+  download: () => Promise<void>;
   /** Vrai quand l'application tourne depuis une installation Windows. */
   supported: boolean;
   /** Une vérification ou un téléchargement est en cours. */
@@ -67,6 +69,21 @@ export function useUpdater(): UpdaterView {
     }
   }, [api]);
 
+  const download = useCallback(async () => {
+    if (!api?.download) return;
+    setState((current) => ({ ...current, status: 'downloading', percent: 0 }));
+    try {
+      const next = await api.download();
+      if (next) setState(next);
+    } catch (cause) {
+      setState((current) => ({
+        ...current,
+        status: 'error',
+        message: (cause as Error).message || 'Téléchargement impossible.',
+      }));
+    }
+  }, [api]);
+
   const install = useCallback(async () => {
     if (!api) return false;
     try {
@@ -79,9 +96,10 @@ export function useUpdater(): UpdaterView {
   return {
     state,
     check,
+    download,
     install,
     supported: Boolean(api) && state.status !== 'unsupported',
-    busy: state.status === 'checking' || state.status === 'downloading' || state.status === 'available',
+    busy: state.status === 'checking' || state.status === 'downloading',
   };
 }
 
@@ -114,7 +132,7 @@ export function describeUpdate(state: UpdateState): string {
     case 'checking':
       return 'Recherche d’une version plus récente…';
     case 'available':
-      return `Version ${state.version ?? 'récente'} trouvée — téléchargement en cours.`;
+      return `Version ${state.version ?? 'récente'} disponible — cliquez sur « Télécharger » quand cela vous arrange.`;
     case 'downloading':
       return `Téléchargement de la version ${state.version ?? 'récente'} — ${state.percent ?? 0} %.`;
     case 'ready':

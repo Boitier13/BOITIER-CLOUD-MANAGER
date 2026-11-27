@@ -1347,6 +1347,97 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   );
 }
 
+/* --- 10bis. Version disponible : rien ne se télécharge tout seul ---------- */
+//
+// Le téléchargement de l'installeur (près de 100 Mo) partait dès qu'une version
+// était trouvée, et son empreinte était vérifiée sur le fil du processus
+// principal : « figement 7,6 s · écran settings » pendant qu'on consultait les
+// paramètres. Il faut désormais deux clics : télécharger, puis installer.
+{
+  let telechargements = 0;
+  let installations = 0;
+  const disponible = {
+    status: 'available',
+    currentVersion: '0.23.8',
+    version: '0.23.9',
+    checkedAt: '2026-11-26T12:00:00.000Z',
+  };
+
+  const maj = await parcours({
+    label: 'mise à jour disponible',
+    bridge: {
+      platform: 'win32',
+      ready: async () => true,
+      updater: {
+        state: async () => disponible,
+        check: async () => disponible,
+        download: async () => {
+          telechargements += 1;
+          return { ...disponible, status: 'ready', percent: 100 };
+        },
+        install: async () => {
+          installations += 1;
+          return true;
+        },
+        onChange: () => () => {},
+      },
+      google: {
+        status: async () => ({ configured: false, source: 'none' }),
+        accounts: async () => [],
+        onDownload: () => () => {},
+        list: async () => [],
+        search: async () => [],
+        shared: async () => [],
+        recent: async () => [],
+      },
+    },
+  });
+
+  const { doc } = maj;
+  const versParametres = [...doc.querySelectorAll('.nav-item')].find((button) =>
+    (button.textContent ?? '').includes('Paramètres'),
+  );
+  if (versParametres) await maj.click(versParametres);
+  await new Promise((r) => setTimeout(r, 200));
+
+  check(
+    'mise à jour disponible : rien n’est téléchargé sans clic',
+    telechargements === 0 && installations === 0,
+    `${telechargements} téléchargement(s), ${installations} installation(s)`,
+  );
+  const boutonTelecharger = [...doc.querySelectorAll('button')].find((button) =>
+    /Télécharger 0\.23\.9/.test(button.textContent ?? ''),
+  );
+  check(
+    'mise à jour disponible : le bouton de téléchargement est proposé',
+    Boolean(boutonTelecharger),
+    [...doc.querySelectorAll('.settings-row__control button')]
+      .map((button) => (button.textContent ?? '').trim())
+      .join(' | '),
+  );
+  check(
+    'mise à jour disponible : aucune installation possible avant le téléchargement',
+    ![...doc.querySelectorAll('button')].some((button) =>
+      /Redémarrer et installer/.test(button.textContent ?? ''),
+    ),
+  );
+  if (boutonTelecharger) {
+    await maj.click(boutonTelecharger);
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  check(
+    'mise à jour disponible : le clic déclenche le téléchargement',
+    telechargements === 1,
+    `${telechargements} appel(s)`,
+  );
+  check(
+    'mise à jour disponible : une fois prête, l’installation est proposée',
+    [...doc.querySelectorAll('button')].some((button) =>
+      /Redémarrer et installer/.test(button.textContent ?? ''),
+    ),
+  );
+}
+
 /* --- 11. Navigateur : pas de mise à jour, et on le dit -------------------- */
 {
   const web = await parcours({ label: 'navigateur', bridge: null });

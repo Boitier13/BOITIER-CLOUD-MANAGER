@@ -181,6 +181,8 @@ export interface BoitierBridge {
   updater?: {
     state(): Promise<UpdateState>;
     check(): Promise<UpdateState>;
+    /** Télécharge la version trouvée (jamais automatiquement). */
+    download(): Promise<UpdateState>;
     /** `true` si l'installation a été lancée, `false` si aucune version n'est prête. */
     install(): Promise<boolean>;
     /** Abonnement aux changements d'état ; renvoie la fonction de désabonnement. */

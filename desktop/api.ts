@@ -74,6 +74,7 @@ export const channels = {
   /** Mises à jour : état, vérification, installation. */
   updateState: 'update:state',
   updateCheck: 'update:check',
+  updateDownload: 'update:download',
   updateInstall: 'update:install',
   updateEvent: 'update:event',
 } as const;
@@ -266,6 +267,7 @@ export function registerIpc(
 
   handle(channels.updateState, () => updater.snapshot());
   handle(channels.updateCheck, () => updater.check());
+  handle(channels.updateDownload, () => updater.download());
   handle(channels.updateInstall, () => updater.install());
 
   /**
