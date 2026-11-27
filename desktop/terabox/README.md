@@ -59,3 +59,13 @@ Sources d'étude : https://github.com/seiya-npm/terabox-api (MIT),
 https://github.com/seiya-dev/terabox-node,
 https://github.com/rclone/rclone/pull/8508 et
 https://www.terabox.com/integrations/docs (API officielle distincte).
+
+## File de transferts expérimentale
+
+La file limite les lancements réels depuis l'interface, tous fournisseurs
+confondus, selon le réglage (1 à 6). Les changements à la baisse ne coupent pas
+les flux déjà actifs ; ils attendent que le nombre redescende. Pause, reprise,
+annulation et erreurs sont couvertes par des essais simulés. La file vit dans
+le renderer : son comportement après un rechargement de la fenêtre pendant des
+transferts doit encore être consolidé avant publication stable ; ne pas
+présumer une garantie globale dans ce cas.

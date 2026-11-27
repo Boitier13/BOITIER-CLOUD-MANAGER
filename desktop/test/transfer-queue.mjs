@@ -82,4 +82,15 @@ failed.subscribe((e) => failures.push(e)); failed.setLimit(1); failed.add(reques
 await flush(); await flush();
 assert.deepEqual(failureCalls, ['e', 'f']);
 assert.ok(failures.some((e) => e.id === 'e' && e.status === 'error' && e.message === 'refus simulé'));
+// Une pause refusée ne libère pas artificiellement la place occupée.
+const rejectCalls = [];
+const rejectsPause = new TransferQueue({ ...transport,
+  start: async (r) => { rejectCalls.push(r.id); },
+  pause: async () => { throw new Error('Pause refusée'); },
+});
+rejectsPause.setLimit(1); rejectsPause.add(request('g')); rejectsPause.add(request('h'));
+await flush(); rejectsPause.pause('g'); await flush(); await flush();
+assert.deepEqual(rejectCalls, ['g']);
+rejectsPause.observe({ id: 'g', status: 'done', received: 12, size: 12, speed: 0 });
+await flush(); assert.deepEqual(rejectCalls, ['g', 'h']);
 console.log('✔ File de transferts : limite globale, attente, pause, reprise, annulation et réglage');

@@ -102,9 +102,10 @@ export class TransferQueue {
     const task = action === 'pause' ? this.transport.pause(provider, job.request.id) : this.transport.cancel(provider, job.request.id);
     void task.catch((error: unknown) => {
       if (this.jobs.get(job.request.id) !== job) return;
-      this.jobs.delete(job.request.id);
-      this.event(job, 'error', errorMessage(error));
-      this.drain();
+      // Une commande refusée ne prouve pas que le flux s'est arrêté :
+      // conserver sa place jusqu'à son événement terminal.
+      job.phase = 'running';
+      this.event(job, 'running', errorMessage(error));
     });
   }
 }
