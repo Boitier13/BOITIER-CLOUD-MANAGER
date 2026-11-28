@@ -33,6 +33,8 @@ export interface DownloadEvent {
   speed: number;
   path?: string;
   message?: string;
+  /** Annulation volontaire, distincte d'un échec. */
+  cancelled?: boolean;
 }
 
 export interface DownloadRequest {
@@ -55,6 +57,7 @@ interface Job {
   size: number;
   status: DownloadStatus;
   paused: boolean;
+  cancelled: boolean;
   /** Le flux s'est tu trop longtemps : l'abandon vient de nous, pas de Google. */
   stalled: boolean;
   /** Chemin du fichier partiel, conservé entre une pause et une reprise. */
@@ -203,6 +206,7 @@ export class DownloadManager {
       size: request.size,
       status: 'running',
       paused: false,
+      cancelled: false,
       stalled: false,
     };
     this.jobs.set(request.id, job);
@@ -237,6 +241,7 @@ export class DownloadManager {
     const job = this.jobs.get(id);
     if (!job || (job.status !== 'paused' && job.status !== 'error')) return false;
     job.paused = false;
+    job.cancelled = false;
     job.stalled = false;
     job.status = 'running';
     job.controller = new AbortController();
@@ -245,14 +250,18 @@ export class DownloadManager {
     return true;
   }
 
-  cancel(id: string): void {
+  async cancel(id: string): Promise<void> {
     const job = this.jobs.get(id);
     if (!job) return;
     job.paused = false;
-    job.controller.abort();
-    this.jobs.delete(id);
-    // Seule l'annulation efface le partiel : une pause doit permettre de reprendre.
-    if (job.partPath) void rm(job.partPath, { force: true }).catch(() => undefined);
+    job.cancelled = true;
+    if (job.status === 'running') {
+      job.controller.abort(); // run() ferme d'abord le fichier et annonce la fin réelle.
+    } else {
+      this.jobs.delete(id);
+      if (job.partPath) await rm(job.partPath, { force: true }).catch(() => undefined);
+      this.emit({ id, status: 'error', received: job.received, size: job.size, speed: 0, cancelled: true, message: 'Transfert annulé.' });
+    }
   }
 
   /** Abandonne le transfert si le flux reste muet plus de `stallMs`. */
@@ -279,10 +288,12 @@ export class DownloadManager {
       const dir = relativeDir(request.dir || (await this.fallbackDir()), request.subPath);
       log(`transfert ${request.id} : dossier ${dir}`);
       await mkdir(dir, { recursive: true });
+      job.controller.signal.throwIfAborted();
       // Les métadonnées décident si c'est un binaire ou un export Google.
       const meta = this.adapter
         ? await this.adapter.readMeta(token, request.fileId, job.controller.signal)
         : await readFileMeta(this.endpoints, token, request.fileId, job.controller.signal);
+      job.controller.signal.throwIfAborted();
       log(`transfert ${request.id} : métadonnées ${meta.mimeType} ${meta.size} o`);
       const format = this.adapter ? undefined : formatExport(meta.mimeType);
       if (!this.adapter && isGoogleDocument(meta.mimeType) && !format) {
@@ -310,6 +321,7 @@ export class DownloadManager {
         : this.adapter
           ? await this.adapter.openMedia(token, request.fileId, job.controller.signal, deja)
           : await openMedia(this.endpoints, token, request.fileId, job.controller.signal, deja);
+      job.controller.signal.throwIfAborted();
       if (!job.size) job.size = media.size ?? (format ? 0 : meta.size);
 
       // Drive a ignoré la plage : le partiel est remplacé, jamais complété.
@@ -367,6 +379,7 @@ export class DownloadManager {
         sink!.end((error?: Error | null) => (error ? reject(error) : resolve()));
       });
 
+      job.controller.signal.throwIfAborted();
       if (this.adapter?.verifySize && job.received !== meta.size) {
         throw new Error('Téléchargement incomplet : la taille reçue ne correspond pas au fichier source.');
       }
@@ -404,6 +417,12 @@ export class DownloadManager {
         const closed = once(sink, 'close').catch(() => undefined);
         sink.destroy();
         await closed;
+      }
+      if (job.cancelled) {
+        if (job.partPath) await rm(job.partPath, { force: true }).catch(() => undefined);
+        if (this.jobs.get(request.id) === job) this.jobs.delete(request.id);
+        this.emit({ id: request.id, status: 'error', received: job.received, size: job.size, speed: 0, cancelled: true, message: 'Transfert annulé.' });
+        return;
       }
       const aborted =
         (cause as Error).name === 'AbortError' ||

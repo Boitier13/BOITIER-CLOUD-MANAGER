@@ -32,6 +32,7 @@ try {
   await cancelled;
   assert.equal(opened, 0, 'aucun flux ouvert après annulation');
   assert.equal(events.at(-1).message, 'annulé');
+  assert.equal(events.at(-1).cancelled, true);
   assert.ok(!(await readdir(dir)).some((name) => name.includes('annule')), 'partiel annulé supprimé');
   console.log('✔ MEGA : pause et annulation sûres pendant la préparation');
 } finally { await rm(dir, { recursive: true, force: true }); }

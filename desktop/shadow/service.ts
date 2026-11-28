@@ -230,5 +230,5 @@ export class ShadowService {
   }
   pause(id: string) { this.transfers.pause(id); }
   async resume(id: string) { const account = this.transferAccounts.get(id); return account ? this.transfers.resume(id, account) : false; }
-  cancel(id: string) { this.transfers.cancel(id); this.transferAccounts.delete(id); }
+  async cancel(id: string) { await this.transfers.cancel(id); this.transferAccounts.delete(id); }
 }

@@ -32,6 +32,7 @@ import { initLog, log, logPath as currentLogPath, sinceStart } from './log.ts';
 import { isTeraBoxTestBuild, resolveDataDir, resolvePreload, resolveRendererDir } from './paths.ts';
 import { defaultDownloadDir } from '../src/lib/downloadFolder.ts';
 import type { DownloadEvent } from './google/downloads.ts';
+import { TransferReloadGuard } from './transfer-reload-guard.ts';
 import { Vault } from './google/vault.ts';
 import { GoogleService } from './google/service.ts';
 import { endpointsFromEnv } from './google/endpoints.ts';
@@ -53,6 +54,7 @@ try {
 }
 
 const windows: BrowserWindow[] = [];
+const transferGuard = new TransferReloadGuard();
 let service: GoogleService | null = null;
 let updater: Updater | null = null;
 /** Service MEGA du lancement en cours : fermé proprement à la sortie. */
@@ -130,6 +132,7 @@ const bulles = new Set<Notification>();
  * c'est alors écrit dans le journal.
  */
 function notifierTransfert(event: DownloadEvent): void {
+  if (event.cancelled) return;
   const nom = event.name?.trim() || 'Fichier';
   const reussi = event.status === 'done';
   const corps = reussi
@@ -314,6 +317,7 @@ function createWindow(): BrowserWindow {
   // `handle` et non `handleOnce` : en développement, le double montage de
   // StrictMode émet deux signaux, et le second ne doit pas lever d'erreur.
   ipcMain.handle(channels.ready, () => {
+    transferGuard.rendererReady();
     if (!signalled) {
       signalled = true;
       if (watchdog) clearTimeout(watchdog);
@@ -334,10 +338,15 @@ function createWindow(): BrowserWindow {
   });
 
   win.webContents.on('render-process-gone', (_event, details) => {
+    transferGuard.interrupt();
     log(`processus d’affichage interrompu : ${details.reason}`);
     showLoadFailure(win, details.reason);
   });
 
+  win.webContents.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => {
+    if (mainFrame && !inPlace) transferGuard.interrupt();
+  });
+  win.on('closed', () => transferGuard.interrupt());
   win.webContents.on('did-start-loading', () => log(`chargement demandé · +${sinceStart()} ms`));
   void load();
   return win;
@@ -432,6 +441,7 @@ function boot(): void {
     // dossier Téléchargements.
     downloadsDir: async () => defaultDownloadDir(app.getPath('downloads')),
     emitDownload: (event) => {
+      transferGuard.observe(event);
       for (const target of windows) if (!target.isDestroyed()) emitDownload(target, event);
       // Notification système à la fin du transfert — et à la fin seulement.
       // Un appel par paquet saturerait le centre de notifications, donc une
@@ -476,6 +486,7 @@ function boot(): void {
       new MegaVault(dataDir ?? resolveDataDir(app.getPath('appData')), protect, unprotect),
     ),
     emitDownload: (event) => {
+      transferGuard.observe(event);
       for (const target of windows) if (!target.isDestroyed()) emitDownload(target, event);
       if (event.status === 'done' || event.status === 'error') notifierTransfert(event);
     },
@@ -500,6 +511,7 @@ function boot(): void {
   const shadow = new ShadowService(
     new ShadowVault(dataDir ?? resolveDataDir(app.getPath('appData')), protect, unprotect),
     (event) => {
+      transferGuard.observe(event);
       for (const target of windows) if (!target.isDestroyed()) emitDownload(target, event);
       if (event.status === 'done' || event.status === 'error') notifierTransfert(event);
     },
@@ -509,11 +521,12 @@ function boot(): void {
     new TeraBoxVault(dataDir ?? resolveDataDir(app.getPath('appData')), protect, unprotect),
     fetch, undefined,
     { fallbackDir: async () => defaultDownloadDir(app.getPath('downloads')), emit: (event) => {
+      transferGuard.observe(event);
       for (const target of windows) if (!target.isDestroyed()) emitDownload(target, event);
       if (event.status === 'done' || event.status === 'error') notifierTransfert(event);
     } },
   );
-  registerIpc(win, service, updater, { session: mega.session, service: mega }, shadow, terabox);
+  registerIpc(win, service, updater, { session: mega.session, service: mega }, shadow, terabox, transferGuard);
   // La vérification démarre douze secondes après : l'interface passe d'abord.
   updater.start();
   log(`fenêtre créée · +${sinceStart()} ms`);

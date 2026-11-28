@@ -2772,6 +2772,7 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   const submit = [...screen.doc.querySelectorAll('button')].find((e) => e.textContent.trim() === 'Ouvrir TeraBox');
   if (submit) await screen.click(submit);
   check('TeraBox : seul le nom est envoyé au pont', calls.some((c) => Array.isArray(c) && c[0] === 'connect' && c[1] === 'test' && !c[2]));
+  check('TeraBox : indicateur de compte connecté', screen.doc.querySelector('.demo-chip')?.textContent.includes('1 compte connecté') && Boolean(nav?.querySelector('.rail-account__live')));
   const open = [...screen.doc.querySelectorAll('button')].find((e) => e.textContent.trim() === 'Ouvrir');
   if (open) await screen.click(open);
   check('TeraBox : exploration passe par le fournisseur dédié', calls.some((c) => Array.isArray(c) && c[0] === 'list' && c[1] === 'terabox-123') && screen.text().includes('preuve.txt') && !calls.includes('google-list'));

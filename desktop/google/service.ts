@@ -329,8 +329,8 @@ export class GoogleService {
     return this.downloads.resume(id, token);
   }
 
-  cancel(id: string): void {
-    this.downloads.cancel(id);
+  cancel(id: string): Promise<void> {
+    return this.downloads.cancel(id);
   }
 
   async downloadsFolder(): Promise<string> {

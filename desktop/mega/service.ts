@@ -278,6 +278,7 @@ export class MegaService {
     }
     this.jobs.delete(id);
     if (job.partPath) await rm(job.partPath, { force: true }).catch(() => undefined);
+    this.emitDownload({ id, status: 'error', received: job.received, size: job.size, speed: 0, message: 'annulé', cancelled: true });
   }
 
   private async run(job: Job): Promise<void> {
@@ -374,7 +375,7 @@ export class MegaService {
       if (job.cancelled) {
         if (job.partPath) await rm(job.partPath, { force: true }).catch(() => undefined);
         this.jobs.delete(request.id);
-        this.emitDownload({ id: request.id, status: 'error', received: job.received, size: job.size, speed: 0, message: 'annulé' });
+        this.emitDownload({ id: request.id, status: 'error', received: job.received, size: job.size, speed: 0, message: 'annulé', cancelled: true });
         return;
       }
       if (job.paused) {

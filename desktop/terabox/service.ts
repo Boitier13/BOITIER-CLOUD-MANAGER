@@ -128,7 +128,7 @@ export class TeraBoxService {
   }
   pause(id: string) { this.transfers?.pause(id); }
   async resume(id: string) { const account = this.transferAccounts.get(id); return account && this.transfers ? this.transfers.resume(id, account) : false; }
-  cancel(id: string) { this.transfers?.cancel(id); this.transferAccounts.delete(id); }
+  async cancel(id: string) { await this.transfers?.cancel(id); this.transferAccounts.delete(id); }
   async plan(id: string, folderId: string): Promise<FolderPlan> {
     const client = await this.client(id);
     const pending = [{ path: decodePath(folderId), relative: '', depth: 0 }];

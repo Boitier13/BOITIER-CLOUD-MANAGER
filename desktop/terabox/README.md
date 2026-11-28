@@ -65,7 +65,12 @@ https://www.terabox.com/integrations/docs (API officielle distincte).
 La file limite les lancements réels depuis l'interface, tous fournisseurs
 confondus, selon le réglage (1 à 6). Les changements à la baisse ne coupent pas
 les flux déjà actifs ; ils attendent que le nombre redescende. Pause, reprise,
-annulation et erreurs sont couvertes par des essais simulés. La file vit dans
-le renderer : son comportement après un rechargement de la fenêtre pendant des
-transferts doit encore être consolidé avant publication stable ; ne pas
-présumer une garantie globale dans ce cas.
+annulation et erreurs sont couvertes par des essais simulés. Lors d'un
+rechargement ou d'un crash de l'interface, le processus principal demande la
+pause des flux actifs et bloque les nouveaux départs jusqu'à leur arrêt. Après
+30 secondes d'attente, un nouveau départ échoue explicitement plutôt que de
+contourner cette barrière ; il peut être retenté après l'arrêt des anciens flux.
+La file elle-même ne survit pas au rechargement : les transferts en attente ne
+sont pas automatiquement restaurés, et les fichiers partiels peuvent rester
+sur le disque. Relancer les téléchargements depuis les fichiers si nécessaire.
+Ces cas restent à tester sous Windows avant une publication stable.
