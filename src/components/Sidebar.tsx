@@ -15,6 +15,7 @@ import { ProviderMark } from './visuals';
 import { useStore, type Route } from '../store';
 import { useUpdater } from '../hooks/useUpdater';
 import { formatDecimal } from '../lib/format';
+import { isRealAccount } from '../lib/google';
 
 interface SidebarProps {
   onNavigate: (route: Route) => void;
@@ -40,10 +41,8 @@ export function Sidebar({ onNavigate }: SidebarProps) {
   const countFor = (provider: string) =>
     state.accounts.filter((account) => account.provider === provider).length;
 
-  // Comptes connectés à un service réel (aujourd'hui : Google Drive).
-  const liveCount = state.accounts.filter(
-    (account) => account.source === 'google',
-  ).length;
+  const connected = state.accounts.filter((account) => isRealAccount(account) && account.status === 'connected');
+  const liveCount = connected.length;
 
   const activeDownloads = state.downloads.filter(
     (item) => item.status === 'active' || item.status === 'queued',
@@ -114,7 +113,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
               >
                 <ProviderMark provider={provider.id} size="sm" />
                 <span className="cloud-item__name">{provider.name}</span>
-                {provider.id === 'gdrive' && liveCount > 0 ? (
+                {connected.some((account) => account.provider === provider.id) ? (
                   <span className="rail-account__live" aria-label="compte réel connecté" />
                 ) : null}
                 <span className="cloud-item__count tnum">{countFor(provider.id)}</span>
@@ -152,7 +151,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             {liveCount > 0
               ? `${formatDecimal(liveCount)} compte${liveCount > 1 ? 's' : ''} connecté${
                   liveCount > 1 ? 's' : ''
-                } · lecture seule`
+                }`
               : 'Aucun compte connecté'}
           </span>
         </div>

@@ -12,6 +12,9 @@ import type { UpdateState, Updater } from './updater.ts';
 import type { MegaService, UploadEvent } from './mega/service.ts';
 import type { MegaSession } from './mega/session.ts';
 import type { ShadowService } from './shadow/service.ts';
+import type { TeraBoxService } from './terabox/service.ts';
+import { loginTeraBox } from './terabox/login.ts';
+import type { TransferReloadGuard } from './transfer-reload-guard.ts';
 import { log, logPath, sinceStart } from './log.ts';
 
 export const channels = {
@@ -56,6 +59,20 @@ export const channels = {
   timing: 'desktop:timing',
   /** Ouvre le journal de démarrage dans l'éditeur du système. */
   openLog: 'desktop:open-log',
+  teraboxAccounts: 'terabox:accounts',
+  teraboxConnect: 'terabox:connect',
+  teraboxDisconnect: 'terabox:disconnect',
+  teraboxList: 'terabox:list',
+  teraboxLocate: 'terabox:locate',
+  teraboxSearch: 'terabox:search',
+  teraboxRecent: 'terabox:recent',
+  teraboxUsage: 'terabox:usage',
+  teraboxPlan: 'terabox:plan',
+  teraboxPrepareFolders: 'terabox:prepare-folders',
+  teraboxDownload: 'terabox:download',
+  teraboxPause: 'terabox:pause',
+  teraboxResume: 'terabox:resume',
+  teraboxCancel: 'terabox:cancel',
   shadowAccounts: 'shadow:accounts',
   shadowConnect: 'shadow:connect',
   shadowDisconnect: 'shadow:disconnect',
@@ -104,6 +121,8 @@ export function registerIpc(
   updater: Updater,
   mega?: { session: MegaSession; service: MegaService },
   shadow?: ShadowService,
+  terabox?: TeraBoxService,
+  guard?: TransferReloadGuard,
 ): void {
   // Une seule instance : les gestionnaires ne sont enregistrés qu'une fois,
   // même si la fenêtre est recréée.
@@ -116,6 +135,9 @@ export function registerIpc(
   ): void => {
     ipcMain.handle(channel, async (_event, ...args) => fn(...(args as never[])));
   };
+
+  const guarded = <T>(id: string, launch: () => Promise<T>, pause: () => Promise<void> | void): Promise<T> =>
+    guard ? guard.start(id, launch, pause) : launch();
 
   handle(channels.status, () => service.clientStatus());
   handle(channels.setClient, (clientId: string, clientSecret: string) =>
@@ -154,11 +176,11 @@ export function registerIpc(
       size: number;
       dir?: string;
       subPath?: string;
-    }) => service.download(request),
+    }) => guarded(request.id, () => service.download(request), () => service.pause(request.id)),
   );
   handle(channels.pause, (id: string) => service.pause(String(id)));
   handle(channels.resume, (id: string, accountId: string) =>
-    service.resume(String(id), String(accountId)),
+    guarded(String(id), () => service.resume(String(id), String(accountId)), () => service.pause(String(id))),
   );
   handle(channels.cancel, (id: string) => service.cancel(String(id)));
   handle(channels.refresh, (accountId: string) => service.refresh(String(accountId)));
@@ -204,10 +226,10 @@ export function registerIpc(
         size: number;
         dir?: string;
         subPath?: string;
-      }) => mega.service.start({ ...request, dir: request.dir ?? '' }),
+      }) => guarded(request.id, () => mega.service.start({ ...request, dir: request.dir ?? '' }), () => mega.service.pause(request.id)),
     );
     handle(channels.megaPause, (id: string) => mega.service.pause(String(id)));
-    handle(channels.megaResume, (id: string) => mega.service.resume(String(id)));
+    handle(channels.megaResume, (id: string) => guarded(String(id), () => mega.service.resume(String(id)), () => mega.service.pause(String(id))));
     handle(channels.megaCancel, (id: string) => mega.service.cancel(String(id)));
 
     /**
@@ -231,6 +253,26 @@ export function registerIpc(
     });
   }
 
+  if (terabox) {
+    handle(channels.teraboxAccounts, () => terabox.accounts());
+    handle(channels.teraboxConnect, async (name: string, expectedId?: string) => {
+      const secret = await loginTeraBox(_win);
+      return terabox.connect(secret, String(name ?? ''), expectedId ? String(expectedId) : undefined);
+    });
+    handle(channels.teraboxDisconnect, (id: string) => terabox.disconnect(String(id)));
+    handle(channels.teraboxList, (id: string, folder: string) => terabox.list(String(id), String(folder ?? 'root')));
+    handle(channels.teraboxLocate, (id: string, file: string) => terabox.locate(String(id), String(file)));
+    handle(channels.teraboxSearch, (id: string, term: string) => terabox.search(String(id), String(term ?? '')));
+    handle(channels.teraboxRecent, (id: string, limit?: number) => terabox.recent(String(id), limit));
+    handle(channels.teraboxUsage, (id: string) => terabox.usage(String(id)));
+    handle(channels.teraboxPlan, (id: string, folder: string) => terabox.plan(String(id), String(folder ?? 'root')));
+    handle(channels.teraboxPrepareFolders, (base: string, paths: string[]) => terabox.prepareFolders(String(base ?? ''), paths));
+    handle(channels.teraboxDownload, (request: Parameters<TeraBoxService['download']>[0]) => guarded(request.id, () => terabox.download(request), () => terabox.pause(request.id)));
+    handle(channels.teraboxPause, (id: string) => terabox.pause(String(id)));
+    handle(channels.teraboxResume, (id: string) => guarded(String(id), () => terabox.resume(String(id)), () => terabox.pause(String(id))));
+    handle(channels.teraboxCancel, (id: string) => terabox.cancel(String(id)));
+  }
+
   if (shadow) {
     handle(channels.shadowAccounts, () => shadow.accounts());
     handle(channels.shadowConnect, (username: string, token: string, url: string, expectedId?: string) =>
@@ -243,9 +285,9 @@ export function registerIpc(
     handle(channels.shadowUsage, (id: string) => shadow.usage(String(id)));
     handle(channels.shadowPlan, (id: string, folder: string) => shadow.plan(String(id), String(folder ?? 'root')));
     handle(channels.shadowPrepareFolders, (base: string, paths: string[]) => shadow.prepareFolders(String(base ?? ''), paths));
-    handle(channels.shadowDownload, (request: Parameters<ShadowService['download']>[0]) => shadow.download(request));
+    handle(channels.shadowDownload, (request: Parameters<ShadowService['download']>[0]) => guarded(request.id, () => shadow.download(request), () => shadow.pause(request.id)));
     handle(channels.shadowPause, (id: string) => shadow.pause(String(id)));
-    handle(channels.shadowResume, (id: string) => shadow.resume(String(id)));
+    handle(channels.shadowResume, (id: string) => guarded(String(id), () => shadow.resume(String(id)), () => shadow.pause(String(id))));
     handle(channels.shadowCancel, (id: string) => shadow.cancel(String(id)));
   }
 

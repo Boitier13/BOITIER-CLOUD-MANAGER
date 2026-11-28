@@ -83,6 +83,22 @@ contextBridge.exposeInMainWorld('boitier', {
    * distincte : MEGA n'a pas d'OAuth, l'ouverture se fait par adresse et mot de
    * passe, et le mot de passe n'est jamais conservé.
    */
+  terabox: {
+    accounts: () => invoke('terabox:accounts'),
+    connect: (name, expectedId) => invoke('terabox:connect', name, expectedId),
+    disconnect: (id) => invoke('terabox:disconnect', id),
+    list: (id, folder) => invoke('terabox:list', id, folder),
+    locate: (id, file) => invoke('terabox:locate', id, file),
+    search: (id, term) => invoke('terabox:search', id, term),
+    recent: (id, limit) => invoke('terabox:recent', id, limit),
+    usage: (id) => invoke('terabox:usage', id),
+    plan: (id, folder) => invoke('terabox:plan', id, folder),
+    prepareFolders: (base, paths) => invoke('terabox:prepare-folders', base, paths),
+    download: (request) => invoke('terabox:download', request),
+    pause: (id) => invoke('terabox:pause', id),
+    resume: (id) => invoke('terabox:resume', id),
+    cancel: (id) => invoke('terabox:cancel', id),
+  },
   shadow: {
     accounts: () => invoke('shadow:accounts'),
     connect: (username, token, url, expectedId) => invoke('shadow:connect', username, token, url, expectedId),

@@ -93,9 +93,9 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
           <p className="page-subtitle">
             Les fichiers téléchargés depuis vos clouds sont réellement enregistrés sur ce disque. Une pause
             conserve le fichier partiel. Les fichiers binaires reprennent généralement à l’octet près ;
-            les exports Google et les téléchargements Shadow Drive redémarrent depuis le début. Ils sont convertis en
-            formats Office, avec une limite Google de 10 Mo par export et un rendu parfois différent.
-            Seule l’annulation efface le partiel.
+            les téléchargements Shadow Drive et TeraBox redémarrent depuis le début. Les exports Google
+            redémarrent et sont convertis en formats Office, avec une limite de 10 Mo par export et un rendu
+            parfois différent. Seule l’annulation efface le partiel.
           </p>
         </div>
         <div className="page-head__actions">

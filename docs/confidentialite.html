@@ -23,8 +23,8 @@
       <h1>Politique de confidentialité</h1>
       <p class="lede">
         BOITIER CLOUD MANAGER est une application de bureau pour Windows. Elle
-        n’a pas de serveur : votre ordinateur parle directement à Google, et rien
-        ne transite par nous.
+        n’a pas de serveur applicatif : votre ordinateur communique avec les
+        fournisseurs que vous choisissez et avec GitHub pour les mises à jour.
       </p>
 
       <h2>1. Données consultées</h2>
@@ -44,14 +44,21 @@
         </dd>
       </dl>
       <p>
-        L’application <strong>ne lit jamais le contenu</strong> d’un document
-        Google (Docs, Sheets, Slides) et ne peut ni modifier, ni renommer, ni
-        supprimer, ni envoyer quoi que ce soit.
+        Le contenu est téléchargé lorsque vous demandez une copie ou un export
+        de document Google. L’accès Google reste en lecture seule : l’application
+        ne peut pas modifier, renommer ou supprimer vos fichiers Google.
+      </p>
+
+      <p>
+        L’application peut aussi se connecter à MEGA, Shadow Drive et TeraBox
+        pour afficher les comptes, les dossiers et télécharger des fichiers.
+        MEGA permet également l’envoi de fichiers à votre demande. TeraBox utilise
+        un accès Web non officiel et provisoire, susceptible de changer.
       </p>
 
       <h2>2. Autorisation demandée</h2>
       <p>
-        Une seule : <code>https://www.googleapis.com/auth/drive.readonly</code>.
+        Pour Google Drive : <code>https://www.googleapis.com/auth/drive.readonly</code>.
         Elle autorise la consultation des fichiers et l’enregistrement d’une
         copie sur votre disque. Toute écriture chez Google est refusée par
         Google lui-même, pas seulement par l’application.
@@ -66,29 +73,39 @@
           Windows, ce fichier est illisible.
         </li>
         <li>
+          <strong>Les sessions MEGA et TeraBox et le jeton Shadow Drive</strong>
+          sont conservés dans des coffres distincts, chiffrés par Windows. Ces
+          secrets donnent accès aux comptes et ne doivent pas être partagés.
+        </li>
+        <li>
           <strong>Vos préférences</strong> et la liste de vos comptes, dans le
           stockage local de l’application.
         </li>
         <li>
           <strong>Un journal de démarrage</strong> (version lancée, résultat du
-          chargement), sans aucune donnée personnelle.
+          chargement, incidents et transferts). Il peut contenir des noms de
+          fichiers, chemins locaux, adresses ou identifiants ; vérifiez-le avant
+          de le partager et ne partagez jamais vos jetons, cookies ou mots de passe.
         </li>
       </ul>
 
       <h2>4. Ce qui n’est jamais fait</h2>
       <ul>
-        <li>aucune donnée envoyée à nos serveurs — nous n’en avons pas ;</li>
+        <li>aucune donnée envoyée à un serveur applicatif du projet ;</li>
         <li>aucune mesure d’audience, aucun traçage, aucune publicité ;</li>
         <li>aucun mot de passe Google demandé ni conservé ;</li>
-        <li>aucune revente ni transmission à un tiers, sous aucune forme.</li>
+        <li>pas de revente de vos données par le projet. Les fournisseurs et
+          GitHub reçoivent les requêtes nécessaires aux fonctions utilisées.</li>
       </ul>
 
       <h2>5. Vos droits, en pratique</h2>
       <dl>
         <dt>Retirer un compte</dt>
         <dd>
-          Dans l’application, la suppression d’un compte révoque le jeton auprès
-          de Google et efface son entrée chiffrée.
+          Dans l’application, la déconnexion efface l’entrée chiffrée du
+          fournisseur concerné. Pour Google, elle demande aussi la révocation du
+          jeton. Une session peut rester active chez les autres fournisseurs ;
+          vérifiez leurs réglages de sécurité si vous souhaitez la révoquer.
         </dd>
         <dt>Tout effacer</dt>
         <dd>
@@ -106,9 +123,9 @@
 
       <h2>6. Durée de conservation</h2>
       <p>
-        Les données restent sur votre ordinateur tant que l’application est
-        installée et que vous ne retirez pas les comptes. Aucune copie n’existe
-        ailleurs.
+        Les données locales restent sur votre ordinateur jusqu’à leur suppression ;
+        une désinstallation ne les efface pas nécessairement. Les fournisseurs
+        conservent les données de vos comptes selon leurs propres politiques.
       </p>
 
       <h2>7. Contact</h2>
@@ -120,7 +137,7 @@
       </p>
 
       <p style="color: var(--ink-3); font-size: 13px; margin-top: 26px">
-        Dernière mise à jour : 26 novembre 2026.
+        Informations relatives à la version multi-cloud de l’application.
       </p>
 
       <nav class="pages">

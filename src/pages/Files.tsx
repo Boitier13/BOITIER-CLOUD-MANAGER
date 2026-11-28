@@ -479,11 +479,12 @@ export function Files() {
     });
 
     // Shadow recrée aussi les sous-dossiers vides, après confirmation seulement.
-    if (source.provider === 'shadow') {
-      if (!bridge.shadow?.prepareFolders) { toast.push('Shadow Drive indisponible', 'error'); return; }
+    if (source.provider === 'shadow' || source.provider === 'terabox') {
+      const folderBridge = source.provider === 'shadow' ? bridge.shadow : bridge.terabox;
+      if (!folderBridge?.prepareFolders) { toast.push(`${PROVIDERS[source.provider].name} indisponible`, 'error'); return; }
       const base = [root, folderName].filter(Boolean).join('/');
       try {
-        await bridge.shadow.prepareFolders(state.settings.downloadFolder, [base, ...plan.folders.map((folder) => `${base}/${folder}`)]);
+        await folderBridge.prepareFolders(state.settings.downloadFolder, [base, ...plan.folders.map((folder) => `${base}/${folder}`)]);
       } catch (cause) {
         toast.push((cause as Error).message || 'Impossible de créer les dossiers.', 'error');
         return;

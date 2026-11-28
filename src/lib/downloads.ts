@@ -129,7 +129,7 @@ export function advanceDownloads(
   if (activeCount > limit) {
     const next = [...advanced];
     for (let i = next.length - 1; i >= 0 && activeCount > limit; i -= 1) {
-      if (next[i].status === 'active') {
+      if (next[i].status === 'active' && !next[i].remoteId) {
         next[i] = { ...next[i], status: 'queued', speed: 0 };
         activeCount -= 1;
       }
@@ -138,7 +138,7 @@ export function advanceDownloads(
   }
 
   const aDemarrer =
-    activeCount < limit && advanced.some((item) => item.status === 'queued');
+    activeCount < limit && advanced.some((item) => item.status === 'queued' && !item.remoteId);
 
   // Rien à avancer, rien à démarrer : même référence, donc aucun rendu.
   if (!simule && !aDemarrer) return items;
@@ -148,7 +148,7 @@ export function advanceDownloads(
   // Démarre les transferts en attente dans l'ordre d'ajout.
   const next = [...advanced];
   for (let i = 0; i < next.length && activeCount < limit; i += 1) {
-    if (next[i].status === 'queued') {
+    if (next[i].status === 'queued' && !next[i].remoteId) {
       next[i] = {
         ...next[i],
         status: 'active',

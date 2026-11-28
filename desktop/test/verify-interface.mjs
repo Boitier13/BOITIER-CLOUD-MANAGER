@@ -37,7 +37,7 @@ const js = await readFile(new URL(jsHref, pageUrl), 'utf8');
 // MEGA n'est plus un décor : c'est un fournisseur réel, avec sa session et ses
 // transferts. Les fournisseurs purement fictifs des versions précédentes, eux,
 // ne doivent jamais réapparaître dans le paquet livré.
-for (const forbidden of ['TERABOX', 'shadow.demo', 'terabox.demo']) {
+for (const forbidden of ['shadow.demo', 'terabox.demo']) {
   check(`aucun fournisseur fictif : ${forbidden}`, !js.includes(forbidden));
 }
 check(
@@ -2739,6 +2739,103 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   const confirm = [...screen.doc.querySelectorAll('button')].find((e) => e.textContent.trim() === 'Déconnecter');
   if (confirm) await screen.click(confirm);
   check('Shadow : dernier compte retiré du coffre et de la liste', calls.some((x) => Array.isArray(x) && x[0] === 'disconnect' && x[1] === 'shadow-test') && screen.text().includes('Aucun compte connecté'));
+  screen.window.close();
+}
+
+/* --- TeraBox : parcours simulé, sans session dans le renderer ----------- */
+{
+  const calls = [];
+  let connected = false;
+  const info = { accountId: 'terabox-123', name: 'test', usedBytes: 12, quotaBytes: 100, status: 'connected' };
+  const screen = await parcours({ label: 'TeraBox', bridge: {
+    platform: 'win32', ready: async () => true,
+    google: { status: async () => ({ configured: true }), accounts: async () => [], onDownload: () => () => {}, list: async () => { calls.push('google-list'); return []; }, recent: async () => [], search: async () => [], shared: async () => [] },
+    terabox: {
+      accounts: async () => connected ? [info] : [],
+      connect: async (...args) => { calls.push(['connect', ...args]); connected = true; return info; },
+      disconnect: async (id) => { calls.push(['disconnect', id]); connected = false; },
+      list: async (id) => { calls.push(['list', id]); return [{ id: 'tb_L3ByZXV2ZS50eHQ', name: 'preuve.txt', kind: 'file', size: 12, modified: new Date().toISOString() }]; },
+      search: async () => [], recent: async () => [], usage: async () => ({ usedBytes: 12, quotaBytes: 100 }),
+    },
+  }});
+  const nav = [...screen.doc.querySelectorAll('.cloud-item')].find((e) => e.textContent.includes('TeraBox'));
+  if (nav) await screen.click(nav);
+  const add = [...screen.doc.querySelectorAll('button')].find((e) => e.textContent.includes('Connecter TeraBox'));
+  check('TeraBox : fournisseur expérimental et connexion visibles', Boolean(nav && add));
+  if (add) await screen.click(add);
+  const name = screen.doc.querySelector('#terabox-name');
+  if (name) {
+    Object.getOwnPropertyDescriptor(screen.window.HTMLInputElement.prototype, 'value').set.call(name, 'test');
+    name.dispatchEvent(new screen.window.Event('input', { bubbles: true }));
+  }
+  await new Promise((r) => setTimeout(r, 100));
+  const submit = [...screen.doc.querySelectorAll('button')].find((e) => e.textContent.trim() === 'Ouvrir TeraBox');
+  if (submit) await screen.click(submit);
+  check('TeraBox : seul le nom est envoyé au pont', calls.some((c) => Array.isArray(c) && c[0] === 'connect' && c[1] === 'test' && !c[2]));
+  check('TeraBox : indicateur de compte connecté', screen.doc.querySelector('.demo-chip')?.textContent.includes('1 compte connecté') && Boolean(nav?.querySelector('.rail-account__live')));
+  const open = [...screen.doc.querySelectorAll('button')].find((e) => e.textContent.trim() === 'Ouvrir');
+  if (open) await screen.click(open);
+  check('TeraBox : exploration passe par le fournisseur dédié', calls.some((c) => Array.isArray(c) && c[0] === 'list' && c[1] === 'terabox-123') && screen.text().includes('preuve.txt') && !calls.includes('google-list'));
+  if (nav) await screen.click(nav);
+  const disconnect = [...screen.doc.querySelectorAll('button')].find((e) => (e.title ?? '').startsWith('Déconnecter'));
+  if (disconnect) await screen.click(disconnect);
+  const confirm = [...screen.doc.querySelectorAll('button')].find((e) => e.textContent.trim() === 'Déconnecter');
+  if (confirm) await screen.click(confirm);
+  check('TeraBox : déconnexion du compte dédié', calls.some((c) => Array.isArray(c) && c[0] === 'disconnect' && c[1] === 'terabox-123') && screen.text().includes('Aucun compte connecté'));
+  screen.window.close();
+}
+
+/* --- Mise à jour : les anciens comptes cohabitent avec TeraBox ----------- */
+{
+  const common = { name: 'Compte', email: 'meme@example.test', status: 'connected', usedBytes: 1, quotaBytes: 100, createdAt: '2026-01-01T00:00:00.000Z', seed: 1, localTree: false };
+  const accounts = [
+    { ...common, id: 'gdrive-real-g1', googleId: 'g1', provider: 'gdrive', source: 'google' },
+    { ...common, id: 'mega-real-m1', megaId: 'm1', provider: 'mega', source: 'mega' },
+    { ...common, id: 'shadow-real-s1', shadowId: 's1', shadowUrl: 'https://drive.shadow.tech/', provider: 'shadow', source: 'shadow' },
+  ];
+  const nothing = async () => [];
+  const screen = await parcours({ label: 'quatre fournisseurs', storage: {
+    key: 'boitier-cloud-manager:v1', value: { version: 1, accounts, favorites: [], downloads: [], settings: { concurrent: 2 }, explorer: { accountId: accounts[0].id, path: [] } },
+  }, bridge: {
+    platform: 'win32', ready: async () => true,
+    google: { status: async () => ({ configured: true }), accounts: async () => [{ ...common, accountId: 'g1' }], onDownload: () => () => {}, list: nothing, search: nothing, recent: nothing, shared: nothing },
+    mega: { accounts: async () => [{ ...common, accountId: 'm1' }], onUpload: () => () => {}, list: nothing, search: nothing, recent: nothing },
+    shadow: { accounts: async () => [{ ...common, accountId: 's1', username: common.email, url: 'https://drive.shadow.tech/' }], list: nothing, search: nothing, recent: nothing },
+    terabox: { accounts: async () => [{ ...common, accountId: 'terabox-1', name: common.email }], list: nothing, search: nothing, recent: nothing },
+  } });
+  const nav = [...screen.doc.querySelectorAll('.cloud-item')].find((e) => e.textContent.includes('TeraBox'));
+  if (nav) await screen.click(nav);
+  await new Promise((r) => setTimeout(r, 800));
+  const saved = JSON.parse(screen.window.localStorage.getItem('boitier-cloud-manager:v1') ?? '{}');
+  check('mise à jour : les quatre fournisseurs cohabitent sans écraser les comptes de même adresse',
+    ['gdrive', 'mega', 'shadow', 'terabox'].every((id) => saved.accounts?.filter((a) => a.provider === id).length === 1));
+  check('mise à jour : le réglage de limite existant est conservé', saved.settings?.concurrent === 2);
+  check('mise à jour : les quatre comptes sont comptés', /4 comptes connectés/.test(screen.doc.querySelector('.demo-chip')?.textContent ?? ''));
+  screen.window.close();
+}
+
+/* --- File réelle : le quatrième fichier attend qu'une place se libère --- */
+{
+  const requests = [];
+  let sendEvent;
+  const account = { id: 'terabox-real-terabox-123', teraboxId: 'terabox-123', source: 'terabox', provider: 'terabox', name: 'Test', email: 'test', status: 'connected', usedBytes: 12, quotaBytes: 100, createdAt: '2026-01-01T00:00:00Z', seed: 1, localTree: false };
+  const screen = await parcours({ label: 'file TeraBox', storage: { key: 'boitier-cloud-manager:v1', value: { version: 1, accounts: [account], favorites: [], downloads: [], settings: { concurrent: 3 }, explorer: { accountId: account.id, path: [] } } }, bridge: {
+    platform: 'win32', ready: async () => true,
+    google: { status: async () => ({ configured: true }), accounts: async () => [], folder: async () => 'C:\\Downloads', onDownload: (listener) => { sendEvent = listener; return () => {}; }, list: async () => [], recent: async () => [], search: async () => [], shared: async () => [] },
+    terabox: { accounts: async () => [], list: async () => [{ id: 'folder', name: 'Essai', kind: 'folder', size: 0, modified: new Date().toISOString() }],
+      plan: async () => ({ files: [0,1,2,3].map((i) => ({ fileId: `f${i}`, path: `f${i}.txt`, size: 12, mimeType: 'text/plain' })), folders: [], skipped: [], truncated: false, totalBytes: 48 }),
+      prepareFolders: async () => {}, download: async (r) => { requests.push(r); }, pause: async () => {}, resume: async () => true, cancel: async () => {}, recent: async () => [], search: async () => [] },
+  }});
+  const files = [...screen.doc.querySelectorAll('.nav-item')].find((e) => e.textContent.includes('Tous les fichiers'));
+  if (files) await screen.click(files);
+  const folder = screen.doc.querySelector('[aria-label^="Télécharger le dossier"]');
+  if (folder) await screen.click(folder);
+  const confirm = [...screen.doc.querySelectorAll('.modal__foot .btn')].find((b) => b.textContent.trim() === 'Télécharger');
+  if (confirm) await screen.click(confirm);
+  check('file TeraBox : trois transferts lancés, un en attente', requests.length === 3, `${requests.length} lancé(s)`);
+  if (requests[0] && sendEvent) sendEvent({ id: requests[0].id, status: 'done', received: 12, size: 12, speed: 0 });
+  await new Promise((r) => setTimeout(r, 250));
+  check('file TeraBox : le quatrième démarre après une fin', requests.length === 4, `${requests.length} lancé(s)`);
   screen.window.close();
 }
 

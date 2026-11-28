@@ -25,7 +25,12 @@ export function resolvePreload(baseDir: string): string {
   return join(baseDir, 'preload.cjs');
 }
 
+/** Activé uniquement à la compilation de l'installeur expérimental. */
+export function isTeraBoxTestBuild(): boolean {
+  return process.env.BOITIER_TERABOX_TEST_BUILD === '1';
+}
+
 /** Dossier de travail des données (coffre chiffré, caches). */
 export function resolveDataDir(appData: string): string {
-  return join(appData, 'BOITIER CLOUD MANAGER');
+  return join(appData, isTeraBoxTestBuild() ? 'BOITIER CLOUD MANAGER - TEST TERABOX' : 'BOITIER CLOUD MANAGER');
 }

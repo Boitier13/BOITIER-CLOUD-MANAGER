@@ -200,7 +200,7 @@ class RemoteCatalog {
     const key = recentKey(accountId);
     const existing = this.states.get(key);
     if (existing && existing.status !== 'error') return;
-    if (providerOf(accountId) === 'mega' || providerOf(accountId) === 'shadow') {
+    if (providerOf(accountId) === 'mega' || providerOf(accountId) === 'shadow' || providerOf(accountId) === 'terabox') {
       this.states.set(key, { nodes: [], status: 'loading' });
       this.publish();
       this.fileRecents.ajouter(accountId);

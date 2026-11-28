@@ -38,6 +38,9 @@ jobs:
       - name: Google Drive (faux serveur local, 30 contrôles)
         run: npm run desktop:test
 
+      - name: Parcours de l’interface
+        run: npm run verify:interface
+
       - name: Chargement de la fenêtre en file://
         run: npm run desktop:paths
 

@@ -1,3 +1,4 @@
+import { TransferQueue } from './transferQueue';
 /**
  * Aiguillage entre fournisseurs côté interface.
  *
@@ -34,7 +35,7 @@ const fournisseurs = new Map<string, ProviderId>();
 export function registerAccountProviders(accounts: Account[]): void {
   fournisseurs.clear();
   for (const account of accounts) {
-    const identifiant = account.provider === 'mega' ? (account.megaId ?? account.id) : account.provider === 'shadow' ? (account.shadowId ?? account.id) : (account.googleId ?? account.id);
+    const identifiant = account.provider === 'mega' ? (account.megaId ?? account.id) : account.provider === 'shadow' ? (account.shadowId ?? account.id) : account.provider === 'terabox' ? (account.teraboxId ?? account.id) : (account.googleId ?? account.id);
     fournisseurs.set(identifiant, account.provider);
     fournisseurs.set(account.id, account.provider);
   }
@@ -45,7 +46,7 @@ export function providerOf(accountId: string): ProviderId {
   const connu = fournisseurs.get(accountId);
   if (connu) return connu;
   // Repli : les identifiants d'application MEGA commencent par « mega ».
-  return accountId.startsWith('mega') ? 'mega' : accountId.startsWith('shadow') ? 'shadow' : 'gdrive';
+  return accountId.startsWith('mega') ? 'mega' : accountId.startsWith('shadow') ? 'shadow' : accountId.startsWith('terabox') ? 'terabox' : 'gdrive';
 }
 
 /** Vrai si le pont MEGA est disponible (application Windows). */
@@ -57,6 +58,10 @@ export function hasMega(): boolean {
 export async function listFolder(accountId: string, folderId: string): Promise<GoogleFile[]> {
   const bridge = getBridge();
   if (!bridge) return [];
+  if (providerOf(accountId) === 'terabox') {
+    if (!bridge.terabox) throw new Error('TeraBox indisponible.');
+    return bridge.terabox.list(accountId, folderId);
+  }
   if (providerOf(accountId) === 'shadow') {
     if (!bridge.shadow) throw new Error('Shadow Drive n’est disponible que dans l’application Windows.');
     return bridge.shadow.list(accountId, folderId);
@@ -73,6 +78,10 @@ export async function listFolder(accountId: string, folderId: string): Promise<G
 export async function searchAccount(accountId: string, term: string): Promise<GoogleFile[]> {
   const bridge = getBridge();
   if (!bridge) return [];
+  if (providerOf(accountId) === 'terabox') {
+    if (!bridge.terabox) throw new Error('TeraBox indisponible.');
+    return bridge.terabox.search(accountId, term);
+  }
   if (providerOf(accountId) === 'shadow') {
     if (!bridge.shadow) throw new Error('Shadow Drive indisponible.');
     return bridge.shadow.search(accountId, term);
@@ -91,6 +100,10 @@ export async function recentAccount(
 ): Promise<GoogleFile[]> {
   const bridge = getBridge();
   if (!bridge) return [];
+  if (providerOf(accountId) === 'terabox') {
+    if (!bridge.terabox) throw new Error('TeraBox indisponible.');
+    return bridge.terabox.recent(accountId, options?.limit);
+  }
   if (providerOf(accountId) === 'shadow') {
     if (!bridge.shadow) throw new Error('Shadow Drive indisponible.');
     return bridge.shadow.recent(accountId, options?.limit);
@@ -123,6 +136,10 @@ export async function planFolder(
 ): Promise<GoogleFolderPlan> {
   const bridge = getBridge();
   if (!bridge) throw new Error('Le parcours d’un dossier demande la version Windows.');
+  if (providerOf(accountId) === 'terabox') {
+    if (!bridge.terabox) throw new Error('TeraBox indisponible.');
+    return bridge.terabox.plan(accountId, folderId);
+  }
   if (providerOf(accountId) === 'shadow') {
     if (!bridge.shadow) throw new Error('Shadow Drive indisponible.');
     return bridge.shadow.plan(accountId, folderId);
@@ -135,11 +152,15 @@ export async function planFolder(
 }
 
 /** Lance un téléchargement réel (le processus principal écrit sur le disque). */
-export async function downloadAccount(
+async function startTransfer(
   request: GoogleDownloadRequest & { provider?: ProviderId },
 ): Promise<void> {
   const bridge = getBridge();
   if (!bridge) return;
+  if ((request.provider ?? providerOf(request.accountId)) === 'terabox') {
+    if (!bridge.terabox) throw new Error('TeraBox indisponible.');
+    return bridge.terabox.download(request);
+  }
   if ((request.provider ?? providerOf(request.accountId)) === 'shadow') {
     if (!bridge.shadow) throw new Error('Shadow Drive indisponible.');
     return bridge.shadow.download(request);
@@ -151,33 +172,45 @@ export async function downloadAccount(
   return bridge.google.download(request);
 }
 
-export async function pauseTransfer(provider: ProviderId, id: string): Promise<void> {
+async function pauseRaw(provider: ProviderId, id: string): Promise<void> {
   const bridge = getBridge();
   if (!bridge) return;
+  if (provider === 'terabox') return bridge.terabox?.pause(id);
   if (provider === 'shadow') return bridge.shadow?.pause(id);
   if (provider === 'mega') return bridge.mega?.pause(id);
   return bridge.google.pause(id);
 }
 
-export async function resumeTransfer(
+async function resumeRaw(
   provider: ProviderId,
   id: string,
   remoteAccount?: string,
 ): Promise<boolean | void> {
   const bridge = getBridge();
   if (!bridge) return false;
+  if (provider === 'terabox') return bridge.terabox?.resume(id);
   if (provider === 'shadow') return bridge.shadow?.resume(id);
   if (provider === 'mega') return bridge.mega?.resume(id);
   return bridge.google.resume(id, remoteAccount ?? '');
 }
 
-export async function cancelTransfer(provider: ProviderId, id: string): Promise<void> {
+async function cancelRaw(provider: ProviderId, id: string): Promise<void> {
   const bridge = getBridge();
   if (!bridge) return;
+  if (provider === 'terabox') return bridge.terabox?.cancel(id);
   if (provider === 'shadow') return bridge.shadow?.cancel(id);
   if (provider === 'mega') return bridge.mega?.cancel(id);
   return bridge.google.cancel(id);
 }
+
+const queue = new TransferQueue({ start: startTransfer, pause: pauseRaw, resume: resumeRaw, cancel: cancelRaw });
+export const downloadAccount = async (request: GoogleDownloadRequest & { provider?: ProviderId }) => queue.add({ ...request, provider: request.provider ?? providerOf(request.accountId) });
+export const pauseTransfer = async (_provider: ProviderId, id: string) => queue.pause(id);
+export const resumeTransfer = async (_provider: ProviderId, id: string, _account?: string) => queue.resume(id);
+export const cancelTransfer = async (_provider: ProviderId, id: string) => queue.cancel(id);
+export const setTransferLimit = (limit: number) => queue.setLimit(limit);
+export const onTransferEvent = (listener: Parameters<TransferQueue['subscribe']>[0]) => queue.subscribe(listener);
+export const observeTransferEvent = (event: Parameters<TransferQueue['observe']>[0]) => queue.observe(event);
 
 /** Comptes MEGA connus du processus principal (aucune requête réseau). */
 export async function megaAccounts(): Promise<MegaAccountInfo[]> {

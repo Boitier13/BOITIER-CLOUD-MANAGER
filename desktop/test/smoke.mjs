@@ -910,7 +910,7 @@ try {
   check(
     'recherche : chaque résultat peut être ouvert à son emplacement ou téléchargé',
     page.includes('bridge.google.locate!(') && page.includes('bridge.shadow!.locate(') && page.includes('google') &&
-      page.includes('.download({'),
+      page.includes('downloadAccount({'),
     'aucune action sur le résultat',
   );
 }
@@ -1009,7 +1009,7 @@ try {
   );
   check(
     'mise à jour : rien ne s’exécute hors d’une installation réelle',
-    /if \(!app\.isPackaged \|\| this\.wired\) return;/.test(updater),
+    /if \(!app\.isPackaged \|\| isTeraBoxTestBuild\(\) \|\| this\.wired\) return;/.test(updater),
   );
   // Journal d'un essai réel : chaque vérification était écrite deux fois (notre
   // `check()` et l'événement de la bibliothèque), et la progression à chaque
@@ -1256,7 +1256,7 @@ try {
   check(
     'figement : le minuteur de file ne tourne que s’il y a du travail',
     /if \(!fileAnimee\) return;/.test(store) &&
-      /item\.status === 'queued' \|\| \(item\.status === 'active' && !item\.remoteId\)/.test(
+      /!item\.remoteId && \(item\.status === 'queued' \|\| item\.status === 'active'\)/.test(
         store,
       ),
     'minuteur permanent',
@@ -1386,7 +1386,7 @@ try {
   );
   check(
     'notification : Windows sait à quelle application la rattacher',
-    /app\.setAppUserModelId\('com\.boitier\.cloudmanager'\)/.test(principal) &&
+    /app\.setAppUserModelId\(isTeraBoxTestBuild\(\) \? 'com\.boitier\.cloudmanager\.teraboxtest' : 'com\.boitier\.cloudmanager'\)/.test(principal) &&
       /"appId": "com\.boitier\.cloudmanager"/.test(await lire(new URL('../../package.json', import.meta.url), 'utf8')),
     'identifiant d’application absent : bulle ignorée sans erreur',
   );
