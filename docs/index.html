@@ -20,13 +20,13 @@
         </div>
       </header>
 
-      <h1>Vos comptes Google Drive, réunis dans une seule fenêtre Windows.</h1>
+      <h1>Vos comptes cloud, réunis dans une seule fenêtre Windows.</h1>
 
       <p class="lede">
         Application de bureau pour ordinateur personnel. Elle affiche l’espace de
-        tous vos comptes Google Drive, permet de parcourir leurs dossiers et
-        d’enregistrer des fichiers sur votre disque — sans passer par un site
-        web, et sans aucun serveur intermédiaire.
+        vos comptes Google Drive, MEGA, Shadow Drive et TeraBox, permet de
+        parcourir leurs dossiers et d’enregistrer des fichiers sur votre disque.
+        TeraBox utilise un accès Web provisoire non officiel, en lecture seule.
       </p>
 
       <div class="card">
@@ -37,7 +37,7 @@
           <li>télécharge un fichier ou un dossier entier, en indiquant le dossier d’arrivée ;</li>
           <li>regroupe les fichiers récents de tous les comptes sur un seul écran ;</li>
           <li>cherche un nom dans <strong>tous les comptes d’un coup</strong>, ou dans un seul, et ouvre le dossier où se trouve le fichier ;</li>
-          <li>se met à jour toute seule — le téléchargement se fait en arrière-plan, l’installation n’a lieu qu’après votre clic.</li>
+          <li>propose les mises à jour ; leur téléchargement et leur installation se font à votre demande.</li>
         </ul>
       </div>
 
@@ -46,7 +46,7 @@
         <ul>
           <li>elle <strong>n’écrit jamais</strong> dans vos Drive : l’autorisation demandée à Google est strictement en lecture seule ;</li>
           <li>elle ne conserve aucun mot de passe Google ;</li>
-          <li>elle n’envoie aucune donnée à un tiers : les échanges vont de votre ordinateur directement à Google.</li>
+          <li>elle n’envoie pas vos fichiers à un serveur applicatif du projet ; les services connectés et GitHub reçoivent leurs requêtes respectives.</li>
         </ul>
       </div>
 
@@ -57,6 +57,11 @@
         Windows sur votre disque <code>%APPDATA%</code>. Ce jeton peut être
         révoqué à tout moment, depuis l’application ou depuis votre compte
         Google.
+      </p>
+      <p>
+        Pour les autres services, les sessions MEGA et TeraBox et le jeton Shadow
+        Drive sont également conservés chiffrés par Windows. La connexion
+        TeraBox dépend d’une méthode Web non officielle susceptible de changer.
       </p>
       <p>
         Le détail de ce traitement figure dans la

@@ -13,7 +13,7 @@ queue.subscribe((e) => events.push(e));
 const request = (id, provider = 'terabox') => ({ id, provider, accountId: 'account', fileId: `file-${id}`, name: `${id}.txt`, size: 12 });
 const update = (id, status) => queue.observe({ id, status, received: status === 'done' ? 12 : 0, size: 12, speed: 0 });
 const flush = async () => { await Promise.resolve(); await Promise.resolve(); };
-for (let i = 0; i < 9; i++) queue.add(request(String(i), ['terabox', 'gdrive', 'mega'][i % 3]));
+for (let i = 0; i < 9; i++) queue.add(request(String(i), ['terabox', 'gdrive', 'mega', 'shadow'][i % 4]));
 await flush();
 assert.deepEqual(calls.filter((c) => c[0] === 'start').map((c) => c[1]), ['0', '1', '2']);
 assert.equal(events.filter((e) => e.status === 'queued').length, 9);

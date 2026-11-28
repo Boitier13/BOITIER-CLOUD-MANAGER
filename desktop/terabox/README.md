@@ -1,17 +1,19 @@
 # TeraBox : intégration Web expérimentale et non officielle
 
-Travail provisoire **non validé sur un compte réel et non publié**. Ce code est
-branché au pont et à l'interface du dépôt, mais les essais actuels sont
-simulés : la connexion, les réponses de l'API, les hôtes de téléchargement et
-les transferts restent à confirmer sous Windows avec les comptes de l'utilisateur.
-TeraBox peut modifier son site ou imposer des vérifications/restrictions ;
-aucun CAPTCHA ni limitation d'offre n'est contourné.
+Intégration provisoire **non officielle**, isolée pour faciliter un éventuel
+remplacement par l'API officielle. Sous Windows, l'utilisateur a confirmé la
+connexion et la persistance de trois comptes distincts, l'exploration, les
+quotas et plusieurs téléchargements de fichiers et dossiers. Ces essais ne
+prouvent pas la compatibilité de tous les comptes, types de fichiers ou hôtes.
+La demande officielle reste en attente ; ses conditions et possibilités ne sont
+pas confirmées. TeraBox peut modifier son site, ses conditions ou imposer des
+vérifications/restrictions ; aucun CAPTCHA ni limitation d'offre n'est contourné.
 
 - `login.ts` : fenêtre de connexion locale dans une partition Electron en
   mémoire distincte pour chaque tentative, sans Node ni preload. L'utilisateur
   ferme la fenêtre une fois connecté ; seul le processus principal récupère le
-  cookie de session. L'authentification fédérée et les éventuelles vérifications
-  doivent être testées. Aucun mot de passe ou session ne doit être demandé
+  cookie de session. Les différentes méthodes d’authentification et vérifications
+  ne sont pas toutes validées. Aucun mot de passe ou session ne doit être demandé
   dans le chat, ni journalisé, ni envoyé à un tiers.
 - `vault.ts` : coffre séparé chiffré par le système ; impossibilité d'écrire si
   le coffre est illisible ou si le chiffrement est indisponible. Les comptes ne
@@ -41,11 +43,10 @@ l'application stable ne sont donc pas automatiquement visibles dans cette copie.
 Les téléchargements utilisent le dossier habituel et ne remplacent pas les
 fichiers existants.
 
-Avant publication : contrôler les conditions d'utilisation, tester localement
-la connexion (dont l'authentification fédérée), les comptes distincts, quota,
-liste, recherche, fichiers et dossiers avec de vrais comptes sous Windows ;
-vérifier les méthodes `/api/filemetas` et les hôtes CDN réellement renvoyés,
-les erreurs, interruptions et la reprise. Ne jamais consigner les cookies ni
+Avant une diffusion large : vérifier les conditions d'utilisation et étendre
+les essais réels (méthodes d’authentification, recherche, hôtes CDN, erreurs,
+interruptions et reprise). La compatibilité de `/api/filemetas` n’est pas
+garantie pour tous les comptes. Ne jamais consigner les cookies ni
 les URL signées. Une réponse HTML de vérification ne doit pas être publiée
 comme fichier téléchargé.
 
@@ -73,17 +74,4 @@ contourner cette barrière ; il peut être retenté après l'arrêt des anciens 
 La file elle-même ne survit pas au rechargement : les transferts en attente ne
 sont pas automatiquement restaurés, et les fichiers partiels peuvent rester
 sur le disque. Relancer les téléchargements depuis les fichiers si nécessaire.
-Ces cas restent à tester sous Windows avant une publication stable.
-
-## Reprise des téléchargements
-
-Pendant la même exécution de l'application, une pause ou une erreur conserve le
-partiel et son validateur HTTP fort en mémoire. Si le serveur fournit un ETag
-fort, une reprise demande une plage avec If-Range. La réponse 206 n'est acceptée
-que si ETag, plage, taille et encodage correspondent ; une réponse complète
-200 remplace le partiel. Sans ETag fort, le téléchargement repart du début.
-Les réponses incohérentes sont refusées sans publier de fichier. Ces cas sont
-testés sur transport simulé : le comportement des serveurs TeraBox réels et
-leurs validateurs doivent encore être vérifiés sur Windows. La fermeture de
-l'application perd le validateur ; après rechargement de l'interface, la file
-locale ne restaure pas automatiquement les reprises.
+Le comportement après rechargement et les notifications d’annulation restent à confirmer sous Windows.

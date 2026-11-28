@@ -2785,6 +2785,35 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
   screen.window.close();
 }
 
+/* --- Mise à jour : les anciens comptes cohabitent avec TeraBox ----------- */
+{
+  const common = { name: 'Compte', email: 'meme@example.test', status: 'connected', usedBytes: 1, quotaBytes: 100, createdAt: '2026-01-01T00:00:00.000Z', seed: 1, localTree: false };
+  const accounts = [
+    { ...common, id: 'gdrive-real-g1', googleId: 'g1', provider: 'gdrive', source: 'google' },
+    { ...common, id: 'mega-real-m1', megaId: 'm1', provider: 'mega', source: 'mega' },
+    { ...common, id: 'shadow-real-s1', shadowId: 's1', shadowUrl: 'https://drive.shadow.tech/', provider: 'shadow', source: 'shadow' },
+  ];
+  const nothing = async () => [];
+  const screen = await parcours({ label: 'quatre fournisseurs', storage: {
+    key: 'boitier-cloud-manager:v1', value: { version: 1, accounts, favorites: [], downloads: [], settings: { concurrent: 2 }, explorer: { accountId: accounts[0].id, path: [] } },
+  }, bridge: {
+    platform: 'win32', ready: async () => true,
+    google: { status: async () => ({ configured: true }), accounts: async () => [{ ...common, accountId: 'g1' }], onDownload: () => () => {}, list: nothing, search: nothing, recent: nothing, shared: nothing },
+    mega: { accounts: async () => [{ ...common, accountId: 'm1' }], onUpload: () => () => {}, list: nothing, search: nothing, recent: nothing },
+    shadow: { accounts: async () => [{ ...common, accountId: 's1', username: common.email, url: 'https://drive.shadow.tech/' }], list: nothing, search: nothing, recent: nothing },
+    terabox: { accounts: async () => [{ ...common, accountId: 'terabox-1', name: common.email }], list: nothing, search: nothing, recent: nothing },
+  } });
+  const nav = [...screen.doc.querySelectorAll('.cloud-item')].find((e) => e.textContent.includes('TeraBox'));
+  if (nav) await screen.click(nav);
+  await new Promise((r) => setTimeout(r, 800));
+  const saved = JSON.parse(screen.window.localStorage.getItem('boitier-cloud-manager:v1') ?? '{}');
+  check('mise à jour : les quatre fournisseurs cohabitent sans écraser les comptes de même adresse',
+    ['gdrive', 'mega', 'shadow', 'terabox'].every((id) => saved.accounts?.filter((a) => a.provider === id).length === 1));
+  check('mise à jour : le réglage de limite existant est conservé', saved.settings?.concurrent === 2);
+  check('mise à jour : les quatre comptes sont comptés', /4 comptes connectés/.test(screen.doc.querySelector('.demo-chip')?.textContent ?? ''));
+  screen.window.close();
+}
+
 /* --- File réelle : le quatrième fichier attend qu'une place se libère --- */
 {
   const requests = [];

@@ -62,9 +62,6 @@ interface Job {
   stalled: boolean;
   /** Chemin du fichier partiel, conservé entre une pause et une reprise. */
   partPath?: string;
-  /** Validateur fort associé aux octets du partiel (uniquement en mémoire). */
-  validator?: string;
-  validatorSize?: number;
   /** Chemin final, calculé une seule fois (les « (1) » ne doivent pas changer). */
   finalPath?: string;
 }
@@ -164,7 +161,7 @@ export class DownloadManager {
   private readonly stallMs: number;
   private readonly adapter?: {
     readMeta: (accountId: string, fileId: string, signal: AbortSignal) => Promise<{ mimeType: string; size: number }>;
-    openMedia: (accountId: string, fileId: string, signal: AbortSignal, from: number, validator?: string, expectedSize?: number) => Promise<Awaited<ReturnType<typeof openMedia>> & { validator?: string }>;
+    openMedia: (accountId: string, fileId: string, signal: AbortSignal, from: number) => ReturnType<typeof openMedia>;
     /** Si activé, seule une taille exacte publie le fichier final. */
     verifySize?: boolean;
     stallProvider?: string;
@@ -322,11 +319,10 @@ export class DownloadManager {
       const media = format
         ? await openExport(this.endpoints, token, request.fileId, format.mimeType, job.controller.signal)
         : this.adapter
-          ? await this.adapter.openMedia(token, request.fileId, job.controller.signal, deja, job.validatorSize === meta.size ? job.validator : undefined, meta.size)
+          ? await this.adapter.openMedia(token, request.fileId, job.controller.signal, deja)
           : await openMedia(this.endpoints, token, request.fileId, job.controller.signal, deja);
       job.controller.signal.throwIfAborted();
-      if (this.adapter?.verifySize) job.size = meta.size;
-      else if (!job.size) job.size = media.size ?? (format ? 0 : meta.size);
+      if (!job.size) job.size = media.size ?? (format ? 0 : meta.size);
 
       // Drive a ignoré la plage : le partiel est remplacé, jamais complété.
       if (media.resumed && media.start !== deja) throw new Error('Le serveur a répondu avec une plage de téléchargement incorrecte.');
@@ -350,16 +346,10 @@ export class DownloadManager {
       sink = createWriteStream(partPath, { flags: reprend ? 'a' : 'w' });
       // L'erreur est également transmise par drain/end, sans événement non géré.
       sink.on('error', () => undefined);
-      // Un nouveau validateur ne s'applique qu'après l'ouverture effective du
-      // fichier (et sa troncature pour un redémarrage depuis zéro).
-      await once(sink, 'open');
-      job.validator = 'validator' in media && typeof media.validator === 'string' ? media.validator : undefined;
-      job.validatorSize = job.validator ? meta.size : undefined;
-      job.controller.signal.throwIfAborted();
       const reader = media.body.getReader();
       const startedAt = Date.now();
       let lastEmit = 0;
-      let lastBytes = job.received;
+      let lastBytes = 0;
 
       for (;;) {
         const { done, value } = await reader.read();

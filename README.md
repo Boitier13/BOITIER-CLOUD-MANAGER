@@ -1,12 +1,12 @@
 # BOITIER CLOUD MANAGER
 
 Application de bureau personnelle pour parcourir et télécharger les fichiers de
-vos comptes **Google Drive** depuis une interface unique.
+vos comptes **Google Drive, MEGA, Shadow Drive et TeraBox** depuis une interface unique.
 
 > **Uniquement de vrais comptes.** L’application ne présente aucune donnée
 > inventée : sans compte connecté, elle affiche un écran vide qui explique quoi
 > faire. Toutes les informations affichées — comptes, dossiers, tailles, quotas —
-> viennent de Google.
+> viennent des fournisseurs connectés.
 >
 > L’accès est **en lecture seule** : l’application ne peut ni modifier, ni
 > déplacer, ni supprimer un fichier chez Google. Aucun mot de passe ne lui est
@@ -24,9 +24,9 @@ npm run build    # vérification TypeScript + build de production
 npm run preview  # prévisualiser le build
 ```
 
-### Application Windows (Google Drive réel)
+### Application Windows
 
-Pour **tester sans rien installer** : téléchargez l'installeur depuis les
+Pour installer : téléchargez l'installeur depuis les
 [Releases](https://github.com/Boitier13/BOITIER-CLOUD-MANAGER/releases), ou
 déclenchez le workflow *Installeur Windows* (onglet Actions → Run workflow).
 
@@ -44,9 +44,23 @@ npm run package:win   # installeur Windows (nécessite Windows ou une CI Windows
 > complémentaires → Exécuter*. Supprimer cet avertissement demande un
 > certificat de signature de code, payant, hors périmètre d'un usage personnel.
 
+## TeraBox : accès provisoire non officiel
+
+TeraBox est proposé en **lecture seule** via l’interface Web non officielle,
+en attendant une réponse à la demande d’API officielle. Cette méthode peut
+cesser de fonctionner ou être soumise aux conditions et restrictions de TeraBox.
+Elle ne contourne pas les vérifications de sécurité. Chaque compte est connecté
+séparément dans une fenêtre TeraBox ; le cookie de session est chiffré par
+Windows et ne doit jamais être partagé. La version commune utilise son propre
+coffre local : les comptes de la copie de test isolée doivent être reconnectés.
+La pause TeraBox conserve le partiel, mais la reprise recommence actuellement le
+téléchargement. Les comptes, l’exploration et plusieurs téléchargements ont été
+testés sous Windows ; toutes les situations ne sont pas validées. Détails et
+limites : [desktop/terabox/README.md](desktop/terabox/README.md).
+
 ## Google Drive réel
 
-Seul Google Drive se connecte réellement. Trois principes :
+La connexion Google Drive repose sur trois principes :
 
 - **Lecture seule.** Le périmètre demandé est `drive.readonly` : lire, chercher et
   télécharger. Aucune modification, aucun déplacement, aucune suppression n’est
@@ -667,6 +681,8 @@ la cause certaine. Les mesures prises pour réduire le travail de fond sont :
   règle générale, davantage si des opérations actives les retiennent) ;
 - les récents MEGA sont traités un compte à la fois, avec 1,5 s entre lectures.
 
+**0.23.15 — TeraBox provisoire :** accès Web non officiel en lecture seule, comptes séparés, exploration et téléchargements ; file globale pour les transferts réels, et précautions au rechargement. La reprise TeraBox repart de zéro et des essais restent nécessaires.
+
 **0.23.13 — mise à jour :** le lancement de l’installeur est isolé du processus principal, et un refus de lancement laisse l’application ouverte avec la possibilité de réessayer. Des repères de focus et de réactivité sont ajoutés après installation pour diagnostiquer un éventuel blocage ; ils ne prouvent pas à eux seuls que le problème est résolu.
 
 **0.23.12 — documents Google :** export de Docs, Sheets et Slides en formats Office, individuellement ou dans les dossiers. La conversion est limitée à 10 Mo par export Google ; une reprise redémarre l’export.
@@ -888,9 +904,9 @@ Pour publier une version : mettre à jour `version` dans `package.json`, puis
 | Écran | Contenu |
 | --- | --- |
 | **Accueil** | Sans compte : présentation et invitation à connecter. Avec : occupation, transferts en cours, derniers fichiers, favoris |
-| **Clouds** | Comptes connectés — Google et MEGA : quota réel, état, renommage, déconnexion ; connexion d’un nouveau compte |
+| **Clouds** | Comptes connectés — Google, MEGA, Shadow Drive et TeraBox : quota réel, état, renommage, déconnexion ; connexion d’un nouveau compte |
 | **Tous les fichiers** | Explorateur navigable, quel que soit le fournisseur : fil d’Ariane, retour, recherche, tri, filtres par type, sélection multiple ; dossiers Google Drive chargés à la demande ; sous-vue **Partagés avec moi** (ce que d’autres ont partagé avec le compte, indépendamment de vos dossiers) |
-| **Téléchargements** | File unifiée : progression, débit, pause/reprise, annulation ; transferts Google Drive et MEGA réellement écrits sur le disque, y compris **un dossier entier** (arborescence conservée) |
+| **Téléchargements** | File unifiée : progression, débit, pause/reprise, annulation ; transferts des quatre fournisseurs réellement écrits sur le disque, y compris **un dossier entier** (arborescence conservée) |
 | **Favoris** | Collection multi-comptes, recherche, répartition par type |
 | **Récents** | Flux transversal des derniers fichiers **modifiés** (7 / 30 / 90 jours), filtre par nom, téléchargement direct ; la limite de l’API — Google ne transmet pas la date d’ouverture — est écrite sur l’écran |
 | **Stockage** | Espace **total** du compte (Drive + Gmail + Photos) et répartition mesurée par type de fichier ; ce qui n’est pas mesurable est annoncé comme tel, jamais estimé |
@@ -980,9 +996,8 @@ conteneur (fenêtre + coffre chiffré + écriture disque).
 
 ### Ajouter un fournisseur plus tard
 
-L’architecture multi-fournisseurs est désormais éprouvée par deux cas réels :
-Google Drive (OAuth, lecture seule) et MEGA (adresse + mot de passe, envoi
-compris). Ajouter un troisième fournisseur revient à :
+L’architecture multi-fournisseurs est utilisée par Google Drive, MEGA, Shadow
+Drive et TeraBox. Ajouter un autre fournisseur revient à :
 
 1. déclarer son entrée dans `PROVIDERS` (`src/data/catalog.ts`) ;
 2. écrire un module dans `desktop/<fournisseur>/` qui produit les mêmes formes
@@ -997,14 +1012,9 @@ favoris, la recherche et le stockage ne connaissent que ces formes communes.
 
 **Écran « Stockage »** : les comptes y sont désormais groupés par fournisseur, un
 groupe par entrée de `PROVIDER_IDS`, avec le total de chaque fournisseur et ses
-pastilles. Ajouter Shadow Drive ou TeraBox fera apparaître leur groupe sans
-toucher à cet écran. Ce qui n’est pas publié n’est pas inventé : quand un
+pastilles. Les groupes Shadow Drive et TeraBox y apparaissent également. Ce qui n’est pas publié n’est pas inventé : quand un
 fournisseur ne communique pas la nature des fichiers (cas de MEGA), l’écran
 affiche son quota réel et dit pourquoi le détail manque, au lieu de huit lignes à
 0 o.
 
-**Reste à intégrer** : Shadow Drive et TeraBox, dans cet ordre de difficulté mais
-pas d’importance — ce sont les deux clouds les plus importants pour
-l’utilisateur. Les quatre étapes ci-dessus sont la marche à suivre ; le registre
-`PROVIDERS` et l’aiguillage `src/lib/cloud.ts` sont les deux seuls points
-obligés.
+Shadow Drive et TeraBox sont désormais intégrés ; l’accès TeraBox reste provisoire et non officiel.

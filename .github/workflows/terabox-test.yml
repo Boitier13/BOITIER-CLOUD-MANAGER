@@ -42,3 +42,28 @@ jobs:
           path: release/*.exe
           if-no-files-found: error
           retention-days: 14
+
+  common-windows:
+    # Candidat de la version commune : même identité et même profil que la
+    # version stable. Artefact uniquement, aucune release ni mise à jour publiée.
+    if: github.ref == 'refs/heads/arena/21096313-boitier-cloud-manager'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Installer les dépendances
+        run: npm ci
+      - name: Vérifier le candidat commun
+        run: npm run verify:desktop
+      - name: Construire l'installeur commun sans publication
+        run: npx electron-builder --win nsis --x64 --publish never
+      - name: Conserver le candidat commun
+        uses: actions/upload-artifact@v4
+        with:
+          name: boitier-candidat-commun-windows
+          path: release/*.exe
+          if-no-files-found: error
+          retention-days: 14
