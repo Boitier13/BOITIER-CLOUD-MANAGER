@@ -146,7 +146,11 @@ export class TeraBoxWebClient implements TeraBoxReader {
     return value.list.map(entry);
   }
   /** Flux sans cookie, URL signée jamais affichée ou enregistrée. */
-  async openContent(url: string, size: number, fileName: string, signal: AbortSignal): Promise<Response> {
+  async openContent(url: string, size: number, fileName: string, signal: AbortSignal, resume?: { from: number; etag: string }): Promise<Response> {
+    const strongEtag = (value: string | null): value is string => Boolean(value && /^"[\x21\x23-\x7e]{1,256}"$/.test(value));
+    if (resume && (!Number.isSafeInteger(resume.from) || resume.from <= 0 || resume.from >= size || !strongEtag(resume.etag))) {
+      throw new Error('Reprise TeraBox invalide.');
+    }
     let target: URL;
     try { target = new URL(url); } catch { throw new Error('Lien de téléchargement TeraBox invalide.'); }
     for (let hops = 0; hops <= 3; hops += 1) {
@@ -155,7 +159,7 @@ export class TeraBoxWebClient implements TeraBoxReader {
       if (target.protocol !== 'https:' || !allowed || target.username || target.password || target.port) throw new Error('Hôte de téléchargement TeraBox non autorisé.');
       let response: Response;
       try {
-        response = await this.send(target, { method: 'GET', redirect: 'manual', signal, headers: { 'user-agent': USER_AGENT, 'accept-encoding': 'identity' } });
+        response = await this.send(target, { method: 'GET', redirect: 'manual', signal, headers: { 'user-agent': USER_AGENT, 'accept-encoding': 'identity', ...(resume ? { range: `bytes=${resume.from}-`, 'if-range': resume.etag } : {}) } });
       } catch (cause) {
         if (signal.aborted) throw cause;
         throw new Error('Téléchargement TeraBox injoignable.');
@@ -167,10 +171,22 @@ export class TeraBoxWebClient implements TeraBoxReader {
         try { target = new URL(location, target); } catch { throw new Error('Redirection de téléchargement TeraBox invalide.'); }
         continue;
       }
-      if (response.status !== 200 || !response.body) throw new Error('TeraBox refuse le téléchargement ou le lien a expiré.');
+      if (!response.body) throw new Error('TeraBox refuse le téléchargement ou le lien a expiré.');
+      const refuse = async (message: string): Promise<never> => { await response.body!.cancel().catch(() => undefined); throw new Error(message); };
+      if (response.status !== 200 && response.status !== 206) return refuse('TeraBox refuse le téléchargement ou le lien a expiré.');
+      const etag = response.headers.get('etag');
+      if (response.status === 206) {
+        const range = response.headers.get('content-range');
+        if (!resume || etag !== resume.etag || range !== `bytes ${resume.from}-${size - 1}/${size}`) {
+          return refuse('Reprise TeraBox invalide : version ou plage du fichier incohérente.');
+        }
+      }
+      const encoding = response.headers.get('content-encoding');
+      if (encoding && encoding.toLowerCase() !== 'identity') return refuse('Encodage TeraBox incompatible avec la vérification du fichier.');
+      const expectedLength = response.status === 206 && resume ? size - resume.from : size;
       const length = response.headers.get('content-length');
-      if (length !== null && (!/^\d+$/.test(length) || Number(length) !== size)) {
-        await response.body.cancel(); throw new Error('Le téléchargement TeraBox ne correspond pas à la taille annoncée.');
+      if (length !== null && (!/^\d+$/.test(length) || Number(length) !== expectedLength)) {
+        return refuse('Le téléchargement TeraBox ne correspond pas à la taille annoncée.');
       }
       const type = response.headers.get('content-type')?.toLowerCase() ?? '';
       if (type.includes('text/html') && !/\.html?$/i.test(fileName)) {
@@ -188,7 +204,7 @@ export class TeraBoxWebClient implements TeraBoxReader {
         },
         async cancel() { await reader.cancel().catch(() => undefined); },
       });
-      return new Response(body, { status: 200 });
+      return new Response(body, { status: response.status, ...(strongEtag(etag) ? { headers: { etag } } : {}) });
     }
     throw new Error('Trop de redirections TeraBox.');
   }

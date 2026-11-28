@@ -17,7 +17,7 @@ export interface TeraBoxReader {
   list(path: string): Promise<TeraBoxEntry[]>;
   search(query: string): Promise<TeraBoxEntry[]>;
   fileMeta?(path: string): Promise<{ path: string; name: string; size: number; url: string }>;
-  openContent?(url: string, size: number, fileName: string, signal: AbortSignal): Promise<Response>;
+  openContent?(url: string, size: number, fileName: string, signal: AbortSignal, resume?: { from: number; etag: string }): Promise<Response>;
 }
 
 /** Fabrique pour la méthode provisoire ; un futur flux officiel utilisera

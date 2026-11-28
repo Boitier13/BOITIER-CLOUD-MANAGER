@@ -74,3 +74,16 @@ La file elle-même ne survit pas au rechargement : les transferts en attente ne
 sont pas automatiquement restaurés, et les fichiers partiels peuvent rester
 sur le disque. Relancer les téléchargements depuis les fichiers si nécessaire.
 Ces cas restent à tester sous Windows avant une publication stable.
+
+## Reprise des téléchargements
+
+Pendant la même exécution de l'application, une pause ou une erreur conserve le
+partiel et son validateur HTTP fort en mémoire. Si le serveur fournit un ETag
+fort, une reprise demande une plage avec If-Range. La réponse 206 n'est acceptée
+que si ETag, plage, taille et encodage correspondent ; une réponse complète
+200 remplace le partiel. Sans ETag fort, le téléchargement repart du début.
+Les réponses incohérentes sont refusées sans publier de fichier. Ces cas sont
+testés sur transport simulé : le comportement des serveurs TeraBox réels et
+leurs validateurs doivent encore être vérifiés sur Windows. La fermeture de
+l'application perd le validateur ; après rechargement de l'interface, la file
+locale ne restaure pas automatiquement les reprises.

@@ -44,13 +44,20 @@ export class TeraBoxService {
           const meta = await reader.fileMeta(decodePath(fileId));
           return { mimeType: mimeFromName(meta.name), size: meta.size };
         },
-        openMedia: async (accountId, fileId, signal) => {
+        openMedia: async (accountId, fileId, signal, from, validator, expectedSize) => {
           const reader = await this.client(accountId);
           if (!reader.fileMeta || !reader.openContent) throw new Error('Téléchargement TeraBox indisponible.');
           const meta = await reader.fileMeta(decodePath(fileId));
-          const response = await reader.openContent(meta.url, meta.size, meta.name, signal);
+          if (meta.size !== expectedSize) throw new Error('Le fichier TeraBox a changé pendant la préparation. Réessayez.');
+          const resume = from > 0 && from < meta.size && validator ? { from, etag: validator } : undefined;
+          const response = await reader.openContent(meta.url, meta.size, meta.name, signal, resume);
           if (!response.body) throw new Error('Téléchargement TeraBox vide.');
-          return { body: response.body, size: meta.size, start: 0, resumed: false };
+          const etag = response.headers.get('etag');
+          if (response.status === 206 && (!resume || etag !== resume.etag)) {
+            await response.body.cancel(); throw new Error('Reprise TeraBox non vérifiée.');
+          }
+          return { body: response.body, size: meta.size, start: response.status === 206 ? from : 0,
+            resumed: response.status === 206, ...(etag ? { validator: etag } : {}) };
         },
       } });
     }
