@@ -2720,7 +2720,7 @@ tr.is-folder .cell-name__text {
 
 .download-row {
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) 124px 104px 110px;
+  grid-template-columns: 32px minmax(0, 1fr) 124px 104px 110px;
   align-items: center;
   gap: 12px;
   padding: 11px 14px;
@@ -3832,7 +3832,7 @@ tr.is-folder .cell-name__text {
   }
 
   .download-row {
-    grid-template-columns: 26px minmax(0, 1fr) 92px 90px;
+    grid-template-columns: 32px minmax(0, 1fr) 92px 90px;
   }
 
   .download-row__speed {
@@ -3888,7 +3888,7 @@ tr.is-folder .cell-name__text {
   }
 
   .download-row {
-    grid-template-columns: 26px minmax(0, 1fr) 84px;
+    grid-template-columns: 32px minmax(0, 1fr) 84px;
   }
 
   .download-row__status {
@@ -4280,7 +4280,7 @@ tr.is-folder .cell-name__text {
 
 .recent-row {
   display: grid;
-  grid-template-columns: 22px 1fr auto auto;
+  grid-template-columns: 32px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 11px;
   padding: 10px 16px;
@@ -4344,7 +4344,7 @@ tr.is-folder .cell-name__text {
 
 @media (max-width: 820px) {
   .recent-row {
-    grid-template-columns: 22px 1fr auto;
+    grid-template-columns: 32px minmax(0, 1fr) auto auto;
   }
 
   .recent-row__when small {
@@ -4443,3 +4443,43 @@ tr.is-folder .cell-name__text {
   line-height: 1.5;
   color: var(--text-4);
 }
+
+/* Icônes pleines et lisibles, indépendantes des associations Windows locales. */
+.type-icon, .type-icon--sm {
+  width: 32px; height: 32px; border: 0; border-radius: 0;
+  background: transparent; position: relative;
+}
+.type-icon--sm { width: 28px; height: 28px; }
+.type-icon > svg { width: 100%; height: 100%; }
+.type-icon__page {
+  position: relative; width: 22px; height: 28px; border-radius: 3px;
+  background: linear-gradient(145deg, #fff 0 73%, #e7edf6 100%);
+  border: 1px solid #aebbd0; box-shadow: 0 1px 2px #0003;
+}
+.type-icon__fold { position: absolute; right: 0; top: 0; width: 7px; height: 7px; background: #ccd8e9; clip-path: polygon(0 0, 100% 100%, 0 100%); }
+.type-icon__badge {
+  position: absolute; left: -5px; right: -5px; bottom: 3px; border-radius: 2px;
+  background: #60758d; color: white; font-size: 8px; font-weight: 800;
+  line-height: 11px; text-align: center; letter-spacing: -.25px;
+}
+.type-icon--video .type-icon__badge { background: #7147bc; }
+.type-icon--audio .type-icon__badge { background: #c33f83; }
+.type-icon--document .type-icon__badge { background: #2867c2; }
+.type-icon--image .type-icon__badge { background: #198e69; }
+.type-icon--archive .type-icon__badge { background: #b47013; }
+.type-icon--subtitle .type-icon__badge { background: #188592; }
+.type-icon--application .type-icon__badge { background: #d25331; }
+.type-icon--sm .type-icon__page { transform: scale(.88); }
+.download-action {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  min-height: 29px; padding: 0 9px; border: 1px solid #2163ce; border-radius: 6px;
+  background: #246bd6; color: #fff; font: inherit; font-size: 12px;
+  font-weight: 700; white-space: nowrap; cursor: pointer;
+}
+.download-action:hover { background: #1955b6; color: #fff; }
+.download-action:focus-visible { outline: 2px solid #63aaff; outline-offset: 2px; }
+.download-action:disabled { opacity: .6; cursor: not-allowed; }
+.filetable--downloads { min-width: 620px; }
+.filetable--downloads th.col-star, .filetable--downloads td.col-star { width: 168px; }
+.filetable--downloads .file-actions { opacity: 1; gap: 4px; }
+.folder-download, .folder-download:hover { color: white; }

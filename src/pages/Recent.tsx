@@ -274,7 +274,7 @@ export function Recent({ onNavigate }: { onNavigate: (route: Route) => void }) {
         ) : (
           rows.map((row) => (
             <div className="recent-row" key={`${row.account.id}-${row.file.id}`}>
-              <TypeIcon type={row.file.type} size={13} />
+              <TypeIcon type={row.file.type} name={row.file.name} size={13} />
               <div className="recent-row__main">
                 <span className="recent-row__name" title={row.file.name}>
                   {row.file.name}
@@ -306,12 +306,12 @@ export function Recent({ onNavigate }: { onNavigate: (route: Route) => void }) {
                 ) : (
                   <button
                     type="button"
-                    className="icon-btn"
+                    className="download-action"
                     title="Télécharger ce fichier"
                     aria-label={`Télécharger ${row.file.name}`}
                     onClick={() => download(row)}
                   >
-                    <ArrowDownToLine size={13} />
+                    <ArrowDownToLine size={15} /> Télécharger
                   </button>
                 )}
                 <button

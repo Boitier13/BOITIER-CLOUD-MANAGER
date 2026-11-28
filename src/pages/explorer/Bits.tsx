@@ -17,6 +17,8 @@ export const TYPE_FILTERS = [
   { id: 'all', label: 'Tout' },
   { id: 'folder', label: 'Dossiers' },
   { id: 'video', label: 'Vidéos' },
+  { id: 'audio', label: 'Audio' },
+  { id: 'application', label: 'Applications' },
   { id: 'document', label: 'Documents' },
   { id: 'image', label: 'Images' },
   { id: 'archive', label: 'Archives' },
@@ -275,6 +277,7 @@ export function labelFor(node: FileNode): string {
     archive: 'Archive',
     audio: 'Audio',
     subtitle: 'Sous-titre',
+    application: 'Application',
     other: 'Fichier',
   };
   return labels[node.type] ?? 'Fichier';

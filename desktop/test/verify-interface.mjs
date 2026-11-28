@@ -257,6 +257,14 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
     /Rapport annuel\.pdf/.test(table) && /Projets/.test(table),
     table.slice(0, 60).trim() || 'file vide',
   );
+  const pdfRow = [...doc.querySelectorAll('.filetable tbody tr')].find((row) => row.textContent.includes('Rapport annuel.pdf'));
+  const dossierRow = [...doc.querySelectorAll('.filetable tbody tr')].find((row) => row.textContent.includes('Projets'));
+  check('explorateur : icône PDF étiquetée', pdfRow?.querySelector('.type-icon__badge')?.textContent === 'PDF');
+  check('explorateur : dossier illustré', Boolean(dossierRow?.querySelector('.type-icon--folder svg')));
+  check('explorateur : boutons de téléchargement libellés',
+    /Télécharger/.test(pdfRow?.querySelector('.download-action')?.textContent ?? '') &&
+    /Télécharger/.test(dossierRow?.querySelector('.download-action')?.textContent ?? ''));
+
   check(
     'explorateur : le pont reçoit l’identifiant Google, jamais l’identifiant interne',
     listCalls.length > 0 && listCalls.every((call) => call === 'list:g-1'),
@@ -2321,7 +2329,7 @@ check('compte réel : lecture seule annoncée', /Lecture seule/.test(compte.text
     const boutonCourant = mega.doc.querySelector('.folder-download');
     check(
       'dossier MEGA : le dossier ouvert se télécharge depuis la barre d’outils',
-      Boolean(boutonCourant) && /Ce dossier/.test(boutonCourant.textContent ?? ''),
+      Boolean(boutonCourant) && /Télécharger ce dossier/i.test(boutonCourant.textContent ?? ''),
       boutonCourant?.textContent?.trim() ?? 'bouton absent',
     );
   } else {

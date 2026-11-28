@@ -247,7 +247,7 @@ export function Downloads({ onNavigate }: { onNavigate: (route: Route) => void }
             const account = state.accounts.find((a) => a.id === item.accountId);
             return (
               <div className="download-row" key={item.id}>
-                <TypeIcon type={item.type as FileType} size={13} />
+                <TypeIcon type={item.type as FileType} name={item.name} size={13} />
                 <div className="download-row__main">
                   <div className="download-row__title">
                     <span className="download-row__name" title={item.name}>

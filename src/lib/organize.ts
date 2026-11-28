@@ -23,6 +23,7 @@ const TYPE_FOLDER: Record<FileType, string> = {
   document: 'Documents',
   archive: 'Archives',
   subtitle: 'Sous-titres',
+  application: 'Applications',
   folder: 'Dossiers',
   other: 'Autres',
 };

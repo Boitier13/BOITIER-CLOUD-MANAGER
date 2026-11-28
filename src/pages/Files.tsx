@@ -804,7 +804,7 @@ export function Files() {
             {!sharedView && path.length > 0 && realAccountId(account) ? (
               <button
                 type="button"
-                className="btn btn--sm folder-download"
+                className="download-action folder-download"
                 title={`Télécharger « ${displaySegment(path[path.length - 1])} » avec toute son arborescence`}
                 onClick={() => {
                   // Le chemin brut, pas `cleanPath` : lui seul porte l'identifiant.
@@ -821,8 +821,8 @@ export function Files() {
                   });
                 }}
               >
-                <FolderDown size={13} />
-                Ce dossier
+                <FolderDown size={15} />
+                Télécharger ce dossier
               </button>
             ) : null}
           </div>
@@ -1156,7 +1156,7 @@ export function Files() {
               </div>
             ) : (
               <>
-              <table className="filetable">
+              <table className="filetable filetable--downloads">
                 <thead>
                   <tr>
                     <th className="col-check">
@@ -1306,7 +1306,7 @@ export function Files() {
                         </td>
                         <td>
                           <span className="cell-name">
-                            <TypeIcon type={node.type} size={13} />
+                            <TypeIcon type={node.type} name={node.name} size={13} />
                             <span className="cell-name__body">
                               <span className="cell-name__text">{node.name}</span>
                               {searchMode ? (
@@ -1387,7 +1387,7 @@ export function Files() {
                                 </button>
                                 <button
                                   type="button"
-                                  className="icon-btn"
+                                  className="download-action"
                                   title={`Télécharger « ${node.name} » avec toute son arborescence`}
                                   aria-label={`Télécharger le dossier ${node.name}`}
                                   onClick={() => {
@@ -1409,20 +1409,20 @@ export function Files() {
                                     });
                                   }}
                                 >
-                                  <FolderDown size={13} />
+                                  <FolderDown size={15} /> Télécharger
                                 </button>
                               </>
                             ) : (
                               <button
                                 type="button"
-                                className="icon-btn"
+                                className="download-action"
                                 title="Télécharger ce fichier"
                                 aria-label={`Télécharger ${node.name}`}
                                 onClick={() =>
                                   queueDownloads([node], rowPath.slice(0, -1), rowAccount)
                                 }
                               >
-                                <Download size={13} />
+                                <Download size={15} /> Télécharger
                               </button>
                             )}
                           </div>

@@ -1,94 +1,45 @@
-import {
-  Captions,
-  File,
-  FileArchive,
-  FileAudio,
-  FileImage,
-  FileText,
-  FileVideo,
-  Folder,
-} from 'lucide-react';
 import { PROVIDERS, type FileType, type ProviderId } from '../data/catalog';
-import shadowDriveLogo from '../assets/shadow-drive.png?inline';
+import shadowDriveLogo from '../assets/shadow-reference.png?inline';
+import teraboxLogo from '../assets/terabox-reference.png?inline';
 
-const TYPE_ICONS: Record<FileType, typeof File> = {
-  folder: Folder,
-  video: FileVideo,
-  document: FileText,
-  image: FileImage,
-  archive: FileArchive,
-  audio: FileAudio,
-  subtitle: Captions,
-  other: File,
-};
-
-export function TypeIcon({
-  type,
-  size = 14,
-  small = false,
-}: {
-  type: FileType;
-  size?: number;
-  small?: boolean;
+/** Icônes pleines inspirées de l'explorateur Windows, sans lecture du fichier. */
+export function TypeIcon({ type, name, small = false }: {
+  type: FileType; name?: string; size?: number; small?: boolean;
 }) {
-  const Icon = TYPE_ICONS[type] ?? File;
+  const match = name?.match(/\.([a-z0-9]{1,5})$/i);
+  const extension = match?.[1].toUpperCase();
   return (
-    <span className={`type-icon type-icon--${type}${small ? ' type-icon--sm' : ''}`}>
-      <Icon size={size} strokeWidth={type === 'folder' ? 1.9 : 1.7} />
+    <span className={`type-icon type-icon--${type}${small ? ' type-icon--sm' : ''}`} aria-hidden="true">
+      {type === 'folder' ? (
+        <svg viewBox="0 0 36 32" focusable="false"><path d="M2 7a3 3 0 0 1 3-3h9l3 3h14a3 3 0 0 1 3 3v15a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3z" fill="#d28a08"/><path d="M3 11h30l-2.5 14a3 3 0 0 1-3 2.5H5.5a3 3 0 0 1-3-3z" fill="#ffce49"/><path d="M4 12h27" stroke="#ffe58d" strokeWidth="2"/></svg>
+      ) : (
+        <span className="type-icon__page">
+          <span className="type-icon__fold" />
+          <span className="type-icon__badge">{extension ?? ({ video: 'VID', audio: 'AUD', document: 'DOC', image: 'IMG', archive: 'ZIP', subtitle: 'SUB', application: 'APP', other: 'FIC', folder: '' }[type] || 'FIC')}</span>
+        </span>
+      )}
     </span>
   );
 }
 
-/**
- * Logo officiel d'un fournisseur.
- *
- * Les initiales dans un carré coloré ne se distinguaient pas assez (un `G` et
- * un `M` se ressemblent, et la couleur du cadre était la seule différence) :
- * chaque cloud porte donc son vrai logo, reconnaissable au premier regard, y
- * compris en petite taille dans la barre latérale.
- *
- * Un fournisseur pas encore dessiné reçoit un nuage neutre — jamais une
- * initiale — pour que l'ajout de Shadow Drive et TeraBox ne casse pas
- * l'ensemble.
- */
 function ProviderLogo({ provider }: { provider: ProviderId }) {
-  if (provider === 'gdrive') {
-    // Triangle tricolore officiel : vert à gauche, jaune à droite, bleu en bas.
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden focusable="false">
-        <path d="M12 2.4 2.7 18.6 12 13.2Z" fill="#34a853" />
-        <path d="M12 2.4 21.3 18.6 12 13.2Z" fill="#fbbc04" />
-        <path d="M2.7 18.6h18.6L12 13.2Z" fill="#4285f4" />
-      </svg>
-    );
-  }
-  if (provider === 'shadow') return <img src={shadowDriveLogo} alt="" />;
-  if (provider === 'mega') {
-    // Le « M » rouge de MEGA, tracé comme une arête double.
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden focusable="false">
-        <path
-          d="M4 18.4V7.2l4.3 4.3L12 7.2l3.7 4.3L20 7.2v11.2"
-          fill="none"
-          stroke="#d9272e"
-          strokeWidth="2.7"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    );
-  }
-  return (
+  if (provider === 'gdrive') return (
     <svg viewBox="0 0 24 24" aria-hidden focusable="false">
-      <path
-        d="M7 18.5a4.5 4.5 0 0 1-.5-8.97 5.5 5.5 0 0 1 10.6 1.3A3.9 3.9 0 0 1 17 18.5Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinejoin="round"
-      />
+      <path fill="#008c50" d="M8.2 2h6l-8.8 15.3-3-5.2z"/>
+      <path fill="#ffca36" d="M8.2 2h6L23 17.3h-6z"/>
+      <path fill="#3978e8" d="M5.4 17.3H23l-3 5.2H2.4z"/>
     </svg>
   );
+  if (provider === 'shadow') return <img src={shadowDriveLogo} alt="" />;
+  if (provider === 'terabox') return <img src={teraboxLogo} alt="" />;
+  if (provider === 'mega') return (
+    <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+      <circle cx="12" cy="12" r="12" fill="#df1c2b" />
+      <path d="M6.8 16.6V8.2h1.3L12 12l3.9-3.8h1.3v8.4h-2.1v-5.3L12 14.2l-3.1-2.9v5.3z" fill="#fff" stroke="#fff" strokeWidth=".7" strokeLinejoin="round" />
+    </svg>
+  );
+  // Repli neutre si un fournisseur inconnu est ajouté plus tard.
+  return <svg viewBox="0 0 24 24" aria-hidden focusable="false"><path d="M7 18.5a4.5 4.5 0 0 1-.5-9 5.5 5.5 0 0 1 10.6 1.3 3.9 3.9 0 0 1-.1 7.7Z" fill="none" stroke="currentColor" strokeWidth="1.7" /></svg>;
 }
 
 export function ProviderMark({

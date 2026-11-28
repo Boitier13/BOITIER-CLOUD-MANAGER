@@ -28,6 +28,7 @@ export type FileType =
   | 'archive'
   | 'audio'
   | 'subtitle'
+  | 'application'
   | 'other';
 
 export const KB = 1024;
@@ -136,6 +137,12 @@ const EXT_TYPES: Record<string, FileType> = {
   avi: 'video',
   mov: 'video',
   webm: 'video',
+  ts: 'video',
+  flv: 'video',
+  mpeg: 'video',
+  mpg: 'video',
+  wmv: 'video',
+  '3gp': 'video',
   m4v: 'video',
   pdf: 'document',
   doc: 'document',
@@ -165,10 +172,17 @@ const EXT_TYPES: Record<string, FileType> = {
   flac: 'audio',
   wav: 'audio',
   m4a: 'audio',
+  aac: 'audio',
+  ogg: 'audio',
+  opus: 'audio',
+  wma: 'audio',
   srt: 'subtitle',
   vtt: 'subtitle',
   fig: 'other',
-  exe: 'other',
+  exe: 'application',
+  msi: 'application',
+  apk: 'application',
+  app: 'application',
 };
 
 export function detectType(name: string): FileType {

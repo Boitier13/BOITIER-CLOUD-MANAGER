@@ -569,6 +569,22 @@ try {
   );
 }
 
+/* Extensions reconnues et rangement : sans lecture du contenu du fichier. */
+{
+  const { detectType } = await import('../../src/data/catalog.ts');
+  const { downloadSubPath } = await import('../../src/lib/organize.ts');
+  const samples = { 'film.MP4': 'video', 'film.ts': 'video', 'film.flv': 'video',
+    'son.m4a': 'audio', 'son.AAC': 'audio', 'livre.pdf': 'document',
+    'document.docx': 'document', 'texte.txt': 'document', 'setup.exe': 'application',
+    'install.msi': 'application', 'image.apk': 'application', 'inconnu.xyz': 'other',
+    'sans-extension': 'other' };
+  for (const [name, expected] of Object.entries(samples))
+    check(`formats : ${name} → ${expected}`, detectType(name) === expected, detectType(name));
+  check('rangement : une application va dans Applications si le rangement est activé',
+    downloadSubPath('gdrive', detectType('setup.exe')) === 'Google Drive/Applications' &&
+    downloadSubPath('gdrive', detectType('setup.exe'), false) === undefined);
+}
+
 /* --- 11bis-quinquies. Un seul dossier pour tous les téléchargements ------- */
 //
 // Les fichiers tombaient directement dans « Téléchargements », mêlés aux
@@ -650,11 +666,8 @@ try {
   );
   check(
     'logos : chaque fournisseur connu a son dessin',
-    (sourceVisuals.match(/<svg/g) ?? []).length >= 2 &&
-      /#d9272e/.test(sourceVisuals) &&
-      /#34a853/.test(sourceVisuals) &&
-      /#fbbc04/.test(sourceVisuals) &&
-      /#4285f4/.test(sourceVisuals),
+    ['gdrive', 'mega', 'shadow', 'terabox'].every((id) => sourceVisuals.includes(`provider === '${id}'`)) &&
+      /shadow-reference\.png/.test(sourceVisuals) && /terabox-reference\.png/.test(sourceVisuals),
     'dessin manquant',
   );
   // Les actions d'une ligne ne sont plus invisibles hors survol : l'icône de

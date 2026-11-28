@@ -318,7 +318,7 @@ export function SearchPage() {
             </p>
           </div>
         ) : (
-          <table className="filetable">
+          <table className="filetable filetable--downloads">
             <thead>
               <tr>
                 <th>Nom</th>
@@ -357,7 +357,7 @@ export function SearchPage() {
                   >
                     <td>
                       <span className="cell-name">
-                        <TypeIcon type={row.node.type} size={13} />
+                        <TypeIcon type={row.node.type} name={row.node.name} size={13} />
                         <span className="cell-name__body">
                           <span className="cell-name__text">{row.node.name}</span>
                           <span className="cell-name__path">
@@ -403,12 +403,12 @@ export function SearchPage() {
                         {!row.node.children ? (
                           <button
                             type="button"
-                            className="icon-btn"
+                            className="download-action"
                             title="Télécharger"
                             aria-label={`Télécharger ${row.node.name}`}
                             onClick={() => download(row.account, row.node)}
                           >
-                            <Download size={13} />
+                            <Download size={15} /> Télécharger
                           </button>
                         ) : null}
                       </div>

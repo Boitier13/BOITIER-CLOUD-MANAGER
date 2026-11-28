@@ -153,7 +153,7 @@ export function Favorites({ onOpenEntry }: FavoritesProps) {
         ) : (
           rows.map(({ fav, entry, account }) => (
             <div className="fav-row" key={`${fav.accountId}-${fav.path.join('/')}`}>
-              <TypeIcon type={entry.node.type} size={13} />
+              <TypeIcon type={entry.node.type} name={entry.node.name} size={13} />
               <div className="fav-row__main">
                 <button
                   type="button"
@@ -186,7 +186,7 @@ export function Favorites({ onOpenEntry }: FavoritesProps) {
                 </div>
                 <button
                   type="button"
-                  className="btn btn--sm"
+                  className="download-action"
                   onClick={() => {
                     // Un compte réel est un compte adossé à une session chez un
                     // fournisseur (Google ou MEGA) : sans cela, le favori MEGA

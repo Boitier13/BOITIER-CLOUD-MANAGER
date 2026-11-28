@@ -330,7 +330,7 @@ export function Home({ onNavigate, onOpenEntry, onAddAccount }: HomeProps) {
                   return (
                     <div className="transfer-mini" key={item.id}>
                       <div className="transfer-mini__top">
-                        <TypeIcon type={item.type} size={12} small />
+                        <TypeIcon type={item.type} name={item.name} size={12} small />
                         <span className="transfer-mini__name">{item.name}</span>
                         {isActive ? (
                           <span className="transfer-mini__pct tnum">
@@ -381,7 +381,7 @@ export function Home({ onNavigate, onOpenEntry, onAddAccount }: HomeProps) {
                     className="recent-row"
                     onClick={() => onOpenEntry(entry)}
                   >
-                    <TypeIcon type={entry.node.type as FileType} size={12} small />
+                    <TypeIcon type={entry.node.type as FileType} name={entry.node.name} size={12} small />
                     <span className="recent-row__main">
                       <span className="recent-row__name">{entry.node.name}</span>
                       <span className="recent-row__meta">
@@ -522,7 +522,7 @@ export function Home({ onNavigate, onOpenEntry, onAddAccount }: HomeProps) {
                       className="fav-mini"
                       onClick={() => onOpenEntry(entry)}
                     >
-                      <TypeIcon type={entry.node.type as FileType} size={11} small />
+                      <TypeIcon type={entry.node.type as FileType} name={entry.node.name} size={11} small />
                       <span className="fav-mini__name">{entry.node.name}</span>
                       <span className="fav-mini__meta">
                         {account ? PROVIDERS[account.provider].name : '—'}
